@@ -1,1 +1,151 @@
 @import "tailwindcss";
+
+/* src/index.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection color */
+::selection {
+  background-color: #0958d9;
+  color: white;
+}
+
+::-moz-selection {
+  background-color: #0958d9;
+  color: white;
+}
+
+/* Focus styles */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #0958d9;
+  outline-offset: 2px;
+}
+
+/* Ant Design overrides */
+.ant-btn-primary {
+  box-shadow: 0 2px 8px rgba(9, 88, 217, 0.25); /* blue glow */
+}
+
+.ant-btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(9, 88, 217, 0.35);
+}
+
+/* Card hover effects */
+.ant-card-hoverable {
+  transition: all 0.3s ease;
+}
+
+.ant-card-hoverable:hover {
+  transform: translateY(-2px);
+}
+
+/* Typography adjustments */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .ant-typography h1.ant-typography {
+    font-size: 36px !important;
+  }
+
+  .ant-typography h2.ant-typography {
+    font-size: 28px !important;
+  }
+}
+
+/* Loading animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+/* Gradient text utility (blue gradient now) */
+.gradient-text {
+  background: linear-gradient(135deg, #0958d9 0%, #4096ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Layout constraints */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mt-4 { margin-top: 32px; }
+.mt-5 { margin-top: 40px; }
+
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.mb-3 { margin-bottom: 24px; }
+.mb-4 { margin-bottom: 32px; }
+.mb-5 { margin-bottom: 40px; }
+
+/* Disable text selection on UI elements */
+.ant-btn,
+.ant-card-hoverable {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
