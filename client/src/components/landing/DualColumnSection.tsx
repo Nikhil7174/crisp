@@ -1,5 +1,5 @@
 // src/components/landing/DualColumnSection.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Row, Col } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { UserTypeCard } from './UserTypeCard';
@@ -26,17 +26,17 @@ export const DualColumnSection: React.FC = () => {
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
 
-  const handleStartPracticing = () => {
+  const handleStartPracticing = useCallback(() => {
     navigate('/interview');
-  };
+  }, [navigate]);
 
-  const handleCreateInterview = () => {
+  const handleCreateInterview = useCallback(() => {
     // TODO: Implement interviewer flow
     console.log('Create interview clicked');
-  };
+  }, []);
 
   return (
-    <div style={{ 
+    <div style={{
       padding: '60px 24px',
       maxWidth: 1200,
       margin: '0 auto',
@@ -55,7 +55,7 @@ export const DualColumnSection: React.FC = () => {
             icon={<UserOutlined />}
           />
         </Col>
-        
+
         <Col xs={24} md={12}>
           <UserTypeCard
             type="interviewer"

@@ -1,5 +1,5 @@
 // src/components/landing/UserTypeCard.tsx
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { Card, Typography, Button, Row, Col } from 'antd';
 import { motion } from 'framer-motion';
 import type { UserType } from '../../types';
@@ -30,10 +30,10 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
   onCtaClick,
   icon,
 }) => {
-  const handleCtaClick = (e: React.MouseEvent) => {
+  const handleCtaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onCtaClick?.();
-  };
+  }, [onCtaClick]);
 
   return (
     <motion.div
@@ -45,16 +45,16 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
         style={{
           height: 340,
           borderRadius: borderRadius.xl,
-          border: isActive 
-            ? `2px solid ${colors.primary.main}` 
+          border: isActive
+            ? `2px solid ${colors.primary.main}`
             : `1px solid ${colors.neutral[200]}`,
-          boxShadow: isActive 
-            ? colors.shadows.primary 
+          boxShadow: isActive
+            ? colors.shadows.primary
             : colors.shadows.sm,
           transition: 'all 0.3s ease',
           position: 'relative',
           overflow: 'hidden',
-          background: isActive 
+          background: isActive
             ? colors.primary.light + '10' // 10% opacity
             : colors.background.primary,
         }}
@@ -76,12 +76,12 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
             </Text>
           </div>
         )}
-        
+
         <Row gutter={16} style={{ height: '100%' }}>
           {/* Left Column - Content */}
           <Col span={12} style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'center' }}>
             <div>
-              <Title level={3} style={{ 
+              <Title level={3} style={{
                 marginBottom: spacing.md,
                 color: colors.neutral[900],
                 fontSize: '1.25rem',
@@ -89,20 +89,20 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
               }}>
                 {title}
               </Title>
-              <Paragraph style={{ 
-                color: colors.neutral[600], 
+              <Paragraph style={{
+                color: colors.neutral[600],
                 marginBottom: spacing.lg,
                 fontSize: '0.9rem',
                 lineHeight: 1.5,
               }}>
                 {subtitle}
               </Paragraph>
-              
+
               {/* CTA Button with proper spacing */}
-              <Button 
+              <Button
                 type={isActive ? "primary" : "default"}
                 size="large"
-                style={{ 
+                style={{
                   height: 48,
                   fontSize: 16,
                   fontWeight: 500,
@@ -115,11 +115,11 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
               </Button>
             </div>
           </Col>
-          
+
           {/* Right Column - Demo/Image Area */}
           <Col span={12}>
-            <div style={{ 
-              background: colors.background.secondary, 
+            <div style={{
+              background: colors.background.secondary,
               borderRadius: borderRadius.lg,
               padding: spacing.md,
               height: '100%',

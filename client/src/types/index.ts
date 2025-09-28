@@ -32,6 +32,7 @@ export interface RootState {
   ui: UIState;
   user: UserState;
   session: SessionState;
+  interview: InterviewState;
 }
 
 // New interfaces for interview chat
@@ -76,9 +77,70 @@ export interface InterviewAnswer {
 }
 
 export interface ResumeData {
-  name?: string;
-  email?: string;
-  phone?: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
   text: string;
   fileName: string;
+}
+
+export interface DetailedResumeData {
+  // Personal Information
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  
+  // Education
+  college?: string | null;
+  batch?: string | null;
+  branch?: string | null;
+  degree?: string | null;
+  cgpa?: string | null;
+  
+  // Experience
+  internships?: Array<{
+    company: string;
+    role: string;
+    duration: string;
+    description?: string;
+  }>;
+  
+  projects?: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+    duration?: string;
+  }>;
+  
+  // Skills
+  technicalSkills?: string[];
+  programmingLanguages?: string[];
+  frameworks?: string[];
+  tools?: string[];
+  
+  // Achievements
+  awards?: string[];
+  certifications?: string[];
+  
+  // Additional
+  summary?: string;
+  linkedin?: string | null;
+  github?: string | null;
+}
+
+export interface InterviewState {
+  resumeData: ResumeData | null;
+  detailedResumeData: DetailedResumeData | null;
+  resumeUploadTimestamp: number | null;
+  currentSession: InterviewSession | null;
+  sessionHistory: InterviewSession[];
+  chatMessages: ChatMessage[];
+  isLoading: boolean;
+  isUploading: boolean;
+  isStartingInterview: boolean;
+  isSubmittingAnswer: boolean;
+  error: string | null;
+  lastDataFetch: number | null;
+  cacheExpiry: number;
 }
