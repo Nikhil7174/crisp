@@ -5,6 +5,7 @@ import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { UserTypeCard } from './UserTypeCard';
 import { useUserSelection } from '../../hooks/useUserSelection';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useNavigate } from 'react-router-dom';
 
 const intervieweeFeatures = [
   'AI-powered mock interviews',
@@ -23,6 +24,16 @@ const interviewerFeatures = [
 export const DualColumnSection: React.FC = () => {
   const { activeUserType, selectUserType } = useUserSelection();
   const { isMobile } = useResponsive();
+  const navigate = useNavigate();
+
+  const handleStartPracticing = () => {
+    navigate('/interview');
+  };
+
+  const handleCreateInterview = () => {
+    // TODO: Implement interviewer flow
+    console.log('Create interview clicked');
+  };
 
   return (
     <div style={{ 
@@ -40,6 +51,7 @@ export const DualColumnSection: React.FC = () => {
             ctaText="Start Practicing"
             isActive={activeUserType === 'interviewee'}
             onSelect={() => selectUserType('interviewee')}
+            onCtaClick={handleStartPracticing}
             icon={<UserOutlined />}
           />
         </Col>
@@ -53,6 +65,7 @@ export const DualColumnSection: React.FC = () => {
             ctaText="Create Interview"
             isActive={activeUserType === 'interviewer'}
             onSelect={() => selectUserType('interviewer')}
+            onCtaClick={handleCreateInterview}
             icon={<TeamOutlined />}
           />
         </Col>

@@ -15,6 +15,7 @@ interface UserTypeCardProps {
   ctaText: string;
   isActive: boolean;
   onSelect: () => void;
+  onCtaClick?: () => void;
   icon: React.ReactNode;
 }
 
@@ -26,8 +27,14 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
   ctaText,
   isActive,
   onSelect,
+  onCtaClick,
   icon,
 }) => {
+  const handleCtaClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCtaClick?.();
+  };
+
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -102,6 +109,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
                   borderRadius: borderRadius.md,
                   width: '80%',
                 }}
+                onClick={handleCtaClick}
               >
                 {ctaText}
               </Button>
