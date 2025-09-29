@@ -1,6 +1,5 @@
 // src/hooks/api/useResumeUpload.ts
-import { useState, useCallback } from 'react';
-import { message } from 'antd';
+import { useCallback } from 'react';
 import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { 
@@ -8,188 +7,138 @@ import {
   setDetailedResumeData, 
   setUploading, 
   setLoading, 
-  setError,
-  clearCache 
+  setError 
 } from '../../store/slices/interviewSlice';
-import { sessionManager } from '../../services/SessionManager';
+import SessionManager from '../../services/SessionManager';
 import type { ResumeData, DetailedResumeData } from '../../types';
 
-interface ResumeUploadResponse {
-  success: boolean;
-  data: ResumeData;
-  detailedData?: DetailedResumeData;
-  missingFields: string[];
-  message: string;
-  error?: string;
-}
-
-interface CollectInfoResponse {
-  success: boolean;
-  data: DetailedResumeData;
-  message: string;
-  error?: string;
-}
-
-// Axios instance with interceptors
-const apiClient = axios.create({
-  baseURL: 'http://localhost:3001/api',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor for loading states
-apiClient.interceptors.request.use(
-  (config) => {
-    // Add loading indicator if needed
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const errorMessage = error.response?.data?.error || error.message || 'An error occurred';
-    message.error(errorMessage);
-    return Promise.reject(error);
-  }
-);
+const API_BASE_URL = 'http://localhost:3001/api';
 
 export const useResumeUpload = () => {
   const dispatch = useAppDispatch();
-  const { 
-    resumeData, 
-    detailedResumeData, 
-    resumeUploadTimestamp, 
-    cacheExpiry,
-    isUploading,
-    isLoading,
-    error 
-  } = useAppSelector(state => state.interview);
+  const { resumeData, detailedResumeData, uploading, loading, error } = useAppSelector(state => state.interview);
 
-  const uploadResume = useCallback(async (file: File): Promise<ResumeUploadResponse | null> => {
-    dispatch(setUploading(true));
-    dispatch(setError(null));
-    
-    const formData = new FormData();
-    formData.append('resume', file);
-
+  const uploadResume = useCallback(async (file: File) => {
     try {
-      const response = await apiClient.post('/upload/resume', formData, {
+      dispatch(setUploading(true));
+      dispatch(setError(null));
+
+      console.log('Uploading file:', file.name, file.type, file.size);
+
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      console.log('Sending request to:', `${API_BASE_URL}/upload/resume`);
+
+      const response = await axios.post(`${API_BASE_URL}/upload/resume`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
-      const result: ResumeUploadResponse = response.data;
 
-      if (result.success) {
-        // Store basic resume data in Redux
-        dispatch(setResumeData(result.data));
+      console.log('Response received:', response.data);
+
+      if (response.data.success) {
+        const resumeData: ResumeData = response.data.resumeData;
+        const detailedResumeData: DetailedResumeData = response.data.detailedResumeData;
         
-        // Store detailed data if available
-        if (result.detailedData) {
-          dispatch(setDetailedResumeData(result.detailedData));
-        }
+        console.log('Parsed resume data:', resumeData);
+        console.log('Detailed resume data:', detailedResumeData);
         
-        // Save to session manager for persistence
-        sessionManager.saveSession({
-          sessionId: `temp-${Date.now()}`,
-          resumeData: result.data,
-          detailedResumeData: result.detailedData || {} as DetailedResumeData,
-          interviewSession: {} as any, // Will be populated when interview starts
-          chatMessages: [],
-          createdAt: Date.now()
+        dispatch(setResumeData(resumeData));
+        dispatch(setDetailedResumeData(detailedResumeData));
+        
+        // Save to session
+        SessionManager.saveSession({
+          resumeData,
+          detailedResumeData,
+          timestamp: Date.now()
         });
         
-        message.success('Resume uploaded successfully!');
+        return { resumeData, detailedResumeData };
       } else {
-        dispatch(setError(result.error || 'Failed to upload resume'));
-        message.error(result.error || 'Failed to upload resume');
+        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
       }
-
-      return result;
-    } catch (error) {
-      const errorMessage = 'Failed to upload resume';
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload resume';
       dispatch(setError(errorMessage));
-      return null;
+      throw new Error(errorMessage);
     } finally {
       dispatch(setUploading(false));
     }
   }, [dispatch]);
 
-  const collectMissingInfo = useCallback(async (values: any, resumeData: ResumeData): Promise<CollectInfoResponse | null> => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
-
+  const collectMissingInfo = useCallback(async (info: { name: string; email: string; phone: string }) => {
     try {
-      const response = await apiClient.post('/upload/collect-info', {
-        ...values,
+      dispatch(setLoading(true));
+      dispatch(setError(null));
+
+      console.log('Collecting missing info:', info);
+
+      // Send the data in the format the backend expects
+      const response = await axios.post(`${API_BASE_URL}/upload/collect-info`, {
+        name: info.name,
+        email: info.email,
+        phone: info.phone,
         resumeData: resumeData
       });
 
-      const result: CollectInfoResponse = response.data;
+      console.log('Collect info response:', response.data);
 
-      if (result.success) {
-        // Store the complete detailed resume data
-        dispatch(setDetailedResumeData(result.data));
+      if (response.data.success) {
+        const updatedResumeData: ResumeData = response.data.resumeData;
+        const updatedDetailedResumeData: DetailedResumeData = response.data.detailedResumeData;
         
-        // Update session manager
-        const currentSession = sessionManager.getLastSession();
-        if (currentSession) {
-          sessionManager.saveSession({
-            ...currentSession,
-            detailedResumeData: result.data
-          });
-        }
+        dispatch(setResumeData(updatedResumeData));
+        dispatch(setDetailedResumeData(updatedDetailedResumeData));
         
-        message.success('Information collected successfully!');
+        // Update session
+        SessionManager.saveSession({
+          resumeData: updatedResumeData,
+          detailedResumeData: updatedDetailedResumeData,
+          timestamp: Date.now()
+        });
+        
+        return { resumeData: updatedResumeData, detailedResumeData: updatedDetailedResumeData };
       } else {
-        dispatch(setError(result.error || 'Failed to collect information'));
-        message.error(result.error || 'Failed to collect information');
+        throw new Error('Info collection failed: ' + (response.data.message || 'Unknown error'));
       }
-
-      return result;
-    } catch (error) {
-      const errorMessage = 'Failed to collect information';
+    } catch (error: any) {
+      console.error('Collect info error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to collect missing info';
       dispatch(setError(errorMessage));
-      return null;
+      throw new Error(errorMessage);
     } finally {
       dispatch(setLoading(false));
     }
-  }, [dispatch]);
+  }, [dispatch, resumeData]);
 
-  // Check if cached data is still fresh
-  const isDataFresh = useCallback((): boolean => {
-    if (!resumeUploadTimestamp) return false;
-    return (Date.now() - resumeUploadTimestamp) < cacheExpiry;
-  }, [resumeUploadTimestamp, cacheExpiry]);
+  const isDataFresh = useCallback(() => {
+    const session = SessionManager.getLastSession();
+    if (!session) return false;
+    
+    const oneHour = 60 * 60 * 1000;
+    return Date.now() - session.timestamp < oneHour;
+  }, []);
 
-  // Get cached resume data if fresh, otherwise return null
-  const getCachedResumeData = useCallback((): ResumeData | null => {
-    return isDataFresh() ? resumeData : null;
-  }, [isDataFresh, resumeData]);
+  const getCachedResumeData = useCallback(() => {
+    const session = SessionManager.getLastSession();
+    return session?.resumeData || null;
+  }, []);
 
-  // Get cached detailed resume data if fresh, otherwise return null
-  const getCachedDetailedData = useCallback((): DetailedResumeData | null => {
-    return isDataFresh() ? detailedResumeData : null;
-  }, [isDataFresh, detailedResumeData]);
+  const getCachedDetailedData = useCallback(() => {
+    const session = SessionManager.getLastSession();
+    return session?.detailedResumeData || null;
+  }, []);
 
-  // Clear cache manually
   const clearResumeCache = useCallback(() => {
-    dispatch(clearCache());
-    sessionManager.clearSession();
-  }, [dispatch]);
+    SessionManager.clearSession();
+  }, []);
 
-  // Restore session from localStorage
   const restoreSession = useCallback(() => {
-    const session = sessionManager.getLastSession();
-    if (session && sessionManager.isSessionValid(session)) {
+    const session = SessionManager.getLastSession();
+    if (session && SessionManager.isSessionValid(session)) {
       dispatch(setResumeData(session.resumeData));
       dispatch(setDetailedResumeData(session.detailedResumeData));
       return session;
@@ -198,15 +147,17 @@ export const useResumeUpload = () => {
   }, [dispatch]);
 
   return {
+    resumeData,
+    detailedResumeData,
+    uploading,
+    loading,
+    error,
     uploadResume,
     collectMissingInfo,
-    uploading: isUploading,
-    loading: isLoading,
-    error,
-    resumeData: getCachedResumeData(),
-    detailedResumeData: getCachedDetailedData(),
-    isDataFresh: isDataFresh(),
+    isDataFresh,
+    getCachedResumeData,
+    getCachedDetailedData,
     clearResumeCache,
-    restoreSession,
+    restoreSession
   };
 };

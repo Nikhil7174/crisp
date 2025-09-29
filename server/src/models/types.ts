@@ -7,6 +7,51 @@ export interface Candidate {
   createdAt: Date;
 }
 
+export interface DetailedResumeData {
+  // Personal Information
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+
+  // Education
+  college?: string | null;
+  batch?: string | null;
+  branch?: string | null;
+  degree?: string | null;
+  cgpa?: string | null;
+
+  // Experience
+  internships?: Array<{
+    company: string;
+    role: string;
+    duration: string;
+    description?: string;
+  }>;
+
+  projects?: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+    duration?: string;
+  }>;
+
+  // Skills
+  technicalSkills?: string[];
+  programmingLanguages?: string[];
+  frameworks?: string[];
+  tools?: string[];
+
+  // Achievements
+  awards?: string[];
+  certifications?: string[];
+
+  // Additional
+  summary?: string;
+  linkedin?: string | null;
+  github?: string | null;
+}
+
 export interface InterviewSession {
   id: string;
   candidateId: string;
@@ -17,7 +62,13 @@ export interface InterviewSession {
   endTime?: Date;
   duration?: number;
   score?: number;
-  feedback?: string;
+  summary?: string;
+}
+
+export interface MultipleChoiceOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
 }
 
 export interface InterviewQuestion {
@@ -25,17 +76,22 @@ export interface InterviewQuestion {
   question: string;
   type: 'behavioral' | 'technical' | 'situational';
   difficulty: 'easy' | 'medium' | 'hard';
-  timeLimit: number;
+  timeLimit: number; // seconds
   askedAt?: Date;
+  // Add multiple choice fields
+  options: MultipleChoiceOption[];
+  correctAnswerId: string;
 }
 
 export interface InterviewAnswer {
   questionId: string;
-  answer: string;
+  answer: string; // This will now be the selected option text
+  selectedOptionId: string; // New field for the selected option ID
   answeredAt: Date;
-  timeTaken: number;
+  timeTaken: number; // seconds
   score?: number;
   feedback?: string;
+  isCorrect?: boolean; // New field to track if answer was correct
 }
 
 export interface ResumeData {
@@ -53,4 +109,17 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   metadata?: any;
+}
+
+export interface FinalResults {
+  sessionId: string;
+  finalScore: number;
+  summary: string;
+  answers: Array<{
+    question: string;
+    answer: string;
+    score: number;
+    timeTaken: number;
+  }>;
+  duration: number;
 }

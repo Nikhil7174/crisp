@@ -1,12 +1,13 @@
 // src/components/interview/InterviewSession.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Typography, Space, Button, Input, message } from 'antd';
-import { RobotOutlined, SendOutlined, UserOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, Typography, Space, Button, notification } from 'antd';
+import { RobotOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
+import { ChatContainer } from './chat';
+import SessionManager from '../../services/SessionManager';
 import type { InterviewSession as InterviewSessionType, ChatMessage } from '../../types';
 
-const { Title, Paragraph, Text } = Typography;
-const { TextArea } = Input;
+const { Title, Paragraph } = Typography;
 
 interface InterviewSessionProps {
   onStartNew: () => void;
@@ -23,16 +24,30 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
   onStartInterview,
   onSubmitAnswer
 }) => {
-  const [currentAnswer, setCurrentAnswer] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Remove all the useEffect logic and just use simple state
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
 
-  // Get current question
-  const currentQuestion = currentSession?.questions?.[currentQuestionIndex];
+  // Memoize current question to avoid recalculation
+  const currentQuestion = useMemo(() => {
+    const question = currentSession?.questions?.[currentQuestionIndex];
+    console.log('Current question index:', currentQuestionIndex);
+    console.log('Current question:', question?.id);
+    console.log('Total questions:', currentSession?.questions?.length);
+    return question;
+  }, [currentSession?.questions, currentQuestionIndex]);
 
-  // Start interview when component mounts
+  // Start interview when component mounts - BUT ONLY IF NO SESSION EXISTS
   useEffect(() => {
-    if (!currentSession && onStartInterview) {
+    // Check if there's a stored session first
+    const storedSession = SessionManager.getLastSession();
+    const hasStoredSession = storedSession && storedSession.currentSession;
+
+    // Only start new interview if NO currentSession exists AND no stored session AND no chatMessages
+    if (!currentSession && !hasStoredSession && !chatMessages.length && onStartInterview && !sessionStarted) {
+      setSessionStarted(true);
+
       // Start new interview
       const candidateData = {
         id: `candidate-${Date.now()}`,
@@ -40,172 +55,102 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
       };
 
       onStartInterview(candidateData).catch(error => {
-        console.error('Failed to start interview:', error);
-        message.error('Failed to start interview');
+        notification.error({
+          message: 'Failed to start interview',
+          description: error.message || 'Please try again'
+        });
+        setSessionStarted(false);
       });
     }
-  }, [currentSession, onStartInterview]);
+  }, [currentSession, chatMessages.length, onStartInterview, sessionStarted]);
 
-  const handleAnswerSubmit = useCallback(async () => {
-    if (!currentAnswer.trim() || !currentQuestion || !onSubmitAnswer || !currentSession) {
+  const handleAnswerSubmit = useCallback(async (selectedOptionId: string) => {
+    if (!currentQuestion || !onSubmitAnswer || !currentSession) {
       return;
     }
+
+    console.log('Submitting answer for question:', currentQuestion.id);
+    console.log('Current question index before submit:', currentQuestionIndex);
 
     setIsSubmitting(true);
     const startTime = Date.now();
 
     try {
       const result = await onSubmitAnswer(
-        currentSession.id,
+        currentSession.sessionId,
         currentQuestion.id,
-        currentAnswer.trim(),
+        selectedOptionId,
         Date.now() - startTime
       );
 
       if (result?.success) {
-        setCurrentAnswer('');
-
-        // Move to next question or complete interview
+        console.log('Answer submitted successfully');
+        console.log('Is complete:', result.isComplete);
+        
+        // Move to next question or complete interview immediately
         if (result.isComplete) {
-          message.success('Interview completed! Great job!');
+          notification.success({
+            message: 'Interview completed!',
+            description: 'Great job! You\'ve finished all questions.'
+          });
         } else {
-          setCurrentQuestionIndex(prev => prev + 1);
+          console.log('Moving to next question. Current index:', currentQuestionIndex);
+          setCurrentQuestionIndex(prev => {
+            console.log('Previous index:', prev, 'New index:', prev + 1);
+            return prev + 1;
+          });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to submit answer:', error);
-      message.error('Failed to submit answer');
+      notification.error({
+        message: 'Failed to submit answer',
+        description: error.message || 'Please try again'
+      });
     } finally {
       setIsSubmitting(false);
     }
-  }, [currentAnswer, currentQuestion, onSubmitAnswer, currentSession]);
+  }, [currentQuestion, onSubmitAnswer, currentSession, currentQuestionIndex]);
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleAnswerSubmit();
+  const handleTimerExpire = useCallback(() => {
+    if (currentQuestion && !isSubmitting) {
+      notification.warning({
+        message: 'Time\'s up!',
+        description: 'Moving to next question...'
+      });
+      handleAnswerSubmit('timeout'); // Submit timeout answer when timer expires
     }
-  }, [handleAnswerSubmit]);
+  }, [currentQuestion, isSubmitting, handleAnswerSubmit]);
 
-  const renderChatMessages = useCallback(() => {
-    if (chatMessages.length === 0) {
+  const renderInterviewContent = useCallback(() => {
+    if (!currentSession) {
       return (
-        <div style={{
-          textAlign: 'center',
-          color: colors.neutral[500],
-          padding: spacing.lg
-        }}>
-          <RobotOutlined style={{ fontSize: 48, marginBottom: spacing.md }} />
-          <div>No messages yet. The interview will begin shortly...</div>
-        </div>
-      );
-    }
-
-    return chatMessages.map((msg) => (
-      <div
-        key={msg.id}
-        style={{
-          display: 'flex',
-          justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start',
-          marginBottom: spacing.md
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '70%',
-            padding: spacing.md,
-            borderRadius: 12,
-            backgroundColor: msg.type === 'user'
-              ? colors.primary.main
-              : colors.neutral[100],
-            color: msg.type === 'user'
-              ? 'white'
-              : colors.neutral[800]
-          }}
-        >
-          <div style={{ marginBottom: spacing.xs }}>
-            {msg.type === 'user' ? (
-              <UserOutlined style={{ marginRight: spacing.xs }} />
-            ) : (
-              <RobotOutlined style={{ marginRight: spacing.xs }} />
-            )}
-            <Text strong style={{
-              color: msg.type === 'user' ? 'white' : colors.neutral[600],
-              fontSize: 12
-            }}>
-              {msg.type === 'user' ? 'You' : msg.type === 'assistant' ? 'AI Interviewer' : 'System'}
-            </Text>
-          </div>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-          <div style={{
-            fontSize: 10,
-            opacity: 0.7,
-            marginTop: spacing.xs
-          }}>
-            {new Date(msg.timestamp).toLocaleTimeString()}
-          </div>
-        </div>
-      </div>
-    ));
-  }, [chatMessages]);
-
-  const renderCurrentQuestion = useCallback(() => {
-    if (!currentQuestion) {
-      return (
-        <div style={{ textAlign: 'center', padding: spacing.lg }}>
-          <Text type="secondary">Waiting for questions...</Text>
+        <div style={{ textAlign: 'center', padding: spacing.xl }}>
+          <RobotOutlined style={{ fontSize: 64, color: colors.primary.main, marginBottom: spacing.md }} />
+          <Title level={3}>Starting Your Interview</Title>
+          <Paragraph>
+            Preparing your personalized interview questions based on your resume...
+          </Paragraph>
         </div>
       );
     }
 
     return (
-      <div style={{ marginBottom: spacing.lg }}>
-        <div style={{
-          padding: spacing.md,
-          backgroundColor: colors.primary.light,
-          borderRadius: 8,
-          marginBottom: spacing.md
-        }}>
-          <Text strong style={{ color: colors.primary.dark }}>
-            Question {currentQuestionIndex + 1} of {currentSession?.questions?.length || 0}
-          </Text>
-        </div>
-
-        <div style={{
-          padding: spacing.md,
-          backgroundColor: colors.neutral[50],
-          borderRadius: 8,
-          marginBottom: spacing.md
-        }}>
-          <Text>{currentQuestion.question}</Text>
-        </div>
-
-        <TextArea
-          value={currentAnswer}
-          onChange={(e) => setCurrentAnswer(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Type your answer here..."
-          rows={4}
-          disabled={isSubmitting}
-          style={{ marginBottom: spacing.md }}
-        />
-
-        <Button
-          type="primary"
-          icon={<SendOutlined />}
-          onClick={handleAnswerSubmit}
-          loading={isSubmitting}
-          disabled={!currentAnswer.trim()}
-          style={{ width: '100%' }}
-        >
-          Submit Answer
-        </Button>
-      </div>
+      <ChatContainer
+        currentQuestion={currentQuestion}
+        questionIndex={currentQuestionIndex}
+        totalQuestions={currentSession.questions.length}
+        onSubmitAnswer={handleAnswerSubmit}
+        onTimerExpire={handleTimerExpire}
+        loading={isSubmitting}
+        disabled={isSubmitting}
+        currentSession={currentSession}
+      />
     );
-  }, [currentQuestion, currentQuestionIndex, currentSession, currentAnswer, handleKeyPress, handleAnswerSubmit, isSubmitting]);
+  }, [currentSession, currentQuestion, currentQuestionIndex, handleAnswerSubmit, handleTimerExpire, isSubmitting]);
 
   return (
-    <Card style={{ maxWidth: 800, margin: '0 auto' }}>
+    <Card style={{ maxWidth: 900, margin: '0 auto' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Title level={3}>AI Interview Session</Title>
@@ -217,28 +162,16 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
           </Paragraph>
         </div>
 
-        {/* Chat Messages */}
-        <div style={{
-          height: 400,
-          border: `1px solid ${colors.neutral[200]}`,
-          borderRadius: 8,
-          padding: spacing.md,
-          overflowY: 'auto',
-          backgroundColor: colors.background.secondary
-        }}>
-          {renderChatMessages()}
-        </div>
-
-        {/* Current Question */}
-        {currentSession && renderCurrentQuestion()}
+        {/* Chat Interface */}
+        {renderInterviewContent()}
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: spacing.md }}>
+        <div style={{ display: 'flex', gap: spacing.md, justifyContent: 'center' }}>
           <Button
             type="primary"
             size="large"
             onClick={onStartNew}
-            style={{ flex: 1 }}
+            style={{ minWidth: 200 }}
           >
             Start New Interview
           </Button>

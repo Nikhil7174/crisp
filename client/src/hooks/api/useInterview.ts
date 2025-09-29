@@ -1,280 +1,176 @@
 // src/hooks/api/useInterview.ts
-import { useState, useCallback } from 'react';
-import { message } from 'antd';
+import { useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { 
-  setCurrentSession, 
-  updateSession, 
-  addChatMessage, 
+import {
+  setCurrentSession,
+  updateSession,
+  addChatMessage,
   setChatMessages,
-  setStartingInterview, 
-  setSubmittingAnswer, 
-  setError,
-  resetSession 
+  setStartingInterview,
+  setSubmittingAnswer,
+  setError
 } from '../../store/slices/interviewSlice';
-import { sessionManager } from '../../services/SessionManager';
-import type { InterviewSession, ChatMessage } from '../../types';
+import SessionManager from '../../services/SessionManager';
+import type { DetailedResumeData, ChatMessage } from '../../types';
 
-interface StartInterviewResponse {
-  success: boolean;
-  sessionId: string;
-  questions: any[];
-  message: string;
-  error?: string;
-}
-
-interface SubmitAnswerResponse {
-  success: boolean;
-  evaluation: {
-    score: number;
-    feedback: string;
-  };
-  isComplete: boolean;
-  nextQuestion: any;
-  message: string;
-  error?: string;
-}
-
-// Axios instance with interceptors
-const apiClient = axios.create({
-  baseURL: 'http://localhost:3001/api',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor for loading states
-apiClient.interceptors.request.use(
-  (config) => {
-    // Add loading indicator if needed
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const errorMessage = error.response?.data?.error || error.message || 'An error occurred';
-    message.error(errorMessage);
-    return Promise.reject(error);
-  }
-);
+const API_BASE_URL = 'http://localhost:3001/api';
 
 export const useInterview = () => {
   const dispatch = useAppDispatch();
-  const { 
-    currentSession, 
-    sessionHistory, 
-    chatMessages,
-    isStartingInterview,
-    isSubmittingAnswer,
-    error 
-  } = useAppSelector(state => state.interview);
+  const { currentSession, chatMessages, isStartingInterview, isSubmittingAnswer, error } = useAppSelector(state => state.interview);
 
-  const startInterview = useCallback(async (candidateData: any): Promise<StartInterviewResponse | null> => {
-    dispatch(setStartingInterview(true));
-    dispatch(setError(null));
-    
+  // Memoize the stored session to avoid multiple calls
+  const storedSession = useMemo(() => {
+    return SessionManager.getLastSession();
+  }, [currentSession?.sessionId]); // Only recalculate when session ID changes
+
+  const startInterview = useCallback(async (candidateData: DetailedResumeData) => {
     try {
-      const response = await apiClient.post('/interview/start', {
+      dispatch(setStartingInterview(true));
+      dispatch(setError(null));
+
+      const response = await axios.post(`${API_BASE_URL}/interview/start`, {
         candidateData
       });
-      
-      const result: StartInterviewResponse = response.data;
-      
-      if (result.success) {
-        // Create interview session object
-        const session: InterviewSession = {
-          id: result.sessionId,
-          candidateId: candidateData.id || 'temp-id',
-          status: 'in_progress',
-          questions: result.questions,
-          answers: [],
-          startTime: new Date(),
-        };
-        
-        // Store session in Redux
+
+      if (response.data.success) {
+        const session = response.data;
+
+        // FIXED: Clear Redux chat messages when starting new interview
+        dispatch(setChatMessages([]));
+
         dispatch(setCurrentSession(session));
-        
-        // Save to session manager for persistence
-        const currentStoredSession = sessionManager.getLastSession();
-        if (currentStoredSession) {
-          sessionManager.saveSession({
-            ...currentStoredSession,
-            sessionId: result.sessionId,
-            interviewSession: session,
-            chatMessages: []
-          });
+
+        // Save session to localStorage
+        SessionManager.saveSession(session);
+
+        // Check the actual stored session (use memoized value)
+        const storedChatMessages = storedSession?.chatMessages || [];
+        const hasStoredAssistantMessages = storedChatMessages.some(msg => msg.type === 'assistant');
+
+
+        // Only add first question if no stored chat messages exist AND no stored assistant messages exist
+        if (session.questions && session.questions.length > 0 && storedChatMessages.length === 0 && !hasStoredAssistantMessages) {
+          const firstQuestion = session.questions[0];
+
+          const questionMessage: ChatMessage = {
+            id: `msg-${Date.now()}`,
+            sessionId: session.sessionId,
+            type: 'assistant',
+            content: firstQuestion.question,
+            timestamp: new Date().toISOString()
+          };
+
+          dispatch(addChatMessage(questionMessage));
+          SessionManager.addChatMessage(questionMessage);
         }
-        
-        // Add system message to chat
-        const systemMessage: ChatMessage = {
-          id: `msg-${Date.now()}`,
-          sessionId: result.sessionId,
-          type: 'system',
-          content: 'Interview session started. The AI will now ask you questions based on your resume.',
-          timestamp: new Date(),
-        };
-        
-        dispatch(addChatMessage(systemMessage));
-        sessionManager.addChatMessage(systemMessage);
-        
-        message.success('Interview started successfully!');
-      } else {
-        dispatch(setError(result.error || 'Failed to start interview'));
-        message.error(result.error || 'Failed to start interview');
+
+        return session;
       }
-      
-      return result;
-    } catch (error) {
-      const errorMessage = 'Failed to start interview';
+    } catch (error: any) {
+      console.error(' useInterview: Start interview error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to start interview';
       dispatch(setError(errorMessage));
-      return null;
+      throw new Error(errorMessage);
     } finally {
       dispatch(setStartingInterview(false));
     }
-  }, [dispatch]);
+  }, [dispatch, storedSession]); // Add storedSession to dependencies
 
-  const submitAnswer = useCallback(async (sessionId: string, questionId: string, answer: string, timeTaken: number): Promise<SubmitAnswerResponse | null> => {
-    dispatch(setSubmittingAnswer(true));
-    dispatch(setError(null));
-    
+  const submitAnswer = useCallback(async (
+    sessionId: string,
+    questionId: string,
+    selectedOptionId: string,
+    timeTaken: number
+  ) => {
     try {
-      const response = await apiClient.post('/interview/answer', {
+      dispatch(setSubmittingAnswer(true));
+      dispatch(setError(null));
+
+      const response = await axios.post(`${API_BASE_URL}/interview/answer`, {
         sessionId,
         questionId,
-        answer,
+        selectedOptionId,
         timeTaken
       });
-      
-      const result: SubmitAnswerResponse = response.data;
-      
-      if (result.success) {
-        // Update current session with new answer
+
+      if (response.data.success) {
+        // Update the current session with the new answer
         if (currentSession) {
+          // FIXED: Create the answer object with the correct structure
+          const newAnswer = {
+            questionId,
+            answer: selectedOptionId === 'timeout' ? 'No answer selected (timeout)' : `Selected: ${selectedOptionId}`,
+            selectedOptionId: selectedOptionId === 'timeout' ? 'timeout' : selectedOptionId, // This was the issue!
+            answeredAt: new Date(),
+            timeTaken: timeTaken || 0,
+            isCorrect: response.data.isCorrect
+          };
+
+          // Update session locally
           const updatedSession = {
             ...currentSession,
-            answers: [
-              ...currentSession.answers,
-              {
-                questionId,
-                answer,
-                answeredAt: new Date(),
-                timeTaken,
-                score: result.evaluation.score,
-                feedback: result.evaluation.feedback,
-              }
-            ]
+            answers: [...(currentSession.answers || []), newAnswer]
           };
-          
-          // Update session status if complete
-          if (result.isComplete) {
-            updatedSession.status = 'completed';
-            updatedSession.endTime = new Date();
-            updatedSession.duration = updatedSession.endTime.getTime() - updatedSession.startTime.getTime();
-            
-            // Mark session as completed in session manager
-            sessionManager.completeSession();
-          }
-          
+
           dispatch(updateSession(updatedSession));
-          
-          // Update session manager
-          sessionManager.updateInterviewSession(updatedSession);
+          SessionManager.saveSession(updatedSession);
+
+          // Check if all questions are answered using the updated session
+          const allQuestionsAnswered = updatedSession.questions.length === updatedSession.answers.length;
+
+          // Only add next question message if not all questions are answered
+          if (!allQuestionsAnswered) {
+            const nextQuestion = response.data.nextQuestion;
+            if (nextQuestion) {
+              const questionMessage: ChatMessage = {
+                id: `msg-${Date.now() + 1}`,
+                sessionId,
+                type: 'assistant',
+                content: nextQuestion.question,
+                timestamp: new Date().toISOString()
+              };
+
+              dispatch(addChatMessage(questionMessage));
+              SessionManager.addChatMessage(questionMessage);
+            }
+          }
         }
-        
-        // Add user message to chat
-        const userMessage: ChatMessage = {
-          id: `msg-${Date.now()}`,
-          sessionId,
-          type: 'user',
-          content: answer,
-          timestamp: new Date(),
-        };
-        dispatch(addChatMessage(userMessage));
-        sessionManager.addChatMessage(userMessage);
-        
-        // Add AI feedback message to chat
-        const aiMessage: ChatMessage = {
-          id: `msg-${Date.now() + 1}`,
-          sessionId,
-          type: 'assistant',
-          content: `Score: ${result.evaluation.score}/10\n\nFeedback: ${result.evaluation.feedback}`,
-          timestamp: new Date(),
-        };
-        dispatch(addChatMessage(aiMessage));
-        sessionManager.addChatMessage(aiMessage);
-        
-        message.success('Answer submitted successfully!');
-      } else {
-        dispatch(setError(result.error || 'Failed to submit answer'));
-        message.error(result.error || 'Failed to submit answer');
+
+        return response.data;
       }
-      
-      return result;
-    } catch (error) {
-      const errorMessage = 'Failed to submit answer';
+    } catch (error: any) {
+      console.error(' useInterview: Submit answer error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to submit answer';
       dispatch(setError(errorMessage));
-      return null;
+      throw new Error(errorMessage);
     } finally {
       dispatch(setSubmittingAnswer(false));
     }
   }, [dispatch, currentSession]);
 
-  // Get current session from Redux
-  const getCurrentSession = useCallback((): InterviewSession | null => {
+  const getCurrentSession = useCallback(() => {
     return currentSession;
   }, [currentSession]);
 
-  // Get session history from Redux
-  const getSessionHistory = useCallback((): InterviewSession[] => {
-    return sessionHistory;
-  }, [sessionHistory]);
+  const restoreSession = useCallback((session: any) => {
+    dispatch(setCurrentSession(session));
 
-  // Get chat messages for current session
-  const getChatMessages = useCallback((): ChatMessage[] => {
-    return chatMessages;
-  }, [chatMessages]);
-
-  // Reset current session
-  const resetCurrentSession = useCallback(() => {
-    dispatch(resetSession());
-    sessionManager.clearSession();
-  }, [dispatch]);
-
-  // Restore session from localStorage
-  const restoreSession = useCallback(() => {
-    const session = sessionManager.getLastSession();
-    if (session && sessionManager.isSessionValid(session)) {
-      dispatch(setCurrentSession(session.interviewSession));
-      dispatch(setChatMessages(session.chatMessages));
-      return session;
-    }
-    return null;
-  }, [dispatch]);
-
-  // Add chat message (for manual chat interactions)
-  const addChatMessage = useCallback((message: ChatMessage) => {
-    dispatch(addChatMessage(message));
-    sessionManager.addChatMessage(message);
+    // Restore chat messages
+    const messages = SessionManager.getLastSession()?.chatMessages || [];
+    dispatch(setChatMessages(messages));
   }, [dispatch]);
 
   return {
+    currentSession,
+    chatMessages,
+    startingInterview: isStartingInterview,
+    submittingAnswer: isSubmittingAnswer,
+    error,
     startInterview,
     submitAnswer,
-    loading: isStartingInterview || isSubmittingAnswer,
-    error,
-    currentSession: getCurrentSession(),
-    sessionHistory: getSessionHistory(),
-    chatMessages: getChatMessages(),
-    resetCurrentSession,
-    restoreSession,
-    addChatMessage,
+    getCurrentSession,
+    restoreSession
   };
 };

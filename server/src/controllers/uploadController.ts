@@ -18,30 +18,28 @@ export class UploadController {
       const { buffer, originalname } = req.file;
       
       // Parse the resume using AI
-      const resumeData: DetailedResumeData = await this.resumeParser.parseResume(buffer, originalname);
+      const detailedResumeData: DetailedResumeData = await this.resumeParser.parseResume(buffer, originalname);
       
       // Check if we have the essential information (name, email, phone)
       const missingFields = [];
-      if (!resumeData.name) missingFields.push('name');
-      if (!resumeData.email) missingFields.push('email');
-      if (!resumeData.phone) missingFields.push('phone');
+      if (!detailedResumeData.name) missingFields.push('name');
+      if (!detailedResumeData.email) missingFields.push('email');
+      if (!detailedResumeData.phone) missingFields.push('phone');
       
-      // Prepare response with detailed resume data
+      // Create resumeData for backward compatibility
+      const resumeData = {
+        name: detailedResumeData.name,
+        email: detailedResumeData.email,
+        phone: detailedResumeData.phone,
+        text: detailedResumeData.text,
+        fileName: detailedResumeData.fileName
+      };
+      
+      // Prepare response with both formats
       const response = {
         success: true,
-        data: {
-          // Essential fields for backward compatibility
-          name: resumeData.name,
-          email: resumeData.email,
-          phone: resumeData.phone,
-          text: resumeData.text,
-          fileName: resumeData.fileName,
-          
-          // Detailed structured data
-          personalInfo: resumeData.personalInfo,
-          experience: resumeData.experience,
-          technicalSkills: resumeData.technicalSkills
-        },
+        resumeData,
+        detailedResumeData,
         missingFields,
         message: missingFields.length > 0 
           ? `Please provide: ${missingFields.join(', ')}`
@@ -87,6 +85,13 @@ export class UploadController {
         ...resumeData,
         name,
         email,
+        phone
+      };
+      
+      const completeDetailedResumeData = {
+        ...resumeData,
+        name,
+        email,
         phone,
         personalInfo: {
           ...resumeData.personalInfo,
@@ -98,7 +103,8 @@ export class UploadController {
       
       res.json({
         success: true,
-        data: completeResumeData,
+        resumeData: completeResumeData,
+        detailedResumeData: completeDetailedResumeData,
         message: 'Candidate information collected successfully'
       });
       

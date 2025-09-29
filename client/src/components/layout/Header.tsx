@@ -10,6 +10,12 @@ const { Header: AntHeader } = Layout;
 export const Header: React.FC = () => {
   const { isMobile } = useResponsive();
 
+  const menuItems = [
+    { key: 'features', label: 'Features' },
+    { key: 'pricing', label: 'Pricing' },
+    { key: 'about', label: 'About' }
+  ];
+
   return (
     <AntHeader 
       style={{ 
@@ -50,16 +56,13 @@ export const Header: React.FC = () => {
         {!isMobile && (
           <Menu 
             mode="horizontal" 
+            items={menuItems}
             style={{ 
               border: 'none', 
               flex: 1, 
               justifyContent: 'center' 
             }}
-          >
-            <Menu.Item key="features">Features</Menu.Item>
-            <Menu.Item key="pricing">Pricing</Menu.Item>
-            <Menu.Item key="about">About</Menu.Item>
-          </Menu>
+          />
         )}
         
         <Space>

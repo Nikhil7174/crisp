@@ -1,170 +1,176 @@
 // src/components/interview/InfoCollection.tsx
-import React from 'react';
-import { Card, Typography, Space, Form, Input, Button } from 'antd';
+import React, { useEffect, useCallback, useMemo } from 'react';
+import { Card, Typography, Space, Form, Input, Button, Spin } from 'antd';
 import { CheckCircleOutlined, EditOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
+import type { ResumeData, DetailedResumeData } from '../../types';
 
 const { Title, Paragraph, Text } = Typography;
 
 interface InfoCollectionProps {
-  resumeData: any;
-  onCollectInfo: (values: any) => void;
+  resumeData: ResumeData | null;
+  detailedResumeData: DetailedResumeData | null;
+  onSubmit: (info: { name: string; email: string; phone: string }) => void;
   loading: boolean;
+  error?: string | null;
 }
 
-export const InfoCollection: React.FC<InfoCollectionProps> = ({ 
-  resumeData, 
-  onCollectInfo, 
-  loading 
+export const InfoCollection: React.FC<InfoCollectionProps> = ({
+  resumeData,
+  onSubmit,
+  loading,
+  error
 }) => {
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    form.setFieldsValue({
+      name: resumeData?.name || '',
+      email: resumeData?.email || '',
+      phone: resumeData?.phone || '',
+    });
+  }, [resumeData, form]);
+
+  const handleSubmit = useCallback((values: { name: string; email: string; phone: string }) => {
+    onSubmit(values);
+  }, [onSubmit]);
+
+  const getFieldHelp = useCallback((fieldName: string) => {
+    const hasValue = resumeData?.[fieldName as keyof ResumeData];
+    return hasValue ? (
+      <Text type="secondary" style={{ color: colors.success.main }}>
+        <CheckCircleOutlined /> Extracted from your resume
+      </Text>
+    ) : (
+      'This field is required'
+    );
+  }, [resumeData]);
+
+  const getFieldStatus = useCallback((fieldName: string) => {
+    const hasValue = resumeData?.[fieldName as keyof ResumeData];
+    return {
+      style: hasValue ? {
+        backgroundColor: colors.success.light + '20',
+        borderColor: colors.success.main
+      } : {},
+      prefix: hasValue ? <EditOutlined style={{ color: colors.success.main }} /> : undefined
+    };
+  }, [resumeData]);
+
+  // Memoize initial form values
+  const initialValues = useMemo(() => ({
+    name: resumeData?.name || '',
+    email: resumeData?.email || '',
+    phone: resumeData?.phone || '',
+  }), [resumeData]);
+
+  // Memoize error display
+  const errorDisplay = useMemo(() => {
+    if (!error) return null;
+
+    return (
+      <div style={{
+        padding: spacing.md,
+        backgroundColor: colors.error.light + '20',
+        border: `1px solid ${colors.error.main}`,
+        borderRadius: 8,
+        color: colors.error.main
+      }}>
+        <strong>Error:</strong> {error}
+      </div>
+    );
+  }, [error]);
+
+  // Memoize form fields
+  const nameField = useMemo(() => (
+    <Form.Item
+      label="Name"
+      name="name"
+      rules={[{ required: true, message: 'Please enter your name!' }]}
+      help={getFieldHelp('name')}
+    >
+      <Input
+        placeholder="Your Name"
+        {...getFieldStatus('name')}
+        disabled={loading}
+      />
+    </Form.Item>
+  ), [getFieldHelp, getFieldStatus, loading]);
+
+  const emailField = useMemo(() => (
+    <Form.Item
+      label="Email"
+      name="email"
+      rules={[
+        { required: true, message: 'Please enter your email!' },
+        { type: 'email', message: 'Please enter a valid email!' }
+      ]}
+      help={getFieldHelp('email')}
+    >
+      <Input
+        placeholder="Your Email"
+        {...getFieldStatus('email')}
+        disabled={loading}
+      />
+    </Form.Item>
+  ), [getFieldHelp, getFieldStatus, loading]);
+
+  const phoneField = useMemo(() => (
+    <Form.Item
+      label="Phone Number"
+      name="phone"
+      rules={[{ required: true, message: 'Please enter your phone number!' }]}
+      help={getFieldHelp('phone')}
+    >
+      <Input
+        placeholder="Your Phone Number"
+        {...getFieldStatus('phone')}
+        disabled={loading}
+      />
+    </Form.Item>
+  ), [getFieldHelp, getFieldStatus, loading]);
+
+  const submitButton = useMemo(() => (
+    <Form.Item style={{ marginTop: spacing.lg }}>
+      <Button
+        type="primary"
+        htmlType="submit"
+        size="large"
+        block
+        loading={loading}
+        disabled={loading}
+      >
+        {loading ? 'Processing...' : 'Continue to Interview'}
+      </Button>
+    </Form.Item>
+  ), [loading]);
+
   return (
     <Card style={{ maxWidth: 600, margin: '0 auto' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Title level={3}>Complete Your Information</Title>
           <Paragraph>
-            We found some information in your resume. You can review and edit the details below.
+            Please provide any missing information to proceed with your interview.
           </Paragraph>
         </div>
-        
-        <Form 
-          onFinish={onCollectInfo} 
-          layout="vertical"
-          initialValues={{
-            name: resumeData?.name || '',
-            email: resumeData?.email || '',
-            phone: resumeData?.phone || ''
-          }}
-        >
-          <Form.Item
-            name="name"
-            label={
-              <Space>
-                <span>Full Name</span>
-                {resumeData?.name && (
-                  <CheckCircleOutlined 
-                    style={{ color: colors.success.main, fontSize: 12 }} 
-                  />
-                )}
-              </Space>
-            }
-            rules={[{ required: true, message: 'Please enter your name' }]}
+
+        {errorDisplay}
+
+        <Spin spinning={loading} tip="Processing information...">
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={initialValues}
           >
-            <Input 
-              placeholder="Enter your full name"
-              prefix={resumeData?.name ? <EditOutlined style={{ color: colors.primary.main }} /> : null}
-              style={{ 
-                borderColor: resumeData?.name ? colors.success.main : colors.neutral[300],
-                backgroundColor: resumeData?.name ? colors.success.light + '20' : colors.background.primary
-              }}
-            />
-          </Form.Item>
-          
-          <Form.Item
-            name="email"
-            label={
-              <Space>
-                <span>Email</span>
-                {resumeData?.email && (
-                  <CheckCircleOutlined 
-                    style={{ color: colors.success.main, fontSize: 12 }} 
-                  />
-                )}
-              </Space>
-            }
-            rules={[
-              { required: true, message: 'Please enter your email' },
-              { type: 'email', message: 'Please enter a valid email' }
-            ]}
-          >
-            <Input 
-              placeholder="Enter your email"
-              prefix={resumeData?.email ? <EditOutlined style={{ color: colors.primary.main }} /> : null}
-              style={{ 
-                borderColor: resumeData?.email ? colors.success.main : colors.neutral[300],
-                backgroundColor: resumeData?.email ? colors.success.light + '20' : colors.background.primary
-              }}
-            />
-          </Form.Item>
-          
-          <Form.Item
-            name="phone"
-            label={
-              <Space>
-                <span>Phone Number</span>
-                {resumeData?.phone && (
-                  <CheckCircleOutlined 
-                    style={{ color: colors.success.main, fontSize: 12 }} 
-                  />
-                )}
-              </Space>
-            }
-            rules={[{ required: true, message: 'Please enter your phone number' }]}
-          >
-            <Input 
-              placeholder="Enter your phone number"
-              prefix={resumeData?.phone ? <EditOutlined style={{ color: colors.primary.main }} /> : null}
-              style={{ 
-                borderColor: resumeData?.phone ? colors.success.main : colors.neutral[300],
-                backgroundColor: resumeData?.phone ? colors.success.light + '20' : colors.background.primary
-              }}
-            />
-          </Form.Item>
-          
-          <Form.Item>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              size="large"
-              loading={loading}
-              style={{ width: '100%' }}
-            >
-              Continue to Interview
-            </Button>
-          </Form.Item>
-        </Form>
-        
-        {resumeData && (
-          <div style={{ 
-            marginTop: spacing.md, 
-            padding: spacing.md, 
-            backgroundColor: colors.info.light + '20', 
-            borderRadius: 8,
-            border: `1px solid ${colors.info.light}`
-          }}>
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Text strong style={{ color: colors.info.dark }}>
-                 Extracted from your resume:
-              </Text>
-              <div style={{ marginTop: spacing.xs }}>
-                {resumeData.name && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing.xs }}>
-                    <CheckCircleOutlined style={{ color: colors.success.main, marginRight: spacing.xs }} />
-                    <Text>Name: {resumeData.name}</Text>
-                  </div>
-                )}
-                {resumeData.email && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing.xs }}>
-                    <CheckCircleOutlined style={{ color: colors.success.main, marginRight: spacing.xs }} />
-                    <Text>Email: {resumeData.email}</Text>
-                  </div>
-                )}
-                {resumeData.phone && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing.xs }}>
-                    <CheckCircleOutlined style={{ color: colors.success.main, marginRight: spacing.xs }} />
-                    <Text>Phone: {resumeData.phone}</Text>
-                  </div>
-                )}
-              </div>
-              <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>
-                 You can edit any of these fields above if needed
-              </Text>
-            </Space>
-          </div>
-        )}
+            {nameField}
+            {emailField}
+            {phoneField}
+            {submitButton}
+          </Form>
+        </Spin>
       </Space>
     </Card>
   );
 };
-
-export default InfoCollection;

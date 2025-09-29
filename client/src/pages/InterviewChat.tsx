@@ -1,156 +1,162 @@
 // src/pages/InterviewChat.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { spacing, colors } from '../styles';
-import { ResumeUpload, InfoCollection, InterviewSession } from '../components/interview';
+import { Space } from 'antd';
+import { colors, spacing } from '../styles';
+import { ResumeUpload } from '../components/interview/ResumeUpload';
+import { InfoCollection } from '../components/interview/InfoCollection';
+import { InterviewSession } from '../components/interview/InterviewSession';
 import { WelcomeBackModal } from '../components/interview/WelcomeBackModal';
-import { useResumeUpload, useInterview } from '../hooks/api';
-import { sessionManager } from '../services/SessionManager';
+import { useResumeUpload } from '../hooks/api/useResumeUpload';
+import { useInterview } from '../hooks/api/useInterview';
+import SessionManager from '../services/SessionManager';
 
-type InterviewStep = 'upload' | 'info' | 'interview';
+type Step = 'upload' | 'info' | 'interview';
 
 export const InterviewChat: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<InterviewStep>('upload');
-  const [resumeData, setResumeData] = useState<any>(null);
+  const [currentStep, setCurrentStep] = useState<Step>('upload');
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
-  const [sessionSummary, setSessionSummary] = useState<any>(null);
-  
-  const { 
-    uploadResume, 
-    collectMissingInfo, 
-    uploading, 
-    loading, 
-    restoreSession: restoreResumeSession 
+  const [processingResume, setProcessingResume] = useState(false);
+  const [collectingInfo, setCollectingInfo] = useState(false);
+
+  // Hooks
+  const {
+    resumeData,
+    detailedResumeData,
+    uploading,
+    loading,
+    error,
+    uploadResume,
+    collectMissingInfo,
+    restoreSession: restoreResumeSession
   } = useResumeUpload();
-  
-  const { 
-    startInterview, 
-    submitAnswer, 
-    currentSession, 
+
+  const {
+    currentSession,
     chatMessages,
-    restoreSession: restoreInterviewSession 
+    startInterview,
+    submitAnswer,
+    restoreSession: restoreInterviewSession
   } = useInterview();
 
-  // Check for existing session on component mount
-  const checkExistingSession = useCallback(() => {
-    const session = sessionManager.getLastSession();
-    
-    if (session && sessionManager.isSessionValid(session)) {
-      // Restore resume data
-      const restoredResumeSession = restoreResumeSession();
-      if (restoredResumeSession) {
-        setResumeData(restoredResumeSession.resumeData);
-        
-        // Restore interview session
-        const restoredInterviewSession = restoreInterviewSession();
-        if (restoredInterviewSession) {
-          setCurrentStep('interview');
-        } else {
-          // Resume data exists but no interview session
-          setCurrentStep('info');
-        }
-        
-        // Show welcome back modal
-        const summary = sessionManager.getSessionSummary();
-        if (summary) {
-          setSessionSummary(summary);
-          setShowWelcomeBack(true);
-        }
-      }
-    }
-  }, [restoreResumeSession, restoreInterviewSession]);
-
+  // Check for existing session on mount
   useEffect(() => {
-    checkExistingSession();
-  }, [checkExistingSession]);
+    const lastSession = SessionManager.getLastSession();
 
-  const handleFileUpload = useCallback(async (file: File) => {
-    const result = await uploadResume(file);
-    
-    if (result?.success) {
-      setResumeData(result.data);
-      if (result.missingFields.length > 0) {
-        setCurrentStep('info');
-      } else {
+    if (lastSession && SessionManager.isSessionValid(lastSession)) {
+      setShowWelcomeBack(true);
+      // If we have resume data, go directly to interview
+      if (lastSession.resumeData) {
         setCurrentStep('interview');
       }
     }
+  }, []); // Empty dependency array - only run on mount
+
+  // Auto-save session activity
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentSession) {
+        SessionManager.updateActivity();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentSession]);
+
+  // Effect to transition from upload to info step after resumeData is available
+  useEffect(() => {
+    if (resumeData && !uploading && !loading && currentStep === 'upload' && processingResume) {
+      // Delay transition to allow success message to be visible
+      const timer = setTimeout(() => {
+        setCurrentStep('info');
+        setProcessingResume(false); // Reset processing state
+      }, 1500); // 1.5 seconds delay
+      return () => clearTimeout(timer);
+    }
+  }, [resumeData, uploading, loading, currentStep, processingResume, collectingInfo]);
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    setProcessingResume(true); // Start processing state
+    try {
+      await uploadResume(file);
+      // Don't change step here - let useEffect handle it when resumeData is available
+    } catch (error) {
+      console.error(' InterviewChat: Upload failed:', error);
+      setProcessingResume(false); // Reset processing state on error
+    }
   }, [uploadResume]);
 
-  const handleCollectInfo = useCallback(async (values: any) => {
-    const result = await collectMissingInfo(values, resumeData);
-    
-    if (result?.success) {
-      setResumeData(result.data);
+  const handleCollectInfo = useCallback(async (info: { name: string; email: string; phone: string }) => {
+    setCollectingInfo(true);
+    try {
+      await collectMissingInfo(info);
       setCurrentStep('interview');
+    } catch (error) {
+      console.error(' InterviewChat: Info collection failed:', error);
+    } finally {
+      setCollectingInfo(false);
     }
-  }, [collectMissingInfo, resumeData]);
+  }, [collectMissingInfo]);
 
   const handleStartNew = useCallback(() => {
+    SessionManager.clearSession(); // Clear session on new start
     setCurrentStep('upload');
-    setResumeData(null);
     setShowWelcomeBack(false);
-    sessionManager.clearSession();
+    setProcessingResume(false); // Ensure processing state is reset
   }, []);
 
   const handleContinueSession = useCallback(() => {
+    setCurrentStep('interview');
     setShowWelcomeBack(false);
-    // Session is already restored, just continue
-  }, []);
+
+    // Restore session data
+    const session = SessionManager.getLastSession();
+    if (session) {
+      // Restore resume data
+      restoreResumeSession();
+
+      // Restore interview session
+      if (session.currentSession) {
+        restoreInterviewSession(session.currentSession);
+      }
+    }
+  }, [restoreResumeSession, restoreInterviewSession]);
 
   const handleWelcomeBackClose = useCallback(() => {
     setShowWelcomeBack(false);
   }, []);
 
-  // Auto-save session activity on user interaction
-  const handleUserActivity = useCallback(() => {
-    sessionManager.updateActivity();
-  }, []);
-
-  useEffect(() => {
-    // Add event listeners for user activity
-    document.addEventListener('click', handleUserActivity);
-    document.addEventListener('keypress', handleUserActivity);
-    document.addEventListener('scroll', handleUserActivity);
-
-    return () => {
-      document.removeEventListener('click', handleUserActivity);
-      document.removeEventListener('keypress', handleUserActivity);
-      document.removeEventListener('scroll', handleUserActivity);
-    };
-  }, [handleUserActivity]);
-
-  // Save session before page unload
-  const handleBeforeUnload = useCallback(() => {
-    sessionManager.updateActivity();
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [handleBeforeUnload]);
 
   const renderCurrentStep = useCallback(() => {
     switch (currentStep) {
       case 'upload':
         return (
-          <ResumeUpload 
-            onFileUpload={handleFileUpload}
-            uploading={uploading}
+          <ResumeUpload
+            onUpload={handleFileUpload}
+            loading={uploading || processingResume} // Use processingResume for overall loading
+            error={error}
+            onRemoveFile={() => {
+              setProcessingResume(false);
+              SessionManager.clearSession(); // Clear session if file is removed
+            }}
+            isProcessing={processingResume} // Pass processing state
+            resumeData={resumeData} // Pass resumeData to show file details
           />
         );
-      
+
       case 'info':
         return (
           <InfoCollection
             resumeData={resumeData}
-            onCollectInfo={handleCollectInfo}
-            loading={loading}
+            detailedResumeData={detailedResumeData}
+            onSubmit={handleCollectInfo}
+            loading={collectingInfo}
+            error={error}
           />
         );
-      
+
       case 'interview':
         return (
           <InterviewSession
@@ -161,32 +167,31 @@ export const InterviewChat: React.FC = () => {
             onSubmitAnswer={submitAnswer}
           />
         );
-      
+
       default:
         return null;
     }
-  }, [currentStep, handleFileUpload, uploading, resumeData, handleCollectInfo, loading, handleStartNew, currentSession, chatMessages, startInterview, submitAnswer]);
+  }, [currentStep, handleFileUpload, handleCollectInfo, handleStartNew, uploading, loading, error, resumeData, detailedResumeData, currentSession, chatMessages, startInterview, submitAnswer, processingResume, collectingInfo]);
+
 
   return (
-    <div style={{ 
-      padding: spacing.lg, 
-      minHeight: '100vh', 
-      background: colors.background.primary 
-    }}>
-      {renderCurrentStep()}
-      
+    <div style={{ padding: spacing.xl, minHeight: '100vh', backgroundColor: colors.background.secondary }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+
+        {/* Main Content */}
+        {renderCurrentStep()}
+      </Space>
+
       {/* Welcome Back Modal */}
-      {showWelcomeBack && sessionSummary && (
-        <WelcomeBackModal
-          visible={showWelcomeBack}
-          sessionSummary={sessionSummary}
-          onContinue={handleContinueSession}
-          onStartNew={handleStartNew}
-          onClose={handleWelcomeBackClose}
-        />
-      )}
+      <WelcomeBackModal
+        visible={showWelcomeBack}
+        onContinue={handleContinueSession}
+        onStartNew={handleStartNew}
+        onClose={handleWelcomeBackClose}
+      />
     </div>
   );
 };
 
 export default InterviewChat;
+

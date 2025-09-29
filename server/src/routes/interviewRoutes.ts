@@ -6,22 +6,22 @@ const interviewController = new InterviewController();
 
 // Start interview endpoint
 router.post('/start', (req: Request, res: Response) => {
-  interviewController.startInterview(req, res);
+    interviewController.startInterview(req, res);
 });
 
-// Submit answer endpoint
+// Submit answer endpoint (no feedback, just move to next question)
 router.post('/answer', (req: Request, res: Response) => {
-  interviewController.submitAnswer(req, res);
+    interviewController.submitAnswer(req, res);
 });
 
 // Get session status endpoint
 router.get('/session/:sessionId', (req: Request, res: Response) => {
-  interviewController.getSession(req, res);
+    interviewController.getSession(req, res);
 });
 
-// Get session results endpoint
+// Get final results endpoint (comprehensive evaluation)
 router.get('/results/:sessionId', (req: Request, res: Response) => {
-  interviewController.getSessionResults(req, res);
+    interviewController.getSessionResults(req, res);
 });
 
 export default router;

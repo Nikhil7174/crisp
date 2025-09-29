@@ -94,6 +94,14 @@ export class ResumeParserService {
   }
   
   private async extractDataWithAI(text: string): Promise<DetailedResumeData> {
+    // MOCK DATA - Remove this when OpenAI is configured
+    console.log('Using MOCK resume parsing data (OpenAI not configured)');
+    
+    // Generate mock data based on some basic text analysis
+    const mockData = this.generateMockResumeData(text);
+    return mockData;
+
+    /* ORIGINAL OPENAI CODE - Uncomment when OpenAI is configured
     try {
       const prompt = `Extract structured information from this resume text. Return ONLY a valid JSON object with the following structure. If any information is not available, set it to null or empty array/string.
 
@@ -194,6 +202,90 @@ Extract all available information accurately. For arrays, return empty array [] 
       // Fallback to basic extraction if AI fails
       return this.fallbackExtraction(text);
     }
+    */
+  }
+
+  private generateMockResumeData(text: string): DetailedResumeData {
+    // Basic regex extraction for essential fields
+    const emailRegex = /\b[A-Za-z0-9]([A-Za-z0-9._%-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}\b/g;
+    const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/g;
+    
+    const emails = text.match(emailRegex) || [];
+    const phones = text.match(phoneRegex) || [];
+    
+    // Simple name extraction from first line
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const name = lines[0] && this.isLikelyName(lines[0]) ? lines[0] : 'John Doe';
+
+    // Mock data with some realistic values
+    const mockPersonalInfo = {
+      name: name,
+      email: emails[0] || 'john.doe@email.com',
+      phone: phones[0] || '+1 (555) 123-4567',
+      college: 'University of Technology',
+      batch: '2024',
+      branch: 'Computer Science',
+      degree: 'Bachelor of Technology',
+      cgpa: '8.5'
+    };
+
+    const mockExperience = {
+      internships: [
+        {
+          company: 'Tech Solutions Inc.',
+          role: 'Software Development Intern',
+          duration: '3 months',
+          description: 'Developed web applications using React and Node.js'
+        },
+        {
+          company: 'DataCorp',
+          role: 'Data Science Intern',
+          duration: '2 months',
+          description: 'Worked on machine learning models for data analysis'
+        }
+      ],
+      projects: [
+        {
+          name: 'E-commerce Platform',
+          description: 'Full-stack web application with user authentication and payment integration',
+          technologies: ['React', 'Node.js', 'MongoDB', 'Stripe API'],
+          duration: '4 months'
+        },
+        {
+          name: 'Task Management App',
+          description: 'Mobile-responsive task management application with real-time updates',
+          technologies: ['React', 'Express.js', 'Socket.io', 'PostgreSQL'],
+          duration: '2 months'
+        }
+      ],
+      awards: [
+        {
+          title: 'Best Project Award',
+          organization: 'University Tech Fest',
+          year: '2023',
+          description: 'Awarded for innovative e-commerce platform design'
+        }
+      ]
+    };
+
+    const mockTechnicalSkills = {
+      languages: ['JavaScript', 'Python', 'Java', 'C++'],
+      frameworks: ['React', 'Node.js', 'Express.js', 'Django'],
+      tools: ['Git', 'Docker', 'VS Code', 'Postman'],
+      databases: ['MongoDB', 'PostgreSQL', 'MySQL'],
+      other: ['AWS', 'REST APIs', 'GraphQL', 'Jest']
+    };
+
+    return {
+      name: mockPersonalInfo.name,
+      email: mockPersonalInfo.email,
+      phone: mockPersonalInfo.phone,
+      text: text,
+      fileName: '',
+      personalInfo: mockPersonalInfo,
+      experience: mockExperience,
+      technicalSkills: mockTechnicalSkills
+    };
   }
   
   private fallbackExtraction(text: string): DetailedResumeData {
