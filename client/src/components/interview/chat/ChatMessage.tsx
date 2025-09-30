@@ -23,7 +23,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     userAnswer: message.metadata?.userAnswer
   }), [message.type, message.metadata]);
 
-  const { isUser, isAssistant, isSystem, isAnswered, isCorrect, correctAnswer, userAnswer } = messageProps;
+  const { isUser, isAssistant, isAnswered, isCorrect } = messageProps;
 
   const getBackgroundColor = useCallback(() => {
     if (isUser) {
@@ -100,15 +100,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       borderRadius: 12,
       backgroundColor: getBackgroundColor(),
       color: getTextColor(),
-      wordWrap: 'break-word',
-      whiteSpace: 'pre-wrap'
+      wordWrap: 'break-word' as const,
+      whiteSpace: 'pre-wrap' as const
     },
     timestamp: {
       fontSize: 11,
       color: colors.neutral[500],
       marginTop: spacing.xs,
       textAlign: isUser ? 'right' : 'left'
-    },
+    } as React.CSSProperties,
     avatar: {
       backgroundColor: getAvatarColor(),
       flexShrink: 0

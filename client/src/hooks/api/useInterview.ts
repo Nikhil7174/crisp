@@ -92,7 +92,6 @@ export const useInterview = () => {
   }, [dispatch, storedSession]); // Add storedSession to dependencies
 
   const submitAnswer = useCallback(async (
-    sessionId: string, // eslint-disable-line @typescript-eslint/no-unused-vars
     questionId: string,
     answer: string, // Changed from selectedOptionId to answer to handle both types
     timeTaken: number

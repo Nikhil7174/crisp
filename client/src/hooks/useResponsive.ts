@@ -12,8 +12,8 @@ export const useResponsive = () => {
 
   useEffect(() => {
     setIsMobile(!screens.md);
-    setIsTablet(screens.md && !screens.lg);
-    setIsDesktop(screens.lg || false);
+    setIsTablet(Boolean(screens.md && !screens.lg));
+    setIsDesktop(Boolean(screens.lg));
   }, [screens]);
 
   return {

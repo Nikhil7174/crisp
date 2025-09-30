@@ -4,8 +4,8 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 
 const initialState = {
   visitTimestamp: Date.now(),
-  userJourney: [],
-  selectedFeatures: [],
+  userJourney: [] as string[],
+  selectedFeatures: [] as string[],
 };
 
 const sessionSlice = createSlice({

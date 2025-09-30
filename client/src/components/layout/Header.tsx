@@ -1,15 +1,13 @@
 // src/components/layout/Header.tsx
 import React from 'react';
-import { Layout, Menu, Button, Space } from 'antd';
+import { Layout, Button, Space } from 'antd';
 import { RocketOutlined, DashboardOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useResponsive } from '../../hooks/useResponsive';
 import { colors, spacing } from '../../styles';
 
 const { Header: AntHeader } = Layout;
 
 export const Header: React.FC = () => {
-  const { isMobile } = useResponsive();
   const navigate = useNavigate();
 
   const handleAdminClick = () => {

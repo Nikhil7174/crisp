@@ -1,6 +1,6 @@
 // src/components/interview/CollapsibleChat.tsx
 import React, { useState } from 'react';
-import { Card, Button, Collapse, Typography, Space } from 'antd';
+import { Card, Button, Collapse, Typography } from 'antd';
 import { MessageOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { ChatContainer } from './chat';
@@ -72,8 +72,8 @@ export const CollapsibleChat: React.FC<CollapsibleChatProps> = ({
                                     currentQuestion={null} // No current question in summary view
                                     questionIndex={0}
                                     totalQuestions={session.questions?.length || 0}
-                                    onSubmitAnswer={onSubmitAnswer}
-                                    onTimerExpire={onTimerExpire}
+                                    onSubmitAnswer={onSubmitAnswer ? (answer: string) => onSubmitAnswer(session.sessionId, '', answer, 0) : () => { }}
+                                    onTimerExpire={onTimerExpire || (() => { })}
                                     loading={loading}
                                     disabled={disabled || true} // Disabled in summary view
                                     currentSession={session}

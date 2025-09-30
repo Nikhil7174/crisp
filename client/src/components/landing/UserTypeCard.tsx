@@ -1,14 +1,14 @@
 // src/components/landing/UserTypeCard.tsx
 import React, { memo, useCallback } from 'react';
-import { Card, Typography, Button, Row, Col } from 'antd';
+import { Card, Typography, Button } from 'antd';
 import { motion } from 'framer-motion';
 import type { UserType } from '../../types';
-import { colors, spacing, borderRadius } from '../../styles';
+import { colors } from '../../styles';
 // Import actual images - add your images to src/assets/images/
 import intervieweeImage from '../../assets/images/interviewee.jpg';
 import interviewerImage from '../../assets/images/interviewer.jpg';
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 interface UserTypeCardProps {
   type: UserType;
@@ -26,12 +26,9 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
   type,
   title,
   subtitle,
-  features,
   ctaText,
-  isActive,
   onSelect,
   onCtaClick,
-  icon,
 }) => {
   const handleCtaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

@@ -1,6 +1,6 @@
 // src/components/interview/InterviewSession.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Typography, Space, Button, notification } from 'antd';
+import { Card, Typography, Space, notification } from 'antd';
 import { RobotOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { ChatContainer } from './chat';
@@ -15,13 +15,12 @@ interface InterviewSessionProps {
   currentSession?: InterviewSessionType | null;
   chatMessages?: ChatMessage[];
   onStartInterview?: (candidateData: any) => Promise<any>;
-  onSubmitAnswer?: (sessionId: string, questionId: string, answer: string, timeTaken: number) => Promise<any>;
+  onSubmitAnswer?: (questionId: string, answer: string, timeTaken: number) => Promise<any>;
   onSaveResults?: (results: any) => Promise<void>;
   onComplete?: () => void;
 }
 
 export const InterviewSession: React.FC<InterviewSessionProps> = ({
-  onStartNew,
   currentSession,
   chatMessages = [],
   onStartInterview,
@@ -116,7 +115,7 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
 
     // Submit to backend first
     try {
-      const result = await onSubmitAnswer(currentSession.sessionId, currentQuestion.id, answer, 0);
+      const result = await onSubmitAnswer(currentQuestion.id, answer, 0);
       console.log('Backend submission result:', result);
     } catch (error) {
       console.error('Backend submission failed:', error);

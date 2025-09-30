@@ -4,7 +4,6 @@ import { Row, Col } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { UserTypeCard } from './UserTypeCard';
 import { useUserSelection } from '../../hooks/useUserSelection';
-import { useResponsive } from '../../hooks/useResponsive';
 import { useNavigate } from 'react-router-dom';
 
 const intervieweeFeatures = [
@@ -23,7 +22,6 @@ const interviewerFeatures = [
 
 export const DualColumnSection: React.FC = () => {
   const { activeUserType, selectUserType } = useUserSelection();
-  const { isMobile } = useResponsive();
   const navigate = useNavigate();
 
   const handleStartPracticing = useCallback(() => {
