@@ -10,13 +10,15 @@ import {
     Statistic,
     Tag,
     message,
-    Spin
+    Spin,
+    Input
 } from 'antd';
 import {
     EyeOutlined,
     UserOutlined,
     TrophyOutlined,
-    CheckCircleOutlined
+    CheckCircleOutlined,
+    SearchOutlined
 } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { API_BASE_URL } from '../../constants/api';
@@ -58,10 +60,28 @@ export const AdminDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [searchText, setSearchText] = useState('');
+    const [filteredInterviews, setFilteredInterviews] = useState<Interview[]>([]);
 
     useEffect(() => {
         fetchDashboardData();
     }, []);
+
+    useEffect(() => {
+        if (data?.interviews) {
+            if (searchText.trim() === '') {
+                setFilteredInterviews(data.interviews);
+            } else {
+                const filtered = data.interviews.filter(interview =>
+                    interview.candidate_name.toLowerCase().includes(searchText.toLowerCase()) ||
+                    interview.candidate_email.toLowerCase().includes(searchText.toLowerCase()) ||
+                    interview.candidate_phone.includes(searchText) ||
+                    interview.session_id.toLowerCase().includes(searchText.toLowerCase())
+                );
+                setFilteredInterviews(filtered);
+            }
+        }
+    }, [data, searchText]);
 
     const fetchDashboardData = async () => {
         try {
@@ -243,12 +263,34 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Interviews Table */}
             <Card>
-                <Title level={3} style={{ marginBottom: spacing.lg }}>
-                    Interview Results
-                </Title>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: spacing.lg
+                }}>
+                    <div>
+                        <Title level={3} style={{ margin: 0 }}>
+                            Interview Results
+                        </Title>
+                        {searchText && (
+                            <Text type="secondary" style={{ fontSize: 14 }}>
+                                {filteredInterviews.length} result{filteredInterviews.length !== 1 ? 's' : ''} found for "{searchText}"
+                            </Text>
+                        )}
+                    </div>
+                    <Input
+                        placeholder="Search candidates by name, email, phone, or session ID..."
+                        prefix={<SearchOutlined />}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        style={{ width: 400 }}
+                        allowClear
+                    />
+                </div>
                 <Table
                     columns={columns}
-                    dataSource={data.interviews}
+                    dataSource={filteredInterviews}
                     rowKey="id"
                     pagination={{
                         pageSize: 10,
