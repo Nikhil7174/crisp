@@ -117,6 +117,15 @@ export class InterviewController {
         isCorrect: isTimeout ? false : selectedOption.isCorrect
       };
 
+      // Debug logging
+      console.log('=== ANSWER SUBMISSION DEBUG ===');
+      console.log('Question ID:', questionId);
+      console.log('Selected Option ID:', selectedOptionId);
+      console.log('Selected Option:', selectedOption);
+      console.log('Question Correct Answer ID:', question.correctAnswerId);
+      console.log('Answer is correct:', answerRecord.isCorrect);
+      console.log('=== END ANSWER SUBMISSION DEBUG ===');
+
       // Update session
       session.answers.push(answerRecord);
       question.askedAt = new Date();
@@ -135,6 +144,7 @@ export class InterviewController {
       // In submitAnswer - just return success/completion status
       res.json({
         success: true,
+        isCorrect: answerRecord.isCorrect,
         isComplete: allQuestionsAnswered,
         message: 'Answer submitted successfully'
       });
@@ -212,6 +222,60 @@ export class InterviewController {
       console.error('Get session error:', error);
       res.status(500).json({
         error: 'Failed to get session',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  async saveResults(req: Request, res: Response): Promise<void> {
+    try {
+      const completeSummary = req.body;
+
+      if (!completeSummary.sessionId) {
+        res.status(400).json({ error: 'Session ID is required' });
+        return;
+      }
+
+      // Find the session
+      const session = this.sessions.get(completeSummary.sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'Interview session not found' });
+        return;
+      }
+
+      // Update session with complete summary
+      session.status = 'completed';
+      session.endTime = new Date();
+      session.duration = completeSummary.duration;
+      session.score = completeSummary.score;
+      session.finalResults = completeSummary;
+
+      // Log the complete summary for debugging
+      console.log('=== COMPLETE INTERVIEW SUMMARY ===');
+      console.log('Session ID:', completeSummary.sessionId);
+      console.log('Score:', completeSummary.score);
+      console.log('Correct Answers:', completeSummary.correctAnswers, '/', completeSummary.totalQuestions);
+      console.log('Time Spent:', completeSummary.timeSpent, 'seconds');
+      console.log('Strengths:', completeSummary.strengths);
+      console.log('Areas for Improvement:', completeSummary.areasForImprovement);
+      console.log('Question Analysis:', completeSummary.questionAnalysis);
+      console.log('Complete Summary:', JSON.stringify(completeSummary, null, 2));
+      console.log('=== END COMPLETE INTERVIEW SUMMARY ===');
+
+      // In a real application, you would save this to a database
+      // For now, we'll just log it and return success
+
+      res.json({
+        success: true,
+        message: 'Complete interview summary saved successfully',
+        sessionId: completeSummary.sessionId,
+        summary: completeSummary
+      });
+
+    } catch (error) {
+      console.error('Save results error:', error);
+      res.status(500).json({
+        error: 'Failed to save results',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }

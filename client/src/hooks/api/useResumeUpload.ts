@@ -2,12 +2,12 @@
 import { useCallback } from 'react';
 import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { 
-  setResumeData, 
-  setDetailedResumeData, 
-  setUploading, 
-  setLoading, 
-  setError 
+import {
+  setResumeData,
+  setDetailedResumeData,
+  setUploading,
+  setLoading,
+  setError
 } from '../../store/slices/interviewSlice';
 import SessionManager from '../../services/SessionManager';
 import type { ResumeData, DetailedResumeData } from '../../types';
@@ -16,19 +16,15 @@ const API_BASE_URL = 'http://localhost:3001/api';
 
 export const useResumeUpload = () => {
   const dispatch = useAppDispatch();
-  const { resumeData, detailedResumeData, uploading, loading, error } = useAppSelector(state => state.interview);
+  const { resumeData, detailedResumeData, isUploading, isLoading, error } = useAppSelector(state => state.interview);
 
   const uploadResume = useCallback(async (file: File) => {
     try {
       dispatch(setUploading(true));
       dispatch(setError(null));
 
-      console.log('Uploading file:', file.name, file.type, file.size);
-
       const formData = new FormData();
       formData.append('resume', file);
-
-      console.log('Sending request to:', `${API_BASE_URL}/upload/resume`);
 
       const response = await axios.post(`${API_BASE_URL}/upload/resume`, formData, {
         headers: {
@@ -36,25 +32,15 @@ export const useResumeUpload = () => {
         },
       });
 
-      console.log('Response received:', response.data);
-
       if (response.data.success) {
         const resumeData: ResumeData = response.data.resumeData;
         const detailedResumeData: DetailedResumeData = response.data.detailedResumeData;
-        
-        console.log('Parsed resume data:', resumeData);
-        console.log('Detailed resume data:', detailedResumeData);
-        
+
         dispatch(setResumeData(resumeData));
         dispatch(setDetailedResumeData(detailedResumeData));
-        
-        // Save to session
-        SessionManager.saveSession({
-          resumeData,
-          detailedResumeData,
-          timestamp: Date.now()
-        });
-        
+
+        // Don't save to session here - session will be saved when interview starts
+
         return { resumeData, detailedResumeData };
       } else {
         throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
@@ -89,17 +75,12 @@ export const useResumeUpload = () => {
       if (response.data.success) {
         const updatedResumeData: ResumeData = response.data.resumeData;
         const updatedDetailedResumeData: DetailedResumeData = response.data.detailedResumeData;
-        
+
         dispatch(setResumeData(updatedResumeData));
         dispatch(setDetailedResumeData(updatedDetailedResumeData));
-        
-        // Update session
-        SessionManager.saveSession({
-          resumeData: updatedResumeData,
-          detailedResumeData: updatedDetailedResumeData,
-          timestamp: Date.now()
-        });
-        
+
+        // Don't save to session here - session will be saved when interview starts
+
         return { resumeData: updatedResumeData, detailedResumeData: updatedDetailedResumeData };
       } else {
         throw new Error('Info collection failed: ' + (response.data.message || 'Unknown error'));
@@ -117,7 +98,7 @@ export const useResumeUpload = () => {
   const isDataFresh = useCallback(() => {
     const session = SessionManager.getLastSession();
     if (!session) return false;
-    
+
     const oneHour = 60 * 60 * 1000;
     return Date.now() - session.timestamp < oneHour;
   }, []);
@@ -139,8 +120,12 @@ export const useResumeUpload = () => {
   const restoreSession = useCallback(() => {
     const session = SessionManager.getLastSession();
     if (session && SessionManager.isSessionValid(session)) {
-      dispatch(setResumeData(session.resumeData));
-      dispatch(setDetailedResumeData(session.detailedResumeData));
+      if (session.resumeData) {
+        dispatch(setResumeData(session.resumeData));
+      }
+      if (session.detailedResumeData) {
+        dispatch(setDetailedResumeData(session.detailedResumeData));
+      }
       return session;
     }
     return null;
@@ -149,8 +134,8 @@ export const useResumeUpload = () => {
   return {
     resumeData,
     detailedResumeData,
-    uploading,
-    loading,
+    uploading: isUploading,
+    loading: isLoading,
     error,
     uploadResume,
     collectMissingInfo,

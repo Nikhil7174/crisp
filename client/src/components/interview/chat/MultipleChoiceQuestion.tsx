@@ -1,9 +1,9 @@
 // src/components/interview/chat/MultipleChoiceQuestion.tsx
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, Radio, Button, Space, Typography } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../../styles';
-import type { Question, MultipleChoiceOption } from '../../../types';
+import type { Question } from '../../../types';
 
 const { Title, Text } = Typography;
 

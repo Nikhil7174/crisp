@@ -19,6 +19,7 @@ const API_BASE_URL = 'http://localhost:3001/api';
 export const useInterview = () => {
   const dispatch = useAppDispatch();
   const { currentSession, chatMessages, isStartingInterview, isSubmittingAnswer, error } = useAppSelector(state => state.interview);
+  const { resumeData, detailedResumeData } = useAppSelector(state => state.interview);
 
   // Memoize the stored session to avoid multiple calls
   const storedSession = useMemo(() => {
@@ -37,21 +38,33 @@ export const useInterview = () => {
       if (response.data.success) {
         const session = response.data;
 
-        // FIXED: Clear Redux chat messages when starting new interview
+        // Clear Redux chat messages when starting new interview
         dispatch(setChatMessages([]));
+
+        // Clear any existing session from localStorage before saving new one
+        SessionManager.clearSession();
 
         dispatch(setCurrentSession(session));
 
-        // Save session to localStorage
-        SessionManager.saveSession(session);
+        // Save new session to localStorage with resume data
+        console.log('=== STARTING INTERVIEW - SAVING SESSION ===');
+        console.log('Saving session to localStorage:', session.sessionId);
 
-        // Check the actual stored session (use memoized value)
-        const storedChatMessages = storedSession?.chatMessages || [];
-        const hasStoredAssistantMessages = storedChatMessages.some(msg => msg.type === 'assistant');
+        // Create complete session with resume data
+        const completeSession = {
+          resumeData,
+          detailedResumeData,
+          currentSession: session,
+          timestamp: Date.now(),
+          lastActivity: Date.now()
+        };
 
+        SessionManager.saveSession(completeSession);
+        SessionManager.setInterviewActive(true); // Mark interview as active
+        console.log('Session saved successfully with resume data');
 
-        // Only add first question if no stored chat messages exist AND no stored assistant messages exist
-        if (session.questions && session.questions.length > 0 && storedChatMessages.length === 0 && !hasStoredAssistantMessages) {
+        // Always add first question for new interview (don't check stored messages)
+        if (session.questions && session.questions.length > 0) {
           const firstQuestion = session.questions[0];
 
           const questionMessage: ChatMessage = {
@@ -88,58 +101,60 @@ export const useInterview = () => {
       dispatch(setSubmittingAnswer(true));
       dispatch(setError(null));
 
-      const response = await axios.post(`${API_BASE_URL}/interview/answer`, {
-        sessionId,
-        questionId,
-        selectedOptionId,
-        timeTaken
-      });
+      // Always update the session locally with frontend validation
+      if (currentSession) {
+        // Find the question to check if the answer is correct
+        const question = currentSession.questions?.find(q => q.id === questionId);
+        const answerIsCorrect = question ? selectedOptionId === question.correctAnswerId : false;
 
-      if (response.data.success) {
-        // Update the current session with the new answer
-        if (currentSession) {
-          // FIXED: Create the answer object with the correct structure
-          const newAnswer = {
-            questionId,
-            answer: selectedOptionId === 'timeout' ? 'No answer selected (timeout)' : `Selected: ${selectedOptionId}`,
-            selectedOptionId: selectedOptionId === 'timeout' ? 'timeout' : selectedOptionId, // This was the issue!
-            answeredAt: new Date(),
-            timeTaken: timeTaken || 0,
-            isCorrect: response.data.isCorrect
-          };
+        // Create the answer object with the correct structure
+        const newAnswer = {
+          questionId,
+          answer: selectedOptionId === 'timeout' ? 'No answer selected (timeout)' : `Selected: ${selectedOptionId}`,
+          selectedOptionId: selectedOptionId === 'timeout' ? 'timeout' : selectedOptionId,
+          answeredAt: new Date(),
+          timeTaken: timeTaken || 0,
+          isCorrect: answerIsCorrect
+        };
 
-          // Update session locally
-          const updatedSession = {
-            ...currentSession,
-            answers: [...(currentSession.answers || []), newAnswer]
-          };
+        console.log('Storing answer locally:', newAnswer);
+        console.log('Answer is correct:', answerIsCorrect);
 
-          dispatch(updateSession(updatedSession));
-          SessionManager.saveSession(updatedSession);
+        // Update session locally
+        const updatedSession = {
+          ...currentSession,
+          answers: [...(currentSession.answers || []), newAnswer]
+        };
 
-          // Check if all questions are answered using the updated session
-          const allQuestionsAnswered = updatedSession.questions.length === updatedSession.answers.length;
+        dispatch(updateSession(updatedSession));
+        SessionManager.saveSession(updatedSession);
 
-          // Only add next question message if not all questions are answered
-          if (!allQuestionsAnswered) {
-            const nextQuestion = response.data.nextQuestion;
-            if (nextQuestion) {
-              const questionMessage: ChatMessage = {
-                id: `msg-${Date.now() + 1}`,
-                sessionId,
-                type: 'assistant',
-                content: nextQuestion.question,
-                timestamp: new Date().toISOString()
-              };
+        // Update activity timestamp
+        SessionManager.updateActivity();
 
-              dispatch(addChatMessage(questionMessage));
-              SessionManager.addChatMessage(questionMessage);
-            }
-          }
-        }
-
-        return response.data;
+        console.log('Updated session with answers:', updatedSession.answers);
       }
+
+      // Try to submit to backend (optional)
+      try {
+        const response = await axios.post(`${API_BASE_URL}/interview/answer`, {
+          sessionId,
+          questionId,
+          selectedOptionId,
+          timeTaken
+        });
+        console.log('Backend submission successful:', response.data);
+      } catch (error) {
+        console.log('Backend submission failed, but answer stored locally');
+      }
+
+      // Return success response
+      return {
+        success: true,
+        isCorrect: currentSession ?
+          currentSession.questions?.find(q => q.id === questionId)?.correctAnswerId === selectedOptionId : false,
+        message: 'Answer stored successfully'
+      };
     } catch (error: any) {
       console.error(' useInterview: Submit answer error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to submit answer';
@@ -157,10 +172,27 @@ export const useInterview = () => {
   const restoreSession = useCallback((session: any) => {
     dispatch(setCurrentSession(session));
 
-    // Restore chat messages
-    const messages = SessionManager.getLastSession()?.chatMessages || [];
-    dispatch(setChatMessages(messages));
+    // Only restore chat messages if session has answers (ongoing interview)
+    // Don't restore for fresh sessions
+    if (session.answers && session.answers.length > 0) {
+      const messages = SessionManager.getLastSession()?.chatMessages || [];
+      dispatch(setChatMessages(messages));
+    } else {
+      // Clear chat messages for fresh sessions
+      dispatch(setChatMessages([]));
+    }
   }, [dispatch]);
+
+  const saveResults = useCallback(async (results: any) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/interview/save-results`, results);
+      return response.data;
+    } catch (error: any) {
+      console.error('useInterview: Save results error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to save results';
+      throw new Error(errorMessage);
+    }
+  }, []);
 
   return {
     currentSession,
@@ -171,6 +203,7 @@ export const useInterview = () => {
     startInterview,
     submitAnswer,
     getCurrentSession,
-    restoreSession
+    restoreSession,
+    saveResults
   };
 };

@@ -3,12 +3,14 @@ import React, { useMemo } from 'react';
 import { Modal, Card, Typography, Space, Button, Progress } from 'antd';
 import { ClockCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
-import SessionManager from '../../services/SessionManager';
 
 const { Title, Paragraph, Text } = Typography;
 
 interface WelcomeBackModalProps {
   visible: boolean;
+  questionsAnswered: number;
+  totalQuestions: number;
+  timeAway: number; // FIXED: Add timeAway prop
   onContinue: () => void;
   onStartNew: () => void;
   onClose: () => void;
@@ -23,18 +25,14 @@ const formatDuration = (minutes: number) => {
 
 export const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({
   visible,
+  questionsAnswered,
+  totalQuestions,
+  timeAway, // FIXED: Use timeAway prop
   onContinue,
   onStartNew,
   onClose
 }) => {
-  // Memoize session data to avoid multiple calls
-  const sessionData = useMemo(() => {
-    const session = SessionManager.getLastSession();
-    const sessionSummary = session ? SessionManager.getSessionSummary(session) : null;
-    return { session, sessionSummary };
-  }, [visible]); // Only recalculate when modal visibility changes
-
-  const { session, sessionSummary } = sessionData;
+  console.log('WelcomeBackModal props:', { visible, questionsAnswered, totalQuestions, timeAway });
 
   // Memoize modal title
   const modalTitle = useMemo(() => (
@@ -50,23 +48,8 @@ export const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({
     }
   }), []);
 
-  // Memoize session info display
+  // FIXED: Use timeAway prop instead of hardcoded value
   const sessionInfoDisplay = useMemo(() => {
-    if (!sessionSummary) {
-      return (
-        <div style={{
-          backgroundColor: colors.info.light + '20',
-          padding: spacing.md,
-          borderRadius: 8,
-          textAlign: 'center'
-        }}>
-          <Text type="secondary">
-            We found some resume data from your last session. You can continue from there or start fresh.
-          </Text>
-        </div>
-      );
-    }
-
     return (
       <>
         <div style={{
@@ -81,20 +64,20 @@ export const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({
             <Text type="secondary">Time Away</Text>
             <div style={{ fontSize: 16, fontWeight: 500 }}>
               <ClockCircleOutlined style={{ marginRight: spacing.xs }} />
-              {formatDuration(sessionSummary.timeAway)}
+              {formatDuration(timeAway)} {/* FIXED: Use actual timeAway */}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <Text type="secondary">Questions Answered</Text>
             <div style={{ fontSize: 16, fontWeight: 500 }}>
               <FileTextOutlined style={{ marginRight: spacing.xs }} />
-              {sessionSummary.questionsAnswered} / {sessionSummary.totalQuestions}
+              {questionsAnswered} / {totalQuestions}
             </div>
           </div>
         </div>
 
         <Progress
-          percent={(sessionSummary.questionsAnswered / sessionSummary.totalQuestions) * 100}
+          percent={(questionsAnswered / totalQuestions) * 100}
           status="active"
           strokeColor={colors.primary.main}
           trailColor={colors.neutral[200]}
@@ -102,11 +85,14 @@ export const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({
         />
 
         <Paragraph>
-          You left off at question {sessionSummary.questionsAnswered + 1} of {sessionSummary.totalQuestions}.
+          {questionsAnswered === 0 ?
+            `You can start your interview with ${totalQuestions} questions.` :
+            `You left off at question ${questionsAnswered + 1} of ${totalQuestions}.`
+          }
         </Paragraph>
       </>
     );
-  }, [sessionSummary]);
+  }, [questionsAnswered, totalQuestions, timeAway]); // FIXED: Add timeAway to dependencies
 
   // Memoize action buttons
   const actionButtons = useMemo(() => (

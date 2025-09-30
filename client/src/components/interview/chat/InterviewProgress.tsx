@@ -2,14 +2,14 @@
 import React, { useCallback, useMemo } from 'react';
 import { Progress, Typography, Tag } from 'antd';
 import { colors, spacing } from '../../../styles';
-import type { InterviewQuestion } from '../../../types';
+import type { Question } from '../../../types';
 
 const { Text } = Typography;
 
 interface InterviewProgressProps {
   currentQuestion: number;
   totalQuestions: number;
-  currentQuestionData?: InterviewQuestion | null;
+  currentQuestionData?: Question | null;
 }
 
 export const InterviewProgress: React.FC<InterviewProgressProps> = ({

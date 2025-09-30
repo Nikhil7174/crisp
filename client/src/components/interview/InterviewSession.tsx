@@ -4,6 +4,7 @@ import { Card, Typography, Space, Button, notification } from 'antd';
 import { RobotOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { ChatContainer } from './chat';
+import { InterviewCompletionModal } from './InterviewCompletionModal';
 import SessionManager from '../../services/SessionManager';
 import type { InterviewSession as InterviewSessionType, ChatMessage } from '../../types';
 
@@ -15,6 +16,8 @@ interface InterviewSessionProps {
   chatMessages?: ChatMessage[];
   onStartInterview?: (candidateData: any) => Promise<any>;
   onSubmitAnswer?: (sessionId: string, questionId: string, answer: string, timeTaken: number) => Promise<any>;
+  onSaveResults?: (results: any) => Promise<void>;
+  onComplete?: () => void;
 }
 
 export const InterviewSession: React.FC<InterviewSessionProps> = ({
@@ -22,21 +25,55 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
   currentSession,
   chatMessages = [],
   onStartInterview,
-  onSubmitAnswer
+  onSubmitAnswer,
+  onSaveResults,
+  onComplete
 }) => {
-  // Remove all the useEffect logic and just use simple state
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [isInterviewCompleted, setIsInterviewCompleted] = useState(false);
+  const [sessionRestored, setSessionRestored] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
+  // Add a state to track user answers locally
   // Memoize current question to avoid recalculation
   const currentQuestion = useMemo(() => {
     const question = currentSession?.questions?.[currentQuestionIndex];
-    console.log('Current question index:', currentQuestionIndex);
-    console.log('Current question:', question?.id);
-    console.log('Total questions:', currentSession?.questions?.length);
+    console.log('Current question memoized:', {
+      index: currentQuestionIndex,
+      questionId: question?.id,
+      totalQuestions: currentSession?.questions?.length
+    });
     return question;
   }, [currentSession?.questions, currentQuestionIndex]);
+
+  // Restore current question index when session is loaded
+  useEffect(() => {
+    if (currentSession && currentSession.answers && !sessionRestored) {
+      // Set current question index to the next unanswered question
+      const answeredCount = currentSession.answers.length;
+      const totalQuestions = currentSession.questions?.length || 0;
+
+      // Ensure we don't go beyond available questions
+      const nextQuestionIndex = Math.min(answeredCount, totalQuestions - 1);
+
+      console.log('Restoring session - answered count:', answeredCount);
+      console.log('Total questions:', totalQuestions);
+      console.log('Setting current question index to:', nextQuestionIndex);
+
+      setCurrentQuestionIndex(nextQuestionIndex);
+      setSessionRestored(true);
+    }
+  }, [currentSession?.sessionId, sessionRestored]); // Only run when session ID changes
+
+  // Reset states when session changes
+  useEffect(() => {
+    if (currentSession?.sessionId) {
+      setSessionRestored(false);
+      setIsInterviewCompleted(false);
+    }
+  }, [currentSession?.sessionId]);
 
   // Start interview when component mounts - BUT ONLY IF NO SESSION EXISTS
   useEffect(() => {
@@ -69,48 +106,48 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
       return;
     }
 
-    console.log('Submitting answer for question:', currentQuestion.id);
-    console.log('Current question index before submit:', currentQuestionIndex);
+    console.log('=== ANSWER SUBMISSION DEBUG ===');
+    console.log('Current question index:', currentQuestionIndex);
+    console.log('Current question:', currentQuestion.id);
+    console.log('Selected option:', selectedOptionId);
+    console.log('Total questions:', currentSession.questions?.length);
+    console.log('Current answers count:', currentSession.answers?.length);
 
-    setIsSubmitting(true);
-    const startTime = Date.now();
-
+    // Submit to backend first
     try {
-      const result = await onSubmitAnswer(
-        currentSession.sessionId,
-        currentQuestion.id,
-        selectedOptionId,
-        Date.now() - startTime
-      );
-
-      if (result?.success) {
-        console.log('Answer submitted successfully');
-        console.log('Is complete:', result.isComplete);
-        
-        // Move to next question or complete interview immediately
-        if (result.isComplete) {
-          notification.success({
-            message: 'Interview completed!',
-            description: 'Great job! You\'ve finished all questions.'
-          });
-        } else {
-          console.log('Moving to next question. Current index:', currentQuestionIndex);
-          setCurrentQuestionIndex(prev => {
-            console.log('Previous index:', prev, 'New index:', prev + 1);
-            return prev + 1;
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error('Failed to submit answer:', error);
-      notification.error({
-        message: 'Failed to submit answer',
-        description: error.message || 'Please try again'
-      });
-    } finally {
-      setIsSubmitting(false);
+      const result = await onSubmitAnswer(currentSession.sessionId, currentQuestion.id, selectedOptionId, 0);
+      console.log('Backend submission result:', result);
+    } catch (error) {
+      console.error('Backend submission failed:', error);
+      // Continue with frontend logic even if backend fails
     }
-  }, [currentQuestion, onSubmitAnswer, currentSession, currentQuestionIndex]);
+
+    // Check if this was the 6th question (index 5, since we're 0-indexed)
+    const isLastQuestion = currentQuestionIndex >= 5; // 6th question (0-indexed)
+    console.log('Is last question (index >= 5):', isLastQuestion);
+
+    if (isLastQuestion) {
+      // Mark interview as completed and show completion modal
+      console.log('Interview completed! Showing completion modal.');
+      setIsInterviewCompleted(true);
+      setShowCompletionModal(true);
+    } else {
+      // Move to next question
+      const nextIndex = currentQuestionIndex + 1;
+      const totalQuestions = currentSession.questions?.length || 0;
+
+      // Ensure we don't go beyond available questions
+      if (nextIndex < totalQuestions) {
+        console.log('Moving to next question. From index:', currentQuestionIndex, 'to:', nextIndex);
+        setCurrentQuestionIndex(nextIndex);
+      } else {
+        console.log('No more questions available. Interview should be complete.');
+        setIsInterviewCompleted(true);
+        setShowCompletionModal(true);
+      }
+    }
+    console.log('=== END ANSWER SUBMISSION DEBUG ===');
+  }, [currentQuestion, currentSession, currentQuestionIndex, onSubmitAnswer]);
 
   const handleTimerExpire = useCallback(() => {
     if (currentQuestion && !isSubmitting) {
@@ -118,7 +155,9 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
         message: 'Time\'s up!',
         description: 'Moving to next question...'
       });
-      handleAnswerSubmit('timeout'); // Submit timeout answer when timer expires
+
+      // FRONTEND LOGIC: Submit timeout answer and move to next question
+      handleAnswerSubmit('timeout');
     }
   }, [currentQuestion, isSubmitting, handleAnswerSubmit]);
 
@@ -135,11 +174,23 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
       );
     }
 
+    // Show completion message if interview is completed
+    if (isInterviewCompleted) {
+      return (
+        <div style={{ textAlign: 'center', padding: spacing.xl }}>
+          <Title level={3}>Interview Completed!</Title>
+          <Paragraph>
+            Thank you for completing the interview. Your results are being processed...
+          </Paragraph>
+        </div>
+      );
+    }
+
     return (
       <ChatContainer
         currentQuestion={currentQuestion}
         questionIndex={currentQuestionIndex}
-        totalQuestions={currentSession.questions.length}
+        totalQuestions={6} // Fixed to 6 questions
         onSubmitAnswer={handleAnswerSubmit}
         onTimerExpire={handleTimerExpire}
         loading={isSubmitting}
@@ -147,36 +198,65 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
         currentSession={currentSession}
       />
     );
-  }, [currentSession, currentQuestion, currentQuestionIndex, handleAnswerSubmit, handleTimerExpire, isSubmitting]);
+  }, [currentSession, currentQuestion, currentQuestionIndex, handleAnswerSubmit, handleTimerExpire, isSubmitting, isInterviewCompleted]);
+
+  const handleCompletion = useCallback(() => {
+    // Clear session from localStorage
+    if (currentSession) {
+      SessionManager.clearSession();
+    }
+
+    // Call the onComplete callback to redirect to home
+    if (onComplete) {
+      onComplete();
+    } else {
+      // Fallback: redirect to home page
+      window.location.href = '/';
+    }
+  }, [currentSession, onComplete]);
 
   return (
     <Card style={{ maxWidth: 900, margin: '0 auto' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Title level={3}>AI Interview Session</Title>
-          <Paragraph>
-            {currentSession ?
-              'Answer the questions below based on your resume and experience.' :
-              'Starting your AI interview session...'
-            }
-          </Paragraph>
-        </div>
+        {!isInterviewCompleted && (
+          <div style={{ textAlign: 'center' }}>
+            <Title level={3}>AI Interview Session</Title>
+            <Paragraph>
+              {currentSession ?
+                'Answer the questions below based on your resume and experience.' :
+                'Starting your AI interview session...'
+              }
+            </Paragraph>
+          </div>
+        )}
 
-        {/* Chat Interface */}
+        {/* Chat Interface or Summary */}
         {renderInterviewContent()}
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: spacing.md, justifyContent: 'center' }}>
-          <Button
-            type="primary"
-            size="large"
-            onClick={onStartNew}
-            style={{ minWidth: 200 }}
-          >
-            Start New Interview
-          </Button>
-        </div>
+        {/* Action Buttons - only show when not completed */}
+        {!isInterviewCompleted && (
+          <div style={{ display: 'flex', gap: spacing.md, justifyContent: 'center' }}>
+            <Button
+              type="primary"
+              size="large"
+              onClick={onStartNew}
+              style={{ minWidth: 200 }}
+            >
+              Start New Interview
+            </Button>
+          </div>
+        )}
       </Space>
+
+      {/* Completion Modal */}
+      {showCompletionModal && currentSession && onSaveResults && (
+        <InterviewCompletionModal
+          visible={showCompletionModal}
+          session={currentSession}
+          onComplete={handleCompletion}
+          onSaveResults={onSaveResults}
+        />
+      )}
     </Card>
   );
 };

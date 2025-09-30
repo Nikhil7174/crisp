@@ -4,7 +4,8 @@ import { colors, spacing } from '../../../styles';
 import { QuestionTimer } from './QuestionTimer';
 import { InterviewProgress } from './InterviewProgress';
 import { MultipleChoiceQuestion } from './MultipleChoiceQuestion';
-import type { Question } from '../../../types';
+import { ChatMessage } from './ChatMessage';
+import type { Question, ChatMessage as ChatMessageType } from '../../../types';
 
 interface ChatContainerProps {
   currentQuestion?: Question | null;
@@ -15,6 +16,8 @@ interface ChatContainerProps {
   loading?: boolean;
   disabled?: boolean;
   currentSession?: any; // Add currentSession to access questions and answers
+  chatMessages?: ChatMessageType[];
+  isSummaryView?: boolean;
 }
 
 export const ChatContainer: React.FC<ChatContainerProps> = ({
@@ -25,7 +28,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   onTimerExpire,
   loading = false,
   disabled = false,
-  currentSession
+  currentSession,
+  chatMessages = [],
+  isSummaryView = false
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +86,55 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     );
   }, [currentQuestion, onSubmitAnswer, loading, disabled]);
 
+  // Render chat messages in summary view
+  if (isSummaryView) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '400px',
+        border: `1px solid ${colors.neutral[200]}`,
+        borderRadius: 8,
+        backgroundColor: colors.background.primary
+      }}>
+        <div style={{
+          padding: spacing.md,
+          borderBottom: `1px solid ${colors.neutral[200]}`,
+          backgroundColor: colors.background.secondary
+        }}>
+          <h4 style={{ margin: 0, color: colors.neutral[900] }}>Interview Chat History</h4>
+        </div>
+
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: spacing.md,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: spacing.sm
+        }}>
+          {chatMessages.length > 0 ? (
+            chatMessages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+              />
+            ))
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              color: colors.neutral[500],
+              padding: spacing.xl
+            }}>
+              No chat messages available
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -108,7 +162,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         {/* Previous Questions */}
         {currentSession?.questions && currentSession.questions.slice(0, questionIndex).map((question: any) => {
           const answer = currentSession.answers?.find((a: any) => a.questionId === question.id);
-          
+
           // DEBUG: Add more console logging
           console.log('All answers in session:', currentSession.answers);
           console.log('Looking for questionId:', question.id);

@@ -33,7 +33,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [handleSubmit]);
 
-  const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
   }, []);
 

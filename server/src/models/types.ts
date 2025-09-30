@@ -63,6 +63,31 @@ export interface InterviewSession {
   duration?: number;
   score?: number;
   summary?: string;
+  finalResults?: FinalInterviewResults;
+}
+
+export interface FinalInterviewResults {
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number;
+  timeSpent: number;
+  averageTimePerQuestion: number;
+  strengths: string[];
+  areasForImprovement: string[];
+  overallFeedback: string;
+  detailedAnswers: Array<{
+    questionId: string;
+    question: string;
+    userAnswer: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    timeTaken: number;
+  }>;
+  completedAt: string;
+  candidateInfo: {
+    name: string;
+    email: string;
+  };
 }
 
 export interface MultipleChoiceOption {

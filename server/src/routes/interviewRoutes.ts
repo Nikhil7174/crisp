@@ -24,4 +24,9 @@ router.get('/results/:sessionId', (req: Request, res: Response) => {
     interviewController.getSessionResults(req, res);
 });
 
+// Save interview results endpoint
+router.post('/save-results', (req: Request, res: Response) => {
+    interviewController.saveResults(req, res);
+});
+
 export default router;
