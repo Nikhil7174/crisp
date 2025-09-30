@@ -21,8 +21,8 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app']
-    : ['http://localhost:5173', 'http://localhost:3000', 'https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app'],
+    ? ['https://crisp-beta.vercel.app']
+    : ['http://localhost:5173', 'http://localhost:3000', 'https://crisp-beta.vercel.app', 'https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app'],
   credentials: true
 }));
 app.use(morgan('combined'));
