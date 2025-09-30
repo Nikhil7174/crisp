@@ -1,6 +1,8 @@
 // Alternative: Use a third-party code execution service
 // This would be safer for production deployment
 
+import { TestCase, TestResult } from './codeExecutionService';
+
 export class SafeCodeExecutionService {
     private apiKey: string;
     private baseUrl: string;
@@ -28,7 +30,7 @@ export class SafeCodeExecutionService {
                     })
                 });
 
-                const data = await response.json();
+                const data = await response.json() as { output?: string };
                 const actualOutput = data.output?.trim() || 'Error';
 
                 results.push({
