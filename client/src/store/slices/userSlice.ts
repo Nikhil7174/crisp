@@ -1,9 +1,16 @@
 // src/store/slices/userSlice.ts
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { UserType, UserPreferences } from '../../types';
+import type { UserType } from '../../types';
 
-const initialState = {
+interface UserState {
+  userType: UserType | null;
+  preferences: Record<string, any>;
+  onboardingStep: number;
+  isFirstTimeUser: boolean;
+}
+
+const initialState: UserState = {
   userType: null,
   preferences: {},
   onboardingStep: 0,
@@ -17,7 +24,7 @@ const userSlice = createSlice({
     setUserType: (state, action: PayloadAction<UserType | null>) => {
       state.userType = action.payload;
     },
-    updatePreferences: (state, action: PayloadAction<Partial<UserPreferences>>) => {
+    updatePreferences: (state, action: PayloadAction<Record<string, any>>) => {
       state.preferences = { ...state.preferences, ...action.payload };
     },
     incrementOnboardingStep: (state) => {
@@ -30,11 +37,11 @@ const userSlice = createSlice({
   },
 });
 
-export const { 
-  setUserType, 
-  updatePreferences, 
-  incrementOnboardingStep, 
+export const {
+  setUserType,
+  updatePreferences,
+  incrementOnboardingStep,
   setFirstTimeUser,
-  resetUser 
+  resetUser
 } = userSlice.actions;
 export default userSlice.reducer;

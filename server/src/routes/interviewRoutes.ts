@@ -9,10 +9,7 @@ router.post('/start', (req: Request, res: Response) => {
     interviewController.startInterview(req, res);
 });
 
-// Submit answer endpoint (no feedback, just move to next question)
-router.post('/answer', (req: Request, res: Response) => {
-    interviewController.submitAnswer(req, res);
-});
+// Note: Removed /answer endpoint - answers are only stored locally until interview completion
 
 // Get session status endpoint
 router.get('/session/:sessionId', (req: Request, res: Response) => {

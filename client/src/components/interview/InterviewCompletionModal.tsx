@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Typography, Space, Button, Progress, notification } from 'antd';
 import { CheckCircleOutlined, TrophyOutlined, LoadingOutlined } from '@ant-design/icons';
+import { useSelector } from 'react-redux';
 import { colors, spacing } from '../../styles';
 import type { InterviewSession } from '../../types';
+import type { RootState } from '../../store';
 import SessionManager from '../../services/SessionManager';
 
 const { Title, Paragraph } = Typography;
@@ -22,6 +24,7 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
     onSaveResults
 }) => {
     const [isSaving, setIsSaving] = useState(false);
+    const resumeData = useSelector((state: RootState) => state.interview.resumeData);
     const [saveProgress, setSaveProgress] = useState(0);
 
     useEffect(() => {
@@ -82,8 +85,11 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
             // Session Information
             sessionId: session.sessionId,
             candidateId: session.candidateId,
+            candidateName: resumeData?.name || 'Unknown',
+            candidateEmail: resumeData?.email || 'unknown@example.com',
+            candidatePhone: resumeData?.phone || '',
             completedAt: new Date().toISOString(),
-            startTime: session.startTime,
+            startTime: session.startTime || new Date().toISOString(),
             endTime: new Date(),
             duration: Date.now() - new Date(session.startTime).getTime(),
 
@@ -153,6 +159,16 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
             // Create and save summary
             const summary = createCompleteSummary();
             if (summary) {
+                // DEBUG: Log client-side data being sent
+                console.log('=== CLIENT SIDE DEBUG ===');
+                console.log('About to send interview summary to server:');
+                console.log('Summary data:', JSON.stringify(summary, null, 2));
+                console.log('Candidate Name:', summary.candidateName);
+                console.log('Candidate Email:', summary.candidateEmail);
+                console.log('Session ID:', summary.sessionId);
+                console.log('Score:', summary.score);
+                console.log('=== END CLIENT SIDE DEBUG ===');
+
                 await onSaveResults(summary);
 
                 // Complete progress
@@ -181,11 +197,6 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
         }
     };
 
-    const formatTime = (seconds: number) => {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return minutes > 0 ? `${minutes}m ${remainingSeconds}s` : `${remainingSeconds}s`;
-    };
 
     return (
         <Modal

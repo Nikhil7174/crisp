@@ -9,6 +9,8 @@ import { theme } from './styles/theme';
 import { Layout } from './components/layout/Layout';
 import Home from './pages/Home';
 import InterviewChat from './pages/InterviewChat';
+import { Admin } from './pages/Admin';
+import { InterviewDetails } from './pages/InterviewDetails';
 
 const App: React.FC = () => {
   return (
@@ -16,12 +18,14 @@ const App: React.FC = () => {
       <PersistGate loading={null} persistor={persistor}>
         <ConfigProvider theme={theme}>
           <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/interview" element={<InterviewChat />} />
-              </Routes>
-            </Layout>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Home />} />
+                <Route path="interview" element={<InterviewChat />} />
+              </Route>
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/interview/:id" element={<InterviewDetails />} />
+            </Routes>
           </Router>
         </ConfigProvider>
       </PersistGate>

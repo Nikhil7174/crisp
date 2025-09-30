@@ -123,13 +123,18 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                                     value={option.id}
                                     style={{
                                         width: '100%',
+                                        minHeight: '48px',
                                         padding: spacing.sm,
                                         borderRadius: 8,
                                         border: `1px solid ${colors.neutral[200]}`,
+                                        display: 'flex',
+                                        alignItems: 'center'
                                     }}
                                 >
-                                    <Space>
-                                        <span>{option.text}</span>
+                                    <Space style={{ width: '100%' }}>
+                                        <span style={{ flex: 1, wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                            {option.text}
+                                        </span>
                                     </Space>
                                 </Radio>
                             ))}
@@ -181,15 +186,20 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                                 value={option.id}
                                 style={{
                                     width: '100%',
+                                    minHeight: '48px',
                                     padding: spacing.sm,
                                     borderRadius: 8,
                                     border: `1px solid ${colors.neutral[200]}`,
+                                    display: 'flex',
+                                    alignItems: 'center',
                                     ...getOptionStyle(option.id)
                                 }}
                             >
-                                <Space>
+                                <Space style={{ width: '100%' }}>
                                     {getOptionIcon(option.id)}
-                                    <span>{option.text}</span>
+                                    <span style={{ flex: 1, wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                        {option.text}
+                                    </span>
                                 </Space>
                             </Radio>
                         )) : (

@@ -1,14 +1,15 @@
 import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openaiService';
-import { InterviewSession, InterviewQuestion, InterviewAnswer, DetailedResumeData, FinalResults } from '../models/types';
+import { DatabaseService } from '../services/databaseService';
+import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
 
 export class InterviewController {
   private openaiService: OpenAIService;
-  private sessions: Map<string, InterviewSession>;
+  private dbService: DatabaseService;
 
   constructor() {
     this.openaiService = new OpenAIService();
-    this.sessions = new Map();
+    this.dbService = DatabaseService.getInstance();
   }
 
   async startInterview(req: Request, res: Response): Promise<void> {
@@ -34,7 +35,15 @@ export class InterviewController {
         startTime: new Date()
       };
 
-      this.sessions.set(sessionId, session);
+      // Save session to SQLite
+      await this.dbService.saveSession({
+        sessionId,
+        candidateId: session.candidateId,
+        status: session.status,
+        questions: session.questions,
+        answers: session.answers,
+        startTime: session.startTime
+      });
 
       // In startInterview - just return questions
       const responseData = {
@@ -63,106 +72,13 @@ export class InterviewController {
     }
   }
 
-  async submitAnswer(req: Request, res: Response): Promise<void> {
-    try {
-      const { sessionId, questionId, selectedOptionId, timeTaken } = req.body;
-
-      if (!sessionId || !questionId || !selectedOptionId) {
-        res.status(400).json({ error: 'Session ID, question ID, and selected option ID are required' });
-        return;
-      }
-
-      const session = this.sessions.get(sessionId);
-      if (!session) {
-        res.status(404).json({ error: 'Interview session not found' });
-        return;
-      }
-
-      if (session.status !== 'in_progress') {
-        res.status(400).json({ error: 'Interview session is not active' });
-        return;
-      }
-
-      // Find the question
-      const question = session.questions.find(q => q.id === questionId);
-      if (!question) {
-        res.status(404).json({ error: 'Question not found' });
-        return;
-      }
-
-      // Handle timer expiry case
-      let selectedOption;
-      let isTimeout = false;
-
-      if (selectedOptionId === 'timeout') {
-        // For timer expiry, mark as incorrect and use first option as placeholder
-        selectedOption = question.options[0];
-        isTimeout = true;
-      } else {
-        // Find the selected option
-        selectedOption = question.options.find(opt => opt.id === selectedOptionId);
-        if (!selectedOption) {
-          res.status(400).json({ error: 'Selected option not found' });
-          return;
-        }
-      }
-
-      // Create answer record
-      const answerRecord: InterviewAnswer = {
-        questionId,
-        answer: isTimeout ? 'No answer selected (timeout)' : selectedOption.text,
-        selectedOptionId: isTimeout ? 'timeout' : selectedOptionId,
-        answeredAt: new Date(),
-        timeTaken: timeTaken || 0,
-        isCorrect: isTimeout ? false : selectedOption.isCorrect
-      };
-
-      // Debug logging
-      console.log('=== ANSWER SUBMISSION DEBUG ===');
-      console.log('Question ID:', questionId);
-      console.log('Selected Option ID:', selectedOptionId);
-      console.log('Selected Option:', selectedOption);
-      console.log('Question Correct Answer ID:', question.correctAnswerId);
-      console.log('Answer is correct:', answerRecord.isCorrect);
-      console.log('=== END ANSWER SUBMISSION DEBUG ===');
-
-      // Update session
-      session.answers.push(answerRecord);
-      question.askedAt = new Date();
-
-      // Check if all questions are answered
-      const allQuestionsAnswered = session.questions.every(q =>
-        session.answers.some(a => a.questionId === q.id)
-      );
-
-      if (allQuestionsAnswered) {
-        session.status = 'completed';
-        session.endTime = new Date();
-        session.duration = session.endTime.getTime() - session.startTime.getTime();
-      }
-
-      // In submitAnswer - just return success/completion status
-      res.json({
-        success: true,
-        isCorrect: answerRecord.isCorrect,
-        isComplete: allQuestionsAnswered,
-        message: 'Answer submitted successfully'
-      });
-
-    } catch (error) {
-      console.error('Submit answer error:', error);
-      res.status(500).json({
-        error: 'Failed to submit answer',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  }
+  // Note: submitAnswer method removed - answers are only stored locally until interview completion
 
   async getSessionResults(req: Request, res: Response): Promise<void> {
     try {
       const { sessionId } = req.params;
 
-      const session = this.sessions.get(sessionId);
+      const session = await this.dbService.getSession(sessionId);
       if (!session) {
         res.status(404).json({ error: 'Interview session not found' });
         return;
@@ -198,7 +114,7 @@ export class InterviewController {
     try {
       const { sessionId } = req.params;
 
-      const session = this.sessions.get(sessionId);
+      const session = await this.dbService.getSession(sessionId);
       if (!session) {
         res.status(404).json({ error: 'Interview session not found' });
         return;
@@ -231,24 +147,34 @@ export class InterviewController {
     try {
       const completeSummary = req.body;
 
+      // DEBUG: Log incoming request data
+      console.log('=== SAVE RESULTS DEBUG ===');
+      console.log('Request received at:', new Date().toISOString());
+      console.log('Request body keys:', Object.keys(completeSummary));
+      console.log('Session ID:', completeSummary.sessionId);
+      console.log('Candidate Name:', completeSummary.candidateName);
+      console.log('Candidate Email:', completeSummary.candidateEmail);
+      console.log('Score:', completeSummary.score);
+      console.log('Full request body:', JSON.stringify(completeSummary, null, 2));
+      console.log('=== END SAVE RESULTS DEBUG ===');
+
       if (!completeSummary.sessionId) {
         res.status(400).json({ error: 'Session ID is required' });
         return;
       }
 
-      // Find the session
-      const session = this.sessions.get(completeSummary.sessionId);
-      if (!session) {
-        res.status(404).json({ error: 'Interview session not found' });
-        return;
+      // Update session in SQLite if it exists
+      const session = await this.dbService.getSession(completeSummary.sessionId);
+      if (session) {
+        // Update session with complete summary
+        await this.dbService.updateSession(completeSummary.sessionId, {
+          status: 'completed',
+          end_time: new Date(),
+          duration: completeSummary.duration,
+          score: completeSummary.score,
+          summary: JSON.stringify(completeSummary)
+        });
       }
-
-      // Update session with complete summary
-      session.status = 'completed';
-      session.endTime = new Date();
-      session.duration = completeSummary.duration;
-      session.score = completeSummary.score;
-      session.finalResults = completeSummary;
 
       // Log the complete summary for debugging
       console.log('=== COMPLETE INTERVIEW SUMMARY ===');
@@ -262,8 +188,40 @@ export class InterviewController {
       console.log('Complete Summary:', JSON.stringify(completeSummary, null, 2));
       console.log('=== END COMPLETE INTERVIEW SUMMARY ===');
 
-      // In a real application, you would save this to a database
-      // For now, we'll just log it and return success
+      // Save to database
+      try {
+        const interviewSummary = {
+          sessionId: completeSummary.sessionId,
+          candidateName: completeSummary.candidateName || completeSummary.candidateId || 'Unknown',
+          candidateEmail: completeSummary.candidateEmail || completeSummary.candidateId || 'unknown@example.com',
+          candidatePhone: completeSummary.candidatePhone || '',
+          startTime: completeSummary.startTime,
+          endTime: completeSummary.endTime,
+          duration: completeSummary.duration,
+          score: completeSummary.score,
+          totalQuestions: completeSummary.totalQuestions,
+          correctAnswers: completeSummary.correctAnswers,
+          timeSpent: completeSummary.timeSpent,
+          strengths: completeSummary.strengths,
+          areasForImprovement: completeSummary.areasForImprovement,
+          overallFeedback: completeSummary.overallFeedback,
+          detailedAnswers: completeSummary.detailedAnswers,
+          questionAnalysis: completeSummary.questionAnalysis
+        };
+
+        // DEBUG: Log interview summary before saving
+        console.log('=== DATABASE SAVE DEBUG ===');
+        console.log('Interview summary to save:', JSON.stringify(interviewSummary, null, 2));
+        console.log('About to call saveInterviewSummary...');
+
+        await this.dbService.saveInterviewSummary(interviewSummary);
+        console.log('✅ Interview summary saved to database successfully');
+        console.log('=== END DATABASE SAVE DEBUG ===');
+      } catch (dbError) {
+        console.error('❌ Error saving to database:', dbError);
+        console.error('Database error details:', JSON.stringify(dbError, null, 2));
+        // Don't fail the request if database save fails
+      }
 
       res.json({
         success: true,

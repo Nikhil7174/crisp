@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Space, Button, Progress, Collapse, Statistic, Row, Col, Tag, notification } from 'antd';
 import { CheckCircleOutlined, ClockCircleOutlined, TrophyOutlined, FileTextOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import { useSelector } from 'react-redux';
 import { colors, spacing } from '../../styles';
 import { CollapsibleChat } from './CollapsibleChat';
 import type { InterviewSession, ChatMessage } from '../../types';
+import type { RootState } from '../../store';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -44,6 +46,7 @@ export const InterviewSummary: React.FC<InterviewSummaryProps> = ({
     const [isSaving, setIsSaving] = useState(false);
     const [isChatExpanded, setIsChatExpanded] = useState(false);
     const [showSummaryJson, setShowSummaryJson] = useState(false);
+    const resumeData = useSelector((state: RootState) => state.interview.resumeData);
 
     useEffect(() => {
         if (session) {
@@ -157,6 +160,9 @@ export const InterviewSummary: React.FC<InterviewSummaryProps> = ({
             // Session Information
             sessionId: session.sessionId,
             candidateId: session.candidateId,
+            candidateName: resumeData?.name || 'Unknown',
+            candidateEmail: resumeData?.email || 'unknown@example.com',
+            candidatePhone: resumeData?.phone || '',
             completedAt: new Date().toISOString(),
             startTime: session.startTime,
             endTime: new Date(),

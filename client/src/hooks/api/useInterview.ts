@@ -92,7 +92,7 @@ export const useInterview = () => {
   }, [dispatch, storedSession]); // Add storedSession to dependencies
 
   const submitAnswer = useCallback(async (
-    sessionId: string,
+    sessionId: string, // eslint-disable-line @typescript-eslint/no-unused-vars
     questionId: string,
     selectedOptionId: string,
     timeTaken: number
@@ -135,18 +135,7 @@ export const useInterview = () => {
         console.log('Updated session with answers:', updatedSession.answers);
       }
 
-      // Try to submit to backend (optional)
-      try {
-        const response = await axios.post(`${API_BASE_URL}/interview/answer`, {
-          sessionId,
-          questionId,
-          selectedOptionId,
-          timeTaken
-        });
-        console.log('Backend submission successful:', response.data);
-      } catch (error) {
-        console.log('Backend submission failed, but answer stored locally');
-      }
+      // Note: No backend call per question - only store locally until interview completion
 
       // Return success response
       return {
@@ -185,10 +174,24 @@ export const useInterview = () => {
 
   const saveResults = useCallback(async (results: any) => {
     try {
+      // DEBUG: Log API call details
+      console.log('=== API CALL DEBUG ===');
+      console.log('Making POST request to:', `${API_BASE_URL}/interview/save-results`);
+      console.log('Request payload:', JSON.stringify(results, null, 2));
+      console.log('About to send request...');
+
       const response = await axios.post(`${API_BASE_URL}/interview/save-results`, results);
+
+      console.log('✅ API Response received:');
+      console.log('Response status:', response.status);
+      console.log('Response data:', JSON.stringify(response.data, null, 2));
+      console.log('=== END API CALL DEBUG ===');
+
       return response.data;
     } catch (error: any) {
-      console.error('useInterview: Save results error:', error);
+      console.error('❌ useInterview: Save results error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
       const errorMessage = error.response?.data?.message || 'Failed to save results';
       throw new Error(errorMessage);
     }

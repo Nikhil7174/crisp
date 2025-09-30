@@ -58,7 +58,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
             ? colors.primary.light + '10' // 10% opacity
             : colors.background.primary,
         }}
-        bodyStyle={{ padding: spacing.lg, height: '100%' }}
+        styles={{ body: { padding: spacing.lg, height: '100%' } }}
         onClick={onSelect}
       >
         {isActive && (

@@ -1,7 +1,8 @@
 // src/components/layout/Header.tsx
 import React from 'react';
 import { Layout, Menu, Button, Space } from 'antd';
-import { RocketOutlined } from '@ant-design/icons';
+import { RocketOutlined, DashboardOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useResponsive } from '../../hooks/useResponsive';
 import { colors, spacing } from '../../styles';
 
@@ -9,6 +10,7 @@ const { Header: AntHeader } = Layout;
 
 export const Header: React.FC = () => {
   const { isMobile } = useResponsive();
+  const navigate = useNavigate();
 
   const menuItems = [
     { key: 'features', label: 'Features' },
@@ -16,10 +18,14 @@ export const Header: React.FC = () => {
     { key: 'about', label: 'About' }
   ];
 
+  const handleAdminClick = () => {
+    navigate('/admin');
+  };
+
   return (
-    <AntHeader 
-      style={{ 
-        background: colors.background.primary, 
+    <AntHeader
+      style={{
+        background: colors.background.primary,
         boxShadow: colors.shadows.sm,
         position: 'sticky',
         top: 0,
@@ -27,47 +33,53 @@ export const Header: React.FC = () => {
         padding: `0 ${spacing.lg}px`,
       }}
     >
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         maxWidth: 1200,
         margin: '0 auto',
         height: '100%',
       }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: spacing.sm 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing.sm
         }}>
-          <RocketOutlined style={{ 
-            fontSize: 24, 
-            color: colors.primary.main 
+          <RocketOutlined style={{
+            fontSize: 24,
+            color: colors.primary.main
           }} />
-          <span style={{ 
-            fontSize: 20, 
+          <span style={{
+            fontSize: 20,
             fontWeight: 600,
             color: colors.neutral[900]
           }}>
             AI Interview
           </span>
         </div>
-        
+
         {!isMobile && (
-          <Menu 
-            mode="horizontal" 
+          <Menu
+            mode="horizontal"
             items={menuItems}
-            style={{ 
-              border: 'none', 
-              flex: 1, 
-              justifyContent: 'center' 
+            style={{
+              border: 'none',
+              flex: 1,
+              justifyContent: 'center'
             }}
           />
         )}
-        
+
         <Space>
-          <Button type="text">Sign In</Button>
-          <Button type="primary">Get Started</Button>
+          <Button
+            type="text"
+            icon={<DashboardOutlined />}
+            onClick={handleAdminClick}
+            style={{ color: colors.info.main }}
+          >
+            View Dashboard
+          </Button>
         </Space>
       </div>
     </AntHeader>

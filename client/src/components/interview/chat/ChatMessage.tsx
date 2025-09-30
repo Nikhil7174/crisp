@@ -88,7 +88,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       justifyContent: isUser ? 'flex-end' : 'flex-start',
       marginBottom: spacing.md,
       gap: spacing.sm,
-      alignItems: 'flex-start'
+      alignItems: 'flex-start',
+      width: '100%'
     },
     content: {
       maxWidth: '70%',

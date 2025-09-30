@@ -45,7 +45,7 @@ export interface DetailedResumeData extends ResumeData {
 
 export class ResumeParserService {
   private openai: OpenAI;
-  
+
   constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -54,9 +54,9 @@ export class ResumeParserService {
 
   async parseResume(fileBuffer: Buffer, fileName: string): Promise<DetailedResumeData> {
     const fileExtension = fileName.toLowerCase().split('.').pop();
-    
+
     let text: string;
-    
+
     if (fileExtension === 'pdf') {
       text = await this.parsePDF(fileBuffer);
     } else if (fileExtension === 'docx') {
@@ -64,17 +64,17 @@ export class ResumeParserService {
     } else {
       throw new Error('Unsupported file type. Only PDF and DOCX files are allowed.');
     }
-    
+
     // Use OpenAI to extract structured data
     const extractedData = await this.extractDataWithAI(text);
-    
+
     return {
       ...extractedData,
       text,
       fileName
     };
   }
-  
+
   private async parsePDF(buffer: Buffer): Promise<string> {
     try {
       const data = await pdfParse(buffer);
@@ -83,7 +83,7 @@ export class ResumeParserService {
       throw new Error('Failed to parse PDF file');
     }
   }
-  
+
   private async parseDOCX(buffer: Buffer): Promise<string> {
     try {
       const result = await mammoth.extractRawText({ buffer });
@@ -92,11 +92,11 @@ export class ResumeParserService {
       throw new Error('Failed to parse DOCX file');
     }
   }
-  
+
   private async extractDataWithAI(text: string): Promise<DetailedResumeData> {
     // MOCK DATA - Remove this when OpenAI is configured
     console.log('Using MOCK resume parsing data (OpenAI not configured)');
-    
+
     // Generate mock data based on some basic text analysis
     const mockData = this.generateMockResumeData(text);
     return mockData;
@@ -209,10 +209,10 @@ Extract all available information accurately. For arrays, return empty array [] 
     // Basic regex extraction for essential fields
     const emailRegex = /\b[A-Za-z0-9]([A-Za-z0-9._%-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}\b/g;
     const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/g;
-    
+
     const emails = text.match(emailRegex) || [];
     const phones = text.match(phoneRegex) || [];
-    
+
     // Simple name extraction from first line
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const name = lines[0] && this.isLikelyName(lines[0]) ? lines[0] : 'John Doe';
@@ -287,19 +287,19 @@ Extract all available information accurately. For arrays, return empty array [] 
       technicalSkills: mockTechnicalSkills
     };
   }
-  
+
   private fallbackExtraction(text: string): DetailedResumeData {
     // Basic regex fallback for essential fields only
     const emailRegex = /\b[A-Za-z0-9]([A-Za-z0-9._%-]*[A-Za-z0-9])?@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}\b/g;
     const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/g;
-    
+
     const emails = text.match(emailRegex) || [];
     const phones = text.match(phoneRegex) || [];
-    
+
     // Simple name extraction from first line
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const name = lines[0] && this.isLikelyName(lines[0]) ? lines[0] : null;
-    
+
     return {
       name: name,
       email: emails[0] || null,
@@ -330,13 +330,13 @@ Extract all available information accurately. For arrays, return empty array [] 
       }
     };
   }
-  
+
   private isLikelyName(text: string): boolean {
     if (!text || text.length < 2 || text.length > 50) return false;
     if (/\d/.test(text)) return false;
     if (!/^[A-Z]/.test(text)) return false;
     if (!/^[A-Za-z\s\-'\.]+$/.test(text)) return false;
-    
+
     const wordCount = text.split(/\s+/).length;
     return wordCount >= 1 && wordCount <= 4;
   }
