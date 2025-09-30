@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { AdminDashboard } from '../components/admin/AdminDashboard';
+import { API_BASE_URL } from '../constants/api';
 
 export const Admin: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
-    const API_BASE_URL = 'http://localhost:3001/api';
 
     useEffect(() => {
         const token = localStorage.getItem('adminToken');

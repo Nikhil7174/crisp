@@ -19,6 +19,7 @@ import {
     TrophyOutlined
 } from '@ant-design/icons';
 import { spacing } from '../styles';
+import { API_BASE_URL } from '../constants/api';
 
 const { Title, Text } = Typography;
 
@@ -48,7 +49,6 @@ export const InterviewDetails: React.FC = () => {
     const navigate = useNavigate();
     const [interview, setInterview] = useState<Interview | null>(null);
     const [loading, setLoading] = useState(true);
-    const API_BASE_URL = 'http://localhost:3001/api';
 
     useEffect(() => {
         const fetchInterviewDetails = async () => {

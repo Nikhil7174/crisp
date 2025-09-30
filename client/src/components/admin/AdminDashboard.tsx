@@ -19,6 +19,7 @@ import {
     CheckCircleOutlined
 } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
+import { API_BASE_URL } from '../../constants/api';
 
 const { Title, Text } = Typography;
 
@@ -57,7 +58,6 @@ export const AdminDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
-    const API_BASE_URL = 'http://localhost:3001/api';
 
     useEffect(() => {
         fetchDashboardData();

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, message, Typography } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
+import { API_BASE_URL } from '../../constants/api';
 
 const { Title, Text } = Typography;
 
@@ -11,7 +12,6 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
     const [loading, setLoading] = useState(false);
-    const API_BASE_URL = 'http://localhost:3001/api';
 
     const handleSubmit = async (values: { username: string; password: string }) => {
         setLoading(true);

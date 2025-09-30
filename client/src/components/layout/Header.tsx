@@ -1,9 +1,10 @@
 // src/components/layout/Header.tsx
 import React from 'react';
 import { Layout, Button, Space } from 'antd';
-import { RocketOutlined, DashboardOutlined } from '@ant-design/icons';
+import { DashboardOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
+import crispLogo from '../../assets/images/crisp.png';
 
 const { Header: AntHeader } = Layout;
 
@@ -46,10 +47,14 @@ export const Header: React.FC = () => {
           }}
           onClick={handleTitleClick}
         >
-          <RocketOutlined style={{
-            fontSize: 24,
-            color: colors.primary.main
-          }} />
+          <img
+            src={crispLogo}
+            alt="Crisp Logo"
+            style={{
+              height: 32,
+              width: 'auto'
+            }}
+          />
           <span style={{
             fontSize: 20,
             fontWeight: 600,

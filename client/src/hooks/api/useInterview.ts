@@ -14,7 +14,7 @@ import {
 import SessionManager from '../../services/SessionManager';
 import type { DetailedResumeData, ChatMessage } from '../../types';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+import { API_BASE_URL } from '../../constants/api';
 
 export const useInterview = () => {
   const dispatch = useAppDispatch();
