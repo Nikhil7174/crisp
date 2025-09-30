@@ -12,14 +12,12 @@ export const Header: React.FC = () => {
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
 
-  const menuItems = [
-    { key: 'features', label: 'Features' },
-    { key: 'pricing', label: 'Pricing' },
-    { key: 'about', label: 'About' }
-  ];
-
   const handleAdminClick = () => {
     navigate('/admin');
+  };
+
+  const handleTitleClick = () => {
+    navigate('/');
   };
 
   return (
@@ -41,11 +39,15 @@ export const Header: React.FC = () => {
         margin: '0 auto',
         height: '100%',
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: spacing.sm
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: spacing.sm,
+            cursor: 'pointer'
+          }}
+          onClick={handleTitleClick}
+        >
           <RocketOutlined style={{
             fontSize: 24,
             color: colors.primary.main
@@ -55,21 +57,9 @@ export const Header: React.FC = () => {
             fontWeight: 600,
             color: colors.neutral[900]
           }}>
-            AI Interview
+            Crisp
           </span>
         </div>
-
-        {!isMobile && (
-          <Menu
-            mode="horizontal"
-            items={menuItems}
-            style={{
-              border: 'none',
-              flex: 1,
-              justifyContent: 'center'
-            }}
-          />
-        )}
 
         <Space>
           <Button

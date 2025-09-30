@@ -31,9 +31,8 @@ export const DualColumnSection: React.FC = () => {
   }, [navigate]);
 
   const handleCreateInterview = useCallback(() => {
-    // TODO: Implement interviewer flow
-    console.log('Create interview clicked');
-  }, []);
+    navigate('/admin');
+  }, [navigate]);
 
   return (
     <div style={{

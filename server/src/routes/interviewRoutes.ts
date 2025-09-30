@@ -9,6 +9,11 @@ router.post('/start', (req: Request, res: Response) => {
     interviewController.startInterview(req, res);
 });
 
+// Validate coding answer endpoint
+router.post('/validate-code', (req: Request, res: Response) => {
+    interviewController.validateCodeAnswer(req, res);
+});
+
 // Note: Removed /answer endpoint - answers are only stored locally until interview completion
 
 // Get session status endpoint

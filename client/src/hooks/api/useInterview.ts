@@ -220,6 +220,29 @@ export const useInterview = () => {
     }
   }, []);
 
+  const validateCode = useCallback(async (questionId: string, code: string) => {
+    try {
+      console.log('=== CODE VALIDATION DEBUG ===');
+      console.log('Validating code for question:', questionId);
+      console.log('Code:', code);
+
+      const response = await axios.post(`${API_BASE_URL}/interview/validate-code`, {
+        questionId,
+        code
+      });
+
+      console.log('✅ Code validation response:', response.data);
+      console.log('=== END CODE VALIDATION DEBUG ===');
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ useInterview: Code validation error:', error);
+      console.error('Error response:', error.response?.data);
+      const errorMessage = error.response?.data?.message || 'Failed to validate code';
+      throw new Error(errorMessage);
+    }
+  }, []);
+
   return {
     currentSession,
     chatMessages,
@@ -230,6 +253,7 @@ export const useInterview = () => {
     submitAnswer,
     getCurrentSession,
     restoreSession,
-    saveResults
+    saveResults,
+    validateCode
   };
 };

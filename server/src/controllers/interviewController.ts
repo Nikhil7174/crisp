@@ -1,15 +1,18 @@
 import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openaiService';
 import { DatabaseService } from '../services/databaseService';
+import { CodeExecutionService } from '../services/codeExecutionService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
 
 export class InterviewController {
   private openaiService: OpenAIService;
   private dbService: DatabaseService;
+  private codeExecutionService: CodeExecutionService;
 
   constructor() {
     this.openaiService = new OpenAIService();
     this.dbService = DatabaseService.getInstance();
+    this.codeExecutionService = new CodeExecutionService();
   }
 
   async startInterview(req: Request, res: Response): Promise<void> {
@@ -80,6 +83,54 @@ export class InterviewController {
   }
 
   // Note: submitAnswer method removed - answers are only stored locally until interview completion
+
+  /**
+   * Validate coding question answer
+   */
+  async validateCodeAnswer(req: Request, res: Response): Promise<void> {
+    try {
+      const { questionId, code } = req.body;
+
+      if (!questionId || !code) {
+        res.status(400).json({ error: 'Question ID and code are required' });
+        return;
+      }
+
+      // Only validate Q5 and Q6 (coding questions)
+      if (questionId !== 'q5' && questionId !== 'q6') {
+        res.status(400).json({ error: 'Only Q5 and Q6 are coding questions' });
+        return;
+      }
+
+      // Validate JavaScript syntax first
+      if (!this.codeExecutionService.isValidJavaScript(code)) {
+        res.status(400).json({
+          error: 'Invalid JavaScript syntax',
+          testResults: []
+        });
+        return;
+      }
+
+      // Execute code validation
+      const testResults = await this.codeExecutionService.validateQuestionCode(questionId, code);
+      const summary = this.codeExecutionService.getTestSummary(testResults);
+
+      res.json({
+        success: true,
+        testResults,
+        summary,
+        isCorrect: summary.isCorrect,
+        message: `Code validation completed. ${summary.passedTests}/${summary.totalTests} tests passed.`
+      });
+
+    } catch (error) {
+      console.error('Code validation error:', error);
+      res.status(500).json({
+        error: 'Failed to validate code',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 
   async getSessionResults(req: Request, res: Response): Promise<void> {
     try {

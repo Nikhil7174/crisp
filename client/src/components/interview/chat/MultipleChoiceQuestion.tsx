@@ -98,8 +98,16 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
         const tempQuestion = { ...question, options: tempOptions, correctAnswerId: 'a' };
 
         return (
-            <Card style={{ marginBottom: spacing.md, border: '2px solid orange' }}>
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Card style={{
+                marginBottom: spacing.lg,
+                border: '2px solid orange',
+                width: '100%',
+                maxWidth: '700px',
+                minWidth: '600px',
+                minHeight: '180px',
+                height: 'auto'
+            }}>
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <div>
                         <Title level={4}>{tempQuestion.question}</Title>
                         <Text type="secondary">
@@ -128,7 +136,8 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                                         borderRadius: 8,
                                         border: `1px solid ${colors.neutral[200]}`,
                                         display: 'flex',
-                                        alignItems: 'center'
+                                        alignItems: 'center',
+                                        minWidth: '300px' // Fixed minimum width for consistency
                                     }}
                                 >
                                     <Space style={{ width: '100%' }}>
@@ -159,8 +168,15 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
     }
 
     return (
-        <Card style={{ marginBottom: spacing.md }}>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Card style={{
+            marginBottom: spacing.lg,
+            width: '100%',
+            maxWidth: '700px',
+            minWidth: '600px',
+            minHeight: '180px',
+            height: 'auto'
+        }}>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <div>
                     <Title level={4}>{question.question}</Title>
                     <Text type="secondary">
@@ -192,6 +208,7 @@ export const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                                     border: `1px solid ${colors.neutral[200]}`,
                                     display: 'flex',
                                     alignItems: 'center',
+                                    minWidth: '300px', // Fixed minimum width for consistency
                                     ...getOptionStyle(option.id)
                                 }}
                             >

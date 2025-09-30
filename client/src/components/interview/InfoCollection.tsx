@@ -39,7 +39,7 @@ export const InfoCollection: React.FC<InfoCollectionProps> = ({
     const hasValue = resumeData?.[fieldName as keyof ResumeData];
     return hasValue ? (
       <Text type="secondary" style={{ color: colors.success.main }}>
-        <CheckCircleOutlined /> Extracted from your resume
+        <CheckCircleOutlined />
       </Text>
     ) : (
       'This field is required'

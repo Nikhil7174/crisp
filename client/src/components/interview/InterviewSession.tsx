@@ -217,7 +217,11 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
   }, [currentSession, onComplete]);
 
   return (
-    <Card style={{ maxWidth: 900, margin: '0 auto' }}>
+    <Card style={{
+      maxWidth: 1200, // Increased max width
+      margin: '0 auto',
+      minHeight: '90vh' // Ensure card takes most of viewport height
+    }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {!isInterviewCompleted && (
           <div style={{ textAlign: 'center' }}>
@@ -234,19 +238,6 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
         {/* Chat Interface or Summary */}
         {renderInterviewContent()}
 
-        {/* Action Buttons - only show when not completed */}
-        {!isInterviewCompleted && (
-          <div style={{ display: 'flex', gap: spacing.md, justifyContent: 'center' }}>
-            <Button
-              type="primary"
-              size="large"
-              onClick={onStartNew}
-              style={{ minWidth: 200 }}
-            >
-              Start New Interview
-            </Button>
-          </div>
-        )}
       </Space>
 
       {/* Completion Modal */}

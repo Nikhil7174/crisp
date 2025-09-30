@@ -1,10 +1,11 @@
 // src/components/interview/chat/CodingQuestion.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, Button, Space, Typography, Alert, Divider } from 'antd';
-import { CodeOutlined, PlayCircleOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CodeOutlined, CheckCircleOutlined, CloseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../../styles';
 import Editor from '@monaco-editor/react';
 import type { Question } from '../../../types';
+import { useInterview } from '../../../hooks/api/useInterview';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -20,6 +21,7 @@ interface CodingQuestionProps {
         input: string;
         expectedOutput: string;
         actualOutput: string;
+        error?: string;
     }>;
 }
 
@@ -32,6 +34,8 @@ export const CodingQuestion: React.FC<CodingQuestionProps> = ({
     submittedCode,
     testResults = []
 }) => {
+    const { validateCode } = useInterview();
+
     const getDefaultCode = useCallback(() => {
         // If showing results and we have submitted code, use that
         if (showResult && submittedCode) {
@@ -62,16 +66,39 @@ export const CodingQuestion: React.FC<CodingQuestionProps> = ({
     }, [question.initialCode, question.id, showResult, submittedCode]);
 
     const [code, setCode] = useState<string>(getDefaultCode());
-    const [isValidating, setIsValidating] = useState(false);
+    const [isValidating, setIsValidating] = useState<boolean>(false);
+    const [validationResults, setValidationResults] = useState<Array<{
+        passed: boolean;
+        input: string;
+        expectedOutput: string;
+        actualOutput: string;
+        error?: string;
+    }>>([]);
+    const [validationSummary, setValidationSummary] = useState<{
+        totalTests: number;
+        passedTests: number;
+        failedTests: number;
+        successRate: number;
+        isCorrect: boolean;
+    } | null>(null);
     const editorRef = useRef<any>(null);
 
-    // Reset code when question changes or when submittedCode changes
+    // Reset code and validation results when question changes or when submittedCode changes
     useEffect(() => {
+        console.log('=== QUESTION CHANGE DEBUG ===');
+        console.log('Question ID changed to:', question.id);
+        console.log('Clearing validation results...');
+        console.log('================================');
+
         const initialCode = getDefaultCode();
         setCode(initialCode);
+
+        // Clear validation results when question changes
+        setValidationResults([]);
+        setValidationSummary(null);
     }, [question.id, question.initialCode, getDefaultCode, submittedCode]);
 
-    const handleEditorDidMount = useCallback((editor: any, monaco: any) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+    const handleEditorDidMount = useCallback((editor: any) => {
         editorRef.current = editor;
 
         // Configure editor to match the app's styling
@@ -100,26 +127,32 @@ export const CodingQuestion: React.FC<CodingQuestionProps> = ({
         }
     }, [code, loading, disabled, onSubmitAnswer]);
 
-    const handleRunCode = useCallback(async () => {
-        if (!code.trim()) return;
+    const handleValidateCode = useCallback(async () => {
+        if (!code.trim() || isValidating) {
+            return;
+        }
+
+        console.log('=== VALIDATION DEBUG ===');
+        console.log('Current question ID:', question.id);
+        console.log('Code to validate:', code);
+        console.log('========================');
 
         setIsValidating(true);
         try {
-            // Simple client-side validation for demo
-            // In production, this would be sent to server for execution
-            console.log('Running code:', code);
-
-            // Simulate validation delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // For demo purposes, we'll just show a success message
-            // In real implementation, this would execute the code and return results
+            const result = await validateCode(question.id, code);
+            setValidationResults(result.testResults || []);
+            setValidationSummary(result.summary || null);
         } catch (error) {
-            console.error('Code execution error:', error);
+            console.error('Code validation failed:', error);
+            // Show error message to user
+            setValidationResults([]);
+            setValidationSummary(null);
         } finally {
             setIsValidating(false);
         }
-    }, [code]);
+    }, [code, question.id, validateCode, isValidating]);
+
+
 
     const getLanguageFromQuestion = useCallback(() => {
         return question.language || 'javascript';
@@ -137,8 +170,15 @@ export const CodingQuestion: React.FC<CodingQuestionProps> = ({
     }
 
     return (
-        <Card style={{ marginBottom: spacing.md }}>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Card style={{
+            marginBottom: spacing.lg,
+            width: '100%',
+            maxWidth: '700px',
+            minWidth: '600px',
+            minHeight: '180px',
+            height: 'auto'
+        }}>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 {/* Question Header */}
                 <div>
                     <Title level={4}>
@@ -186,45 +226,77 @@ export const CodingQuestion: React.FC<CodingQuestionProps> = ({
                 </div>
 
                 {/* Test Results */}
-                {showResult && testResults.length > 0 && (
-                    <div>
-                        <Title level={5}>Test Results:</Title>
-                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                            {testResults.map((result, index) => (
+                {(() => {
+                    // Only show validation results for current question (not showResult mode)
+                    // Only show testResults for previous questions (showResult mode)
+                    const shouldShowValidationResults = !showResult && validationResults.length > 0;
+                    const shouldShowTestResults = showResult && testResults.length > 0;
+
+                    if (!shouldShowValidationResults && !shouldShowTestResults) {
+                        return null;
+                    }
+
+                    return (
+                        <div>
+                            <Title level={5}>Test Results:</Title>
+                            {validationSummary && !showResult && (
                                 <Alert
-                                    key={index}
-                                    type={result.passed ? 'success' : 'error'}
+                                    type={validationSummary.isCorrect ? 'success' : 'error'}
                                     message={
                                         <div>
-                                            <Space>
-                                                {getTestResultIcon(result.passed)}
-                                                <Text strong>Test Case {index + 1}</Text>
-                                            </Space>
-                                            <Divider style={{ margin: spacing.xs }} />
-                                            <div style={{ fontSize: '12px' }}>
-                                                <div><Text code>Input:</Text> {result.input}</div>
-                                                <div><Text code>Expected:</Text> {result.expectedOutput}</div>
-                                                <div><Text code>Actual:</Text> {result.actualOutput}</div>
-                                            </div>
+                                            <Text strong>
+                                                {validationSummary.isCorrect ? 'All tests passed!' : 'Some tests failed'}
+                                            </Text>
+                                            <br />
+                                            <Text type="secondary">
+                                                {validationSummary.passedTests}/{validationSummary.totalTests} tests passed
+                                                ({validationSummary.successRate.toFixed(1)}%)
+                                            </Text>
                                         </div>
                                     }
-                                    showIcon={false}
+                                    style={{ marginBottom: spacing.md }}
                                 />
-                            ))}
-                        </Space>
-                    </div>
-                )}
+                            )}
+                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                {(shouldShowValidationResults ? validationResults : testResults).map((result, index) => (
+                                    <Alert
+                                        key={index}
+                                        type={result.passed ? 'success' : 'error'}
+                                        message={
+                                            <div>
+                                                <Space>
+                                                    {getTestResultIcon(result.passed)}
+                                                    <Text strong>Test Case {index + 1}</Text>
+                                                </Space>
+                                                <Divider style={{ margin: spacing.xs }} />
+                                                <div style={{ fontSize: '12px' }}>
+                                                    <div><Text code>Input:</Text> {result.input}</div>
+                                                    <div><Text code>Expected:</Text> {result.expectedOutput}</div>
+                                                    <div><Text code>Output:</Text> {result.actualOutput}</div>
+                                                    {result.error && (
+                                                        <div><Text code>Error:</Text> {result.error}</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        }
+                                        showIcon={false}
+                                    />
+                                ))}
+                            </Space>
+                        </div>
+                    );
+                })()}
 
                 {/* Action Buttons */}
                 {!showResult && (
-                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
                         <Button
                             icon={<PlayCircleOutlined />}
-                            onClick={handleRunCode}
+                            onClick={handleValidateCode}
                             loading={isValidating}
-                            disabled={disabled || loading || !code.trim()}
+                            disabled={disabled || !code.trim()}
                         >
-                            Run Code
+                            Test Code
                         </Button>
                         <Button
                             type="primary"

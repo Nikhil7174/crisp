@@ -4,6 +4,7 @@ import { Modal, Typography, Space, Button, Progress, notification } from 'antd';
 import { CheckCircleOutlined, TrophyOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useSelector } from 'react-redux';
 import { colors, spacing } from '../../styles';
+import { useInterview } from '../../hooks/api/useInterview';
 import type { InterviewSession } from '../../types';
 import type { RootState } from '../../store';
 import SessionManager from '../../services/SessionManager';
@@ -26,6 +27,7 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
     const [isSaving, setIsSaving] = useState(false);
     const resumeData = useSelector((state: RootState) => state.interview.resumeData);
     const [saveProgress, setSaveProgress] = useState(0);
+    const { validateCode } = useInterview();
 
     useEffect(() => {
         if (visible) {
@@ -33,20 +35,56 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
         }
     }, [visible]);
 
-    const createCompleteSummary = () => {
+    const createCompleteSummary = async () => {
         if (!session) return null;
 
         const answers = session.answers || [];
         const totalQuestions = session.questions?.length || 0;
 
-        // Calculate correct answers by handling both MCQ and coding questions
-        const correctAnswers = answers.filter(answer => {
+        // Validate coding questions before calculating correct answers
+        const validatedAnswers = await Promise.all(answers.map(async (answer) => {
+            const question = session.questions?.find(q => q.id === answer.questionId);
+            if (!question || question.type !== 'coding') {
+                return answer; // Return as-is for non-coding questions
+            }
+
+            // For coding questions, validate the code
+            if (answer.code && answer.code.trim().length > 0 && answer.code !== 'timeout') {
+                try {
+                    const validationResult = await validateCode(question.id, answer.code);
+
+                    // Update the answer with validation results
+                    return {
+                        ...answer,
+                        isCorrect: validationResult.isCorrect,
+                        testResults: validationResult.testResults
+                    };
+                } catch (error) {
+                    console.error('Code validation failed:', error);
+                    return {
+                        ...answer,
+                        isCorrect: false,
+                        testResults: []
+                    };
+                }
+            } else {
+                // No code submitted or timeout
+                return {
+                    ...answer,
+                    isCorrect: false,
+                    testResults: []
+                };
+            }
+        }));
+
+        // Calculate correct answers using validated results
+        const correctAnswers = validatedAnswers.filter(answer => {
             const question = session.questions?.find(q => q.id === answer.questionId);
             if (!question) return false;
 
             if (question.type === 'coding') {
-                // For coding questions, consider them correct if they have code submitted
-                return answer.code && answer.code.trim().length > 0;
+                // For coding questions, use the validated isCorrect value
+                return answer.isCorrect === true;
             } else {
                 // For MCQ questions, compare selectedOptionId with correctAnswerId
                 return answer.selectedOptionId === question.correctAnswerId;
@@ -74,17 +112,17 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
                     `Good effort! You scored ${score}% with ${correctAnswers} correct answers out of ${totalQuestions}.` :
                     `You completed the interview with ${correctAnswers} correct answers out of ${totalQuestions} (${score}%).`;
 
-        // Create detailed answers array
+        // Create detailed answers array using validated answers
         const detailedAnswers = session.questions?.map((question) => {
-            const answer = answers.find(a => a.questionId === question.id);
+            const answer = validatedAnswers.find(a => a.questionId === question.id);
 
             let isCorrect;
             let userAnswer;
             let correctAnswer;
 
             if (question.type === 'coding') {
-                // Handle coding questions
-                isCorrect = answer?.isCorrect !== undefined ? answer.isCorrect : true; // Default to true for coding questions
+                // Handle coding questions with validated results
+                isCorrect = answer?.isCorrect === true;
                 userAnswer = answer?.code || 'No code submitted';
                 correctAnswer = 'Code solution';
             } else {
@@ -180,7 +218,7 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
             }, 200);
 
             // Create and save summary
-            const summary = createCompleteSummary();
+            const summary = await createCompleteSummary();
             if (summary) {
                 // DEBUG: Log client-side data being sent
                 console.log('=== CLIENT SIDE DEBUG ===');

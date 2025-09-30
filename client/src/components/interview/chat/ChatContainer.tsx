@@ -40,8 +40,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   // Auto-scroll to bottom when new questions arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [questionIndex]);
+    if (messagesEndRef.current) {
+      // Only scroll within the chat container, not the entire page
+      messagesEndRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end',
+        inline: 'nearest'
+      });
+    }
+  }, [questionIndex, chatMessages.length]);
 
   // Remove chat messages logic since we're showing questions directly
 
@@ -76,6 +83,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (currentQuestion.type === 'coding') {
       return (
         <CodingQuestion
+          key={currentQuestion.id} // Force re-render when question changes
           question={currentQuestion}
           onSubmitAnswer={(code) => {
             onSubmitAnswer(code);
@@ -155,10 +163,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '600px',
+      height: '80vh', // Use viewport height instead of fixed 600px
+      minHeight: '600px', // Minimum height for smaller screens
+      maxHeight: '900px', // Maximum height for very large screens
       border: `1px solid ${colors.neutral[200]}`,
       borderRadius: 8,
-      backgroundColor: colors.background.primary
+      backgroundColor: colors.background.primary,
+      boxShadow: colors.shadows.md
     }}>
       {/* Progress Bar */}
       {progressComponent}
@@ -170,10 +181,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: spacing.md,
+        overflowX: 'hidden', // Prevent horizontal scroll
+        padding: spacing.lg, // Increased padding for better spacing
         display: 'flex',
         flexDirection: 'column',
-        gap: spacing.md
+        alignItems: 'center', // Center all content horizontally
+        gap: spacing.lg // Increased gap between questions
       }}>
         {/* Previous Questions */}
         {currentSession?.questions && currentSession.questions.slice(0, questionIndex).map((question: any) => {
@@ -189,7 +202,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           console.log('correctAnswerId:', question.correctAnswerId);
 
           return (
-            <div key={question.id} style={{ marginBottom: spacing.lg }}>
+            <div key={question.id} style={{
+              marginBottom: spacing.lg,
+              width: '85%',
+              minWidth: '600px',
+              margin: '0 auto',
+              display: 'flex',
+              justifyContent: 'center'
+            }}>
               {question.type === 'coding' ? (
                 <CodingQuestion
                   question={question}
@@ -217,7 +237,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         {/* Current Question */}
         {currentQuestion && (
-          <div style={{ marginBottom: spacing.lg }}>
+          <div style={{
+            marginBottom: spacing.lg,
+            width: '85%',
+            minWidth: '600px',
+            margin: '0 auto',
+            display: 'flex',
+            justifyContent: 'center'
+          }}>
             {currentQuestionComponent}
           </div>
         )}
