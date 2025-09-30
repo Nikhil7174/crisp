@@ -101,7 +101,7 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
     }
   }, [currentSession, chatMessages.length, onStartInterview, sessionStarted]);
 
-  const handleAnswerSubmit = useCallback(async (selectedOptionId: string) => {
+  const handleAnswerSubmit = useCallback(async (answer: string) => {
     if (!currentQuestion || !onSubmitAnswer || !currentSession) {
       return;
     }
@@ -109,13 +109,14 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
     console.log('=== ANSWER SUBMISSION DEBUG ===');
     console.log('Current question index:', currentQuestionIndex);
     console.log('Current question:', currentQuestion.id);
-    console.log('Selected option:', selectedOptionId);
+    console.log('Question type:', currentQuestion.type);
+    console.log('Answer:', answer);
     console.log('Total questions:', currentSession.questions?.length);
     console.log('Current answers count:', currentSession.answers?.length);
 
     // Submit to backend first
     try {
-      const result = await onSubmitAnswer(currentSession.sessionId, currentQuestion.id, selectedOptionId, 0);
+      const result = await onSubmitAnswer(currentSession.sessionId, currentQuestion.id, answer, 0);
       console.log('Backend submission result:', result);
     } catch (error) {
       console.error('Backend submission failed:', error);

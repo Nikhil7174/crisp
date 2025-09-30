@@ -94,7 +94,7 @@ export const useInterview = () => {
   const submitAnswer = useCallback(async (
     sessionId: string, // eslint-disable-line @typescript-eslint/no-unused-vars
     questionId: string,
-    selectedOptionId: string,
+    answer: string, // Changed from selectedOptionId to answer to handle both types
     timeTaken: number
   ) => {
     try {
@@ -103,22 +103,44 @@ export const useInterview = () => {
 
       // Always update the session locally with frontend validation
       if (currentSession) {
-        // Find the question to check if the answer is correct
+        // Find the question to determine its type
         const question = currentSession.questions?.find(q => q.id === questionId);
-        const answerIsCorrect = question ? selectedOptionId === question.correctAnswerId : false;
 
-        // Create the answer object with the correct structure
-        const newAnswer = {
-          questionId,
-          answer: selectedOptionId === 'timeout' ? 'No answer selected (timeout)' : `Selected: ${selectedOptionId}`,
-          selectedOptionId: selectedOptionId === 'timeout' ? 'timeout' : selectedOptionId,
-          answeredAt: new Date(),
-          timeTaken: timeTaken || 0,
-          isCorrect: answerIsCorrect
-        };
+        let newAnswer;
+
+        if (question?.type === 'coding') {
+          // Handle coding questions
+          newAnswer = {
+            questionId,
+            answer: 'Code submitted', // Description
+            code: answer, // The actual code
+            answeredAt: new Date(),
+            timeTaken: timeTaken || 0,
+            isCorrect: undefined // Will be determined later by server evaluation
+          };
+        } else {
+          // Handle MCQ questions
+          const answerIsCorrect = question ? answer === question.correctAnswerId : false;
+          newAnswer = {
+            questionId,
+            answer: answer === 'timeout' ? 'No answer selected (timeout)' : `Selected: ${answer}`,
+            selectedOptionId: answer === 'timeout' ? 'timeout' : answer,
+            answeredAt: new Date(),
+            timeTaken: timeTaken || 0,
+            isCorrect: answerIsCorrect
+          };
+        }
 
         console.log('Storing answer locally:', newAnswer);
-        console.log('Answer is correct:', answerIsCorrect);
+        console.log('Question type:', question?.type);
+        console.log('Answer is correct:', newAnswer.isCorrect);
+        console.log('Answer structure:', {
+          questionId: newAnswer.questionId,
+          answer: newAnswer.answer,
+          selectedOptionId: newAnswer.selectedOptionId,
+          code: newAnswer.code,
+          isCorrect: newAnswer.isCorrect
+        });
 
         // Update session locally
         const updatedSession = {
@@ -138,14 +160,15 @@ export const useInterview = () => {
       // Note: No backend call per question - only store locally until interview completion
 
       // Return success response
+      const questionForResponse = currentSession?.questions?.find(q => q.id === questionId);
       return {
         success: true,
-        isCorrect: currentSession ?
-          currentSession.questions?.find(q => q.id === questionId)?.correctAnswerId === selectedOptionId : false,
+        isCorrect: questionForResponse?.type === 'coding' ? undefined :
+          (questionForResponse ? questionForResponse.correctAnswerId === answer : false),
         message: 'Answer stored successfully'
       };
     } catch (error: any) {
-      console.error(' useInterview: Submit answer error:', error);
+      console.error('useInterview: Submit answer error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to submit answer';
       dispatch(setError(errorMessage));
       throw new Error(errorMessage);

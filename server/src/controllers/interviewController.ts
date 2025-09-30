@@ -55,8 +55,15 @@ export class InterviewController {
           type: q.type,
           difficulty: q.difficulty,
           timeLimit: q.timeLimit,
+          // MCQ fields
           options: q.options,
-          correctAnswerId: q.correctAnswerId
+          correctAnswerId: q.correctAnswerId,
+          // Coding fields
+          language: q.language,
+          initialCode: q.initialCode,
+          expectedOutput: q.expectedOutput,
+          testCases: q.testCases,
+          instructions: q.instructions
         })),
         message: 'Interview session started successfully'
       };

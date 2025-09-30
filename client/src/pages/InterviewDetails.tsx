@@ -12,16 +12,13 @@ import {
     Descriptions,
     message,
     Spin,
-    Radio,
     Collapse
 } from 'antd';
 import {
     ArrowLeftOutlined,
-    CheckCircleOutlined,
-    CloseCircleOutlined,
     TrophyOutlined
 } from '@ant-design/icons';
-import { colors, spacing } from '../styles';
+import { spacing } from '../styles';
 
 const { Title, Text } = Typography;
 
@@ -271,6 +268,7 @@ export const InterviewDetails: React.FC = () => {
                                                 const isCorrect = answer.isCorrect;
                                                 const userAnswerId = answer.userAnswer?.replace('Selected: ', '');
                                                 const correctAnswerId = answer.correctAnswer;
+                                                const isCodingQuestion = answer.questionId === 'q5' || answer.questionId === 'q6';
 
                                                 return (
                                                     <div key={index}>
@@ -305,82 +303,133 @@ export const InterviewDetails: React.FC = () => {
                                                                     <Text type="secondary" style={{ marginLeft: '8px', fontSize: '12px' }}>
                                                                         Question {index + 1}
                                                                     </Text>
+                                                                    {isCodingQuestion && (
+                                                                        <Tag color="blue" style={{ marginLeft: '8px' }}>
+                                                                            Coding Question
+                                                                        </Tag>
+                                                                    )}
                                                                 </div>
                                                                 <Text style={{ fontSize: '16px', marginBottom: '12px' }}>
                                                                     {answer.question}
                                                                 </Text>
 
-                                                                {/* MCQ Options */}
-                                                                <div style={{ marginTop: '12px' }}>
-                                                                    {['a', 'b', 'c', 'd'].map((optionId) => {
-                                                                        const isUserAnswer = optionId === userAnswerId;
-                                                                        const isCorrectAnswer = optionId === correctAnswerId;
-                                                                        const optionText = answer[`option${optionId.toUpperCase()}`] || `Option ${optionId.toUpperCase()}`;
+                                                                {/* Show code editor for coding questions (q5 and q6) */}
+                                                                {isCodingQuestion ? (
+                                                                    <div style={{ marginTop: '12px' }}>
+                                                                        <div style={{
+                                                                            border: '1px solid #d9d9d9',
+                                                                            borderRadius: '6px',
+                                                                            background: '#fafafa',
+                                                                            padding: '12px',
+                                                                            marginBottom: '8px'
+                                                                        }}>
+                                                                            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                                                                                Your Code Solution:
+                                                                            </Text>
+                                                                            <pre style={{
+                                                                                background: '#f5f5f5',
+                                                                                padding: '12px',
+                                                                                borderRadius: '4px',
+                                                                                border: '1px solid #e8e8e8',
+                                                                                fontSize: '14px',
+                                                                                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                                                                                whiteSpace: 'pre-wrap',
+                                                                                wordWrap: 'break-word',
+                                                                                margin: 0,
+                                                                                maxHeight: '300px',
+                                                                                overflowY: 'auto'
+                                                                            }}>
+                                                                                {answer.userAnswer && answer.userAnswer !== 'No code submitted'
+                                                                                    ? answer.userAnswer
+                                                                                    : '// No code was submitted for this question'}
+                                                                            </pre>
+                                                                        </div>
+                                                                        <div style={{
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '8px'
+                                                                        }}>
+                                                                            <Tag color={isCorrect ? 'success' : 'error'}>
+                                                                                {isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                                                            </Tag>
+                                                                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                                                                                Time taken: {answer.timeTaken || 0}s
+                                                                            </Text>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    /* MCQ Options for non-coding questions */
+                                                                    <div style={{ marginTop: '12px' }}>
+                                                                        {['a', 'b', 'c', 'd'].map((optionId) => {
+                                                                            const isUserAnswer = optionId === userAnswerId;
+                                                                            const isCorrectAnswer = optionId === correctAnswerId;
+                                                                            const optionText = answer[`option${optionId.toUpperCase()}`] || `Option ${optionId.toUpperCase()}`;
 
-                                                                        return (
-                                                                            <div
-                                                                                key={optionId}
-                                                                                style={{
-                                                                                    padding: '8px 12px',
-                                                                                    margin: '4px 0',
-                                                                                    border: '1px solid #d9d9d9',
-                                                                                    borderRadius: '6px',
-                                                                                    background: isCorrectAnswer ? '#f6ffed' : isUserAnswer ? '#fff2e8' : '#fff',
-                                                                                    borderColor: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : '#d9d9d9',
-                                                                                    position: 'relative',
-                                                                                    width: '100%',
-                                                                                    minHeight: '48px',
-                                                                                    display: 'flex',
-                                                                                    alignItems: 'center'
-                                                                                }}
-                                                                            >
-                                                                                <div style={{
-                                                                                    display: 'flex',
-                                                                                    alignItems: 'center',
-                                                                                    gap: '8px',
-                                                                                    width: '100%'
-                                                                                }}>
-                                                                                    <div style={{
-                                                                                        width: '20px',
-                                                                                        height: '20px',
-                                                                                        borderRadius: '50%',
-                                                                                        border: '2px solid',
+                                                                            return (
+                                                                                <div
+                                                                                    key={optionId}
+                                                                                    style={{
+                                                                                        padding: '8px 12px',
+                                                                                        margin: '4px 0',
+                                                                                        border: '1px solid #d9d9d9',
+                                                                                        borderRadius: '6px',
+                                                                                        background: isCorrectAnswer ? '#f6ffed' : isUserAnswer ? '#fff2e8' : '#fff',
                                                                                         borderColor: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : '#d9d9d9',
-                                                                                        background: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : 'transparent',
+                                                                                        position: 'relative',
+                                                                                        width: '100%',
+                                                                                        minHeight: '48px',
+                                                                                        display: 'flex',
+                                                                                        alignItems: 'center'
+                                                                                    }}
+                                                                                >
+                                                                                    <div style={{
                                                                                         display: 'flex',
                                                                                         alignItems: 'center',
-                                                                                        justifyContent: 'center',
-                                                                                        fontSize: '12px',
-                                                                                        fontWeight: 'bold',
-                                                                                        color: 'white',
-                                                                                        flexShrink: 0
+                                                                                        gap: '8px',
+                                                                                        width: '100%'
                                                                                     }}>
-                                                                                        {optionId.toUpperCase()}
-                                                                                    </div>
-                                                                                    <Text style={{
-                                                                                        flex: 1,
-                                                                                        wordWrap: 'break-word',
-                                                                                        overflowWrap: 'break-word'
-                                                                                    }}>
-                                                                                        {optionText}
-                                                                                    </Text>
-                                                                                    <div style={{ flexShrink: 0 }}>
-                                                                                        {isCorrectAnswer && (
-                                                                                            <Tag color="success" size="small">
-                                                                                                ✓ Correct
-                                                                                            </Tag>
-                                                                                        )}
-                                                                                        {isUserAnswer && !isCorrectAnswer && (
-                                                                                            <Tag color="error" size="small">
-                                                                                                ✗ Your Answer
-                                                                                            </Tag>
-                                                                                        )}
+                                                                                        <div style={{
+                                                                                            width: '20px',
+                                                                                            height: '20px',
+                                                                                            borderRadius: '50%',
+                                                                                            border: '2px solid',
+                                                                                            borderColor: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : '#d9d9d9',
+                                                                                            background: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : 'transparent',
+                                                                                            display: 'flex',
+                                                                                            alignItems: 'center',
+                                                                                            justifyContent: 'center',
+                                                                                            fontSize: '12px',
+                                                                                            fontWeight: 'bold',
+                                                                                            color: 'white',
+                                                                                            flexShrink: 0
+                                                                                        }}>
+                                                                                            {optionId.toUpperCase()}
+                                                                                        </div>
+                                                                                        <Text style={{
+                                                                                            flex: 1,
+                                                                                            wordWrap: 'break-word',
+                                                                                            overflowWrap: 'break-word'
+                                                                                        }}>
+                                                                                            {optionText}
+                                                                                        </Text>
+                                                                                        <div style={{ flexShrink: 0 }}>
+                                                                                            {isCorrectAnswer && (
+                                                                                                <Tag color="success">
+                                                                                                    ✓ Correct
+                                                                                                </Tag>
+                                                                                            )}
+                                                                                            {isUserAnswer && !isCorrectAnswer && (
+                                                                                                <Tag color="error">
+                                                                                                    ✗ Your Answer
+                                                                                                </Tag>
+                                                                                            )}
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>

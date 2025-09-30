@@ -99,24 +99,40 @@ export interface MultipleChoiceOption {
 export interface InterviewQuestion {
   id: string;
   question: string;
-  type: 'behavioral' | 'technical' | 'situational';
+  type: 'behavioral' | 'technical' | 'situational' | 'coding';
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number; // seconds
   askedAt?: Date;
-  // Add multiple choice fields
-  options: MultipleChoiceOption[];
-  correctAnswerId: string;
+  // Multiple choice fields (for MCQ questions)
+  options?: MultipleChoiceOption[];
+  correctAnswerId?: string;
+  // Coding fields (for coding questions)
+  language?: 'javascript' | 'typescript' | 'python' | 'java' | 'cpp';
+  initialCode?: string;
+  expectedOutput?: string;
+  testCases?: Array<{
+    input: string;
+    expectedOutput: string;
+  }>;
+  instructions?: string;
 }
 
 export interface InterviewAnswer {
   questionId: string;
-  answer: string; // This will now be the selected option text
-  selectedOptionId: string; // New field for the selected option ID
+  answer: string; // For MCQ: selected option text, For coding: code description
+  selectedOptionId?: string; // For MCQ questions
+  code?: string; // For coding questions
   answeredAt: Date;
   timeTaken: number; // seconds
   score?: number;
   feedback?: string;
-  isCorrect?: boolean; // New field to track if answer was correct
+  isCorrect?: boolean;
+  testResults?: Array<{
+    passed: boolean;
+    input: string;
+    expectedOutput: string;
+    actualOutput: string;
+  }>;
 }
 
 export interface ResumeData {

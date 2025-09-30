@@ -4,6 +4,7 @@ import { colors, spacing } from '../../../styles';
 import { QuestionTimer } from './QuestionTimer';
 import { InterviewProgress } from './InterviewProgress';
 import { MultipleChoiceQuestion } from './MultipleChoiceQuestion';
+import { CodingQuestion } from './CodingQuestion';
 import { ChatMessage } from './ChatMessage';
 import type { Question, ChatMessage as ChatMessageType } from '../../../types';
 
@@ -11,7 +12,7 @@ interface ChatContainerProps {
   currentQuestion?: Question | null;
   questionIndex: number;
   totalQuestions: number;
-  onSubmitAnswer: (selectedOptionId: string) => void;
+  onSubmitAnswer: (answer: string) => void;
   onTimerExpire: () => void;
   loading?: boolean;
   disabled?: boolean;
@@ -71,12 +72,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const currentQuestionComponent = useMemo(() => {
     if (!currentQuestion) return null;
 
+    // Check if this is a coding question
+    if (currentQuestion.type === 'coding') {
+      return (
+        <CodingQuestion
+          question={currentQuestion}
+          onSubmitAnswer={(code) => {
+            onSubmitAnswer(code);
+          }}
+          loading={loading}
+          disabled={disabled}
+          showResult={false}
+        />
+      );
+    }
+
+    // Default to MCQ for other question types
     return (
       <MultipleChoiceQuestion
         question={currentQuestion}
         onSubmitAnswer={(selectedOptionId) => {
           onSubmitAnswer(selectedOptionId);
-          // Don't set showResult here - let parent manage this
         }}
         loading={loading}
         disabled={disabled}
@@ -167,20 +183,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           console.log('All answers in session:', currentSession.answers);
           console.log('Looking for questionId:', question.id);
           console.log('Question:', question.id, 'Answer:', answer);
+          console.log('Question type:', question.type);
           console.log('selectedOptionId:', answer?.selectedOptionId);
+          console.log('code:', answer?.code);
           console.log('correctAnswerId:', question.correctAnswerId);
 
           return (
             <div key={question.id} style={{ marginBottom: spacing.lg }}>
-              <MultipleChoiceQuestion
-                question={question}
-                onSubmitAnswer={() => { }} // Disabled for previous questions
-                loading={false}
-                disabled={true} // Disabled for previous questions
-                showResult={true} // Show results for previous questions
-                selectedOptionId={answer?.selectedOptionId}
-                correctAnswerId={question.correctAnswerId}
-              />
+              {question.type === 'coding' ? (
+                <CodingQuestion
+                  question={question}
+                  onSubmitAnswer={() => { }} // Disabled for previous questions
+                  loading={false}
+                  disabled={true} // Disabled for previous questions
+                  showResult={true} // Show results for previous questions
+                  submittedCode={answer?.code}
+                  testResults={answer?.testResults}
+                />
+              ) : (
+                <MultipleChoiceQuestion
+                  question={question}
+                  onSubmitAnswer={() => { }} // Disabled for previous questions
+                  loading={false}
+                  disabled={true} // Disabled for previous questions
+                  showResult={true} // Show results for previous questions
+                  selectedOptionId={answer?.selectedOptionId}
+                  correctAnswerId={question.correctAnswerId}
+                />
+              )}
             </div>
           );
         })}

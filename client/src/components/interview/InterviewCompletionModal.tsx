@@ -39,10 +39,18 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
         const answers = session.answers || [];
         const totalQuestions = session.questions?.length || 0;
 
-        // Calculate correct answers by comparing selectedOptionId with correctAnswerId
+        // Calculate correct answers by handling both MCQ and coding questions
         const correctAnswers = answers.filter(answer => {
             const question = session.questions?.find(q => q.id === answer.questionId);
-            return question && answer.selectedOptionId === question.correctAnswerId;
+            if (!question) return false;
+
+            if (question.type === 'coding') {
+                // For coding questions, consider them correct if they have code submitted
+                return answer.code && answer.code.trim().length > 0;
+            } else {
+                // For MCQ questions, compare selectedOptionId with correctAnswerId
+                return answer.selectedOptionId === question.correctAnswerId;
+            }
         }).length;
 
         const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
@@ -67,15 +75,30 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
                     `You completed the interview with ${correctAnswers} correct answers out of ${totalQuestions} (${score}%).`;
 
         // Create detailed answers array
-        const detailedAnswers = session.questions?.map((question, index) => {
-            const answer = answers[index];
-            const isCorrect = answer?.selectedOptionId === question.correctAnswerId;
+        const detailedAnswers = session.questions?.map((question) => {
+            const answer = answers.find(a => a.questionId === question.id);
+
+            let isCorrect;
+            let userAnswer;
+            let correctAnswer;
+
+            if (question.type === 'coding') {
+                // Handle coding questions
+                isCorrect = answer?.isCorrect !== undefined ? answer.isCorrect : true; // Default to true for coding questions
+                userAnswer = answer?.code || 'No code submitted';
+                correctAnswer = 'Code solution';
+            } else {
+                // Handle MCQ questions
+                isCorrect = answer?.selectedOptionId === question.correctAnswerId;
+                userAnswer = answer?.answer || 'No answer';
+                correctAnswer = question.correctAnswerId || 'Not specified';
+            }
 
             return {
                 questionId: question.id,
                 question: question.question,
-                userAnswer: answer?.answer || 'No answer',
-                correctAnswer: question.correctAnswerId || 'Not specified',
+                userAnswer: userAnswer,
+                correctAnswer: correctAnswer,
                 isCorrect: isCorrect,
                 timeTaken: answer?.timeTaken || 0
             };

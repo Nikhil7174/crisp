@@ -73,31 +73,42 @@ export class OpenAIService {
             },
             {
                 id: "q5",
-                question: "How would you implement a scalable microservices architecture for a large e-commerce platform?",
-                type: "technical",
+                question: "Complete the function to find the maximum number in an array",
+                type: "coding",
                 difficulty: "hard",
                 timeLimit: 120,
-                options: [
-                    { id: "a", text: "Use a single monolithic application", isCorrect: false },
-                    { id: "b", text: "Implement service mesh with API gateway, load balancing, and distributed databases", isCorrect: true },
-                    { id: "c", text: "Use only client-side rendering", isCorrect: false },
-                    { id: "d", text: "Store everything in localStorage", isCorrect: false }
-                ],
-                correctAnswerId: "b"
+                language: "javascript",
+                initialCode: `function findMax(numbers) {
+  // Complete this function to return the maximum number
+  // Example: findMax([1, 5, 3, 9, 2]) should return 9
+  
+}`,
+                instructions: "Complete the function to find and return the maximum number from the given array. Do not use built-in methods like Math.max().",
+                testCases: [
+                    { input: "[1, 5, 3, 9, 2]", expectedOutput: "9" },
+                    { input: "[10, 2, 8, 4]", expectedOutput: "10" },
+                    { input: "[-1, -5, -3]", expectedOutput: "-1" }
+                ]
             },
             {
                 id: "q6",
-                question: "Describe how you would handle a situation where your application needs to process 1 million records efficiently.",
-                type: "behavioral",
+                question: "Implement a function to check if a string is a palindrome",
+                type: "coding",
                 difficulty: "hard",
                 timeLimit: 120,
-                options: [
-                    { id: "a", text: "Process all records synchronously in a single request", isCorrect: false },
-                    { id: "b", text: "Implement pagination, streaming, and background job processing", isCorrect: true },
-                    { id: "c", text: "Use setTimeout to delay processing", isCorrect: false },
-                    { id: "d", text: "Store everything in memory at once", isCorrect: false }
-                ],
-                correctAnswerId: "b"
+                language: "javascript",
+                initialCode: `function isPalindrome(str) {
+  // Complete this function to check if the string is a palindrome
+  // A palindrome reads the same forwards and backwards
+  // Example: isPalindrome("racecar") should return true
+  
+}`,
+                instructions: "Complete the function to return true if the string is a palindrome, false otherwise. Ignore case and non-alphanumeric characters.",
+                testCases: [
+                    { input: '"racecar"', expectedOutput: "true" },
+                    { input: '"hello"', expectedOutput: "false" },
+                    { input: '"A man a plan a canal Panama"', expectedOutput: "true" }
+                ]
             }
         ];
 
