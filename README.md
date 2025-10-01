@@ -265,6 +265,11 @@ npm run build  # TypeScript compilation
 npm start      # Production server
 ```
 
+### Admin Dashboard
+- **Login ID** → admin
+- **Password** → admin123
+
+  
 ## 📈 Performance Optimizations
 
 ### Frontend
@@ -341,3 +346,4 @@ interface TestResult {
 - **Virtual Scrolling** → Large list rendering
 
 ---
+
