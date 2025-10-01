@@ -5,8 +5,8 @@ import { motion } from 'framer-motion';
 import type { UserType } from '../../types';
 import { colors } from '../../styles';
 // Import actual images - add your images to src/assets/images/
-import intervieweeImage from '../../assets/images/interviewee.jpg';
-import interviewerImage from '../../assets/images/interviewer.jpg';
+import intervieweeImage from '../../assets/images/interviewee.png';
+import interviewerImage from '../../assets/images/interviewer.png';
 
 const { Title, Text } = Typography;
 

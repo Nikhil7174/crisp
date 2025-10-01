@@ -3,8 +3,8 @@
 ## How to Add Your Images
 
 1. **Place your images in this directory:**
-   - `interviewee.jpg` - Image for the interviewee card (person taking interview)
-   - `interviewer.jpg` - Image for the interviewer card (person conducting interview)
+   - `interviewee.png` - Image for the interviewee card (person taking interview)
+   - `interviewer.png` - Image for the interviewer card (person conducting interview)
 
 2. **Recommended image specifications:**
    - **Format**: JPG or PNG
@@ -13,7 +13,7 @@
    - **Content**: Professional headshots or business photos
 
 3. **File naming:**
-   - Keep the exact names: `interviewee.jpg` and `interviewer.jpg`
+   - Keep the exact names: `interviewee.png` and `interviewer.png`
    - The component is already configured to use these specific filenames
 
 4. **After adding images:**
