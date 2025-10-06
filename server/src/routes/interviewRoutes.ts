@@ -1,11 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { InterviewController } from '../controllers/interviewController';
+import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();
 const interviewController = new InterviewController();
 
-// Start interview endpoint
-router.post('/start', (req: Request, res: Response) => {
+// Public endpoint - validate interview link
+router.get('/link/:token', (req: Request, res: Response) => {
+    interviewController.validateLink(req, res);
+});
+
+// Start interview endpoint - requires authentication and link token
+router.post('/start', authMiddleware, (req: Request, res: Response) => {
     interviewController.startInterview(req, res);
 });
 
@@ -13,8 +19,6 @@ router.post('/start', (req: Request, res: Response) => {
 router.post('/validate-code', (req: Request, res: Response) => {
     interviewController.validateCodeAnswer(req, res);
 });
-
-// Note: Removed /answer endpoint - answers are only stored locally until interview completion
 
 // Get session status endpoint
 router.get('/session/:sessionId', (req: Request, res: Response) => {
@@ -26,9 +30,16 @@ router.get('/results/:sessionId', (req: Request, res: Response) => {
     interviewController.getSessionResults(req, res);
 });
 
-// Save interview results endpoint
-router.post('/save-results', (req: Request, res: Response) => {
-    interviewController.saveResults(req, res);
+// Save interview results endpoint - optional authentication
+router.post('/save-results', (req: Request, res: Response, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        authMiddleware(req, res, () => {
+            interviewController.saveResults(req, res);
+        });
+    } else {
+        interviewController.saveResults(req, res);
+    }
 });
 
 export default router;

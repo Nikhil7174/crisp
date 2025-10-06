@@ -1,233 +1,255 @@
 // src/services/SessionManager.ts
-import type { StoredSession, SessionSummary } from '../types';
+// Refactored SessionManager with separated concerns and better error handling
+import { SessionStorage } from './SessionStorage';
+import { SessionValidator } from './SessionValidator';
+import { SESSION_CONFIG } from '../config/session';
+import type { StoredSession, InterviewSession, ResumeData, DetailedResumeData, ChatMessage } from '../types';
 
-class SessionManager {
-  private static readonly STORAGE_KEY = 'last-interview-session';
-  private static readonly INTERVIEW_ACTIVE_KEY = 'interview-active';
-  private static readonly SESSION_EXPIRY = 60 * 60 * 1000; // 1 hour
-
-  // Add caching to reduce localStorage reads
+export class SessionManager {
+  // Simple cache to reduce localStorage reads
   private static cachedSession: StoredSession | null = null;
   private static cacheTimestamp: number = 0;
-  private static readonly CACHE_DURATION = 1000; // 1 second cache
 
-  static saveSession(sessionData: any): void {
+  /**
+   * Save a complete session to localStorage
+   */
+  static saveSession(sessionData: {
+    sessionId: string;
+    resumeData?: ResumeData;
+    detailedResumeData?: DetailedResumeData;
+    currentSession: InterviewSession;
+    chatMessages?: ChatMessage[];
+    sessionType?: 'new' | 'interrupted' | 'completed';
+  }): void {
     try {
-      const session: StoredSession = {
-        ...sessionData,
+      // Convert old structure to new flattened structure
+      const flattenedSession: StoredSession = {
+        // Session metadata
+        sessionId: sessionData.sessionId,
         timestamp: Date.now(),
-        lastActivity: Date.now()
+        lastActivity: Date.now(),
+        sessionType: sessionData.sessionType || 'new',
+        
+        // Resume data
+        resumeData: sessionData.resumeData,
+        detailedResumeData: sessionData.detailedResumeData,
+        
+        // Interview data (flattened from currentSession)
+        status: sessionData.currentSession.status,
+        questions: sessionData.currentSession.questions || [],
+        answers: sessionData.currentSession.answers || [],
+        startTime: sessionData.currentSession.startTime,
+        endTime: sessionData.currentSession.endTime,
+        duration: sessionData.currentSession.duration,
+        score: sessionData.currentSession.score,
+        summary: sessionData.currentSession.summary,
+        
+        // Chat messages
+        chatMessages: sessionData.chatMessages || [],
+        
+        // Additional metadata
+        candidateId: sessionData.currentSession.candidateId,
+        success: sessionData.currentSession.success,
+        message: sessionData.currentSession.message
       };
 
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
-
+      SessionStorage.save(flattenedSession);
+      SessionStorage.setInterviewActive(true);
+      
       // Update cache
-      this.cachedSession = session;
+      this.cachedSession = flattenedSession;
       this.cacheTimestamp = Date.now();
+      
+      console.log('Session saved successfully:', sessionData.sessionId);
     } catch (error) {
-      console.error(' SessionManager: Failed to save session:', error);
+      console.error('Failed to save session:', error);
+      throw error;
     }
   }
 
+  /**
+   * Get the last session from localStorage with caching
+   */
   static getLastSession(): StoredSession | null {
     try {
       // Check cache first
       const now = Date.now();
-      if (this.cachedSession && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
-        const isValid = this.isSessionValid(this.cachedSession);
-        console.log('Returning cached session:', isValid ? 'valid' : 'invalid');
+      if (this.cachedSession && (now - this.cacheTimestamp) < SESSION_CONFIG.CACHE_DURATION) {
+        const isValid = SessionValidator.isValid(this.cachedSession);
         return isValid ? this.cachedSession : null;
       }
 
       // Cache miss or expired - read from localStorage
-      const sessionData = localStorage.getItem(this.STORAGE_KEY);
-      if (!sessionData) {
-        console.log('No session data found in localStorage');
+      const session = SessionStorage.load();
+      if (!session) {
         this.cachedSession = null;
         return null;
       }
-
-      const session = JSON.parse(sessionData) as StoredSession;
-      console.log('Retrieved session from localStorage:', session);
 
       // Update cache
       this.cachedSession = session;
       this.cacheTimestamp = now;
 
-      const isValid = this.isSessionValid(session);
-      console.log('Session validity check:', isValid);
-
+      const isValid = SessionValidator.isValid(session);
       return isValid ? session : null;
     } catch (error) {
-      console.error(' SessionManager: Failed to get session:', error);
+      console.error('Failed to get last session:', error);
       this.cachedSession = null;
       return null;
     }
   }
 
-  static isSessionValid(session: StoredSession): boolean {
-    if (!session || !session.timestamp) {
-      console.log('Session validation failed: no session or timestamp');
-      return false;
-    }
-
-    const now = Date.now();
-    const sessionAge = now - session.timestamp;
-    const isValid = sessionAge < this.SESSION_EXPIRY;
-
-    console.log('Session validation:', {
-      sessionId: session.currentSession?.sessionId,
-      timestamp: new Date(session.timestamp).toISOString(),
-      age: Math.floor(sessionAge / (1000 * 60)), // age in minutes
-      expiry: Math.floor(this.SESSION_EXPIRY / (1000 * 60)), // expiry in minutes
-      isValid
-    });
-
-    return isValid;
+  /**
+   * Check if session is valid
+   */
+  static isSessionValid(session: StoredSession | null): boolean {
+    return SessionValidator.isValid(session);
   }
 
-  static clearSession(_sessionId?: string): void {
-    try {
-      console.log('Clearing session from localStorage');
-      localStorage.removeItem(this.STORAGE_KEY);
-
-      // Clear cache
-      this.cachedSession = null;
-      this.cacheTimestamp = 0;
-      console.log('Session cleared successfully');
-    } catch (error) {
-      console.error(' SessionManager: Failed to clear session:', error);
-    }
-  }
-
-  static clearAllSessions(): void {
-    try {
-      console.log('Clearing all sessions from localStorage');
-      // Clear all interview-related localStorage items
-      const keys = Object.keys(localStorage);
-      console.log('Found localStorage keys:', keys);
-
-      keys.forEach(key => {
-        if (key.includes('interview') || key.includes('session')) {
-          console.log('Removing key:', key);
-          localStorage.removeItem(key);
-        }
-      });
-
-      // Also clear the interview active flag
-      localStorage.removeItem(this.INTERVIEW_ACTIVE_KEY);
-
-      // Clear cache
-      this.cachedSession = null;
-      this.cacheTimestamp = 0;
-      console.log('All sessions cleared successfully');
-    } catch (error) {
-      console.error(' SessionManager: Failed to clear all sessions:', error);
-    }
-  }
-
-  // Interview Active State Management
-  static setInterviewActive(isActive: boolean): void {
-    try {
-      if (isActive) {
-        localStorage.setItem(this.INTERVIEW_ACTIVE_KEY, 'true');
-        console.log('Interview marked as active');
-      } else {
-        localStorage.removeItem(this.INTERVIEW_ACTIVE_KEY);
-        console.log('Interview marked as inactive');
-      }
-    } catch (error) {
-      console.error('SessionManager: Failed to set interview active state:', error);
-    }
-  }
-
+  /**
+   * Check if interview is active
+   */
   static isInterviewActive(): boolean {
-    try {
-      const isActive = localStorage.getItem(this.INTERVIEW_ACTIVE_KEY) === 'true';
-      console.log('Interview active status:', isActive);
-      return isActive;
-    } catch (error) {
-      console.error('SessionManager: Failed to check interview active state:', error);
-      return false;
-    }
+    return SessionStorage.isInterviewActive();
   }
 
+  /**
+   * Set interview active state
+   */
+  static setInterviewActive(isActive: boolean): void {
+    SessionStorage.setInterviewActive(isActive);
+  }
+
+  /**
+   * Update activity timestamp
+   */
   static updateActivity(): void {
     try {
       const session = this.getLastSession();
       if (session) {
-        session.lastActivity = Date.now();
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
-
-        // Update cache
-        this.cachedSession = session;
-        this.cacheTimestamp = Date.now();
+        this.updateSession({ lastActivity: Date.now() });
       }
     } catch (error) {
-      console.error(' SessionManager: Failed to update activity:', error);
+      console.error('Failed to update activity:', error);
     }
   }
 
-  static addChatMessage(message: any): void {
+  /**
+   * Check if session should show welcome back modal
+   */
+  static shouldShowWelcomeBack(session: StoredSession | null): boolean {
+    return SessionValidator.shouldShowWelcomeBack(session);
+  }
+
+  /**
+   * Get session summary for welcome back modal
+   */
+  static getSessionSummary(session: StoredSession): any {
+    return SessionValidator.getSessionSummary(session);
+  }
+
+  /**
+   * Update session with new data
+   */
+  static updateSession(updates: Partial<StoredSession>): void {
+    try {
+      const currentSession = this.getLastSession();
+      if (!currentSession) {
+        throw new Error('No session to update');
+      }
+
+      const updatedSession: StoredSession = {
+        ...currentSession,
+        ...updates,
+        lastActivity: Date.now()
+      };
+
+      SessionStorage.save(updatedSession);
+      
+      // Update cache
+      this.cachedSession = updatedSession;
+      this.cacheTimestamp = Date.now();
+    } catch (error) {
+      console.error('Failed to update session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add chat message to session
+   */
+  static addChatMessage(message: ChatMessage): void {
     try {
       const session = this.getLastSession();
-      if (session) {
-        if (!session.chatMessages) {
-          session.chatMessages = [];
-        }
-        session.chatMessages.push(message);
-
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
-
-        // Update cache
-        this.cachedSession = session;
-        this.cacheTimestamp = Date.now();
+      if (!session) {
+        throw new Error('No session to add message to');
       }
-    } catch (error) {
-      console.error(' SessionManager: Failed to add chat message:', error);
-    }
-  }
 
-  static getSessionSummary(session: StoredSession): SessionSummary | null {
-    if (!session) return null;
-
-    try {
-      const now = Date.now();
-      // Use lastActivity if available, otherwise use timestamp
-      const lastActivityTime = session.lastActivity || session.timestamp;
-      const timeAway = Math.floor((now - lastActivityTime) / (1000 * 60));
-
-      // Get values from currentSession if available
-      const questionsAnswered = session.currentSession?.answers?.length || 0;
-      const totalQuestions = session.currentSession?.questions?.length || 6;
-      const sessionDuration = Math.floor((now - session.timestamp) / (1000 * 60));
-      const startTime = session.timestamp;
-
-      console.log('Session summary calculation:', {
-        now: new Date(now).toISOString(),
-        lastActivity: new Date(lastActivityTime).toISOString(),
-        timeAway,
-        questionsAnswered,
-        totalQuestions
-      });
-
-      return {
-        timeAway,
-        questionsAnswered,
-        totalQuestions,
-        sessionDuration,
-        startTime
+      const updatedSession: StoredSession = {
+        ...session,
+        chatMessages: [...session.chatMessages, message],
+        lastActivity: Date.now()
       };
+
+      SessionStorage.save(updatedSession);
+      
+      // Update cache
+      this.cachedSession = updatedSession;
+      this.cacheTimestamp = Date.now();
     } catch (error) {
-      console.error(' SessionManager: Failed to get session summary:', error);
-      return null;
+      console.error('Failed to add chat message:', error);
+      throw error;
     }
   }
 
-  // Add method to clear cache (useful for testing or manual cache invalidation)
+  /**
+   * Clear all session data
+   */
+  static clearAllSessions(): void {
+    try {
+      SessionStorage.clear();
+      this.cachedSession = null;
+      this.cacheTimestamp = 0;
+      console.log('All sessions cleared successfully');
+    } catch (error) {
+      console.error('Failed to clear sessions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear cache (for testing or manual cache invalidation)
+   */
   static clearCache(): void {
     this.cachedSession = null;
     this.cacheTimestamp = 0;
+  }
+
+  /**
+   * Convert flattened session back to old structure for backward compatibility
+   */
+  static toLegacyFormat(session: StoredSession): any {
+    return {
+      resumeData: session.resumeData,
+      detailedResumeData: session.detailedResumeData,
+      currentSession: {
+        sessionId: session.sessionId,
+        candidateId: session.candidateId,
+        status: session.status,
+        questions: session.questions,
+        answers: session.answers,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        duration: session.duration,
+        score: session.score,
+        summary: session.summary,
+        success: session.success,
+        message: session.message
+      },
+      chatMessages: session.chatMessages,
+      timestamp: session.timestamp,
+      lastActivity: session.lastActivity
+    };
   }
 }
 

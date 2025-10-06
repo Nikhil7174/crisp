@@ -14,6 +14,8 @@ interface ResumeUploadProps {
   onRemoveFile: () => void;
   isProcessing: boolean; // New prop to indicate AI processing
   resumeData?: ResumeData | null; // To show file details if already processed
+  existingResumeData?: any; // Existing resume data from user profile
+  onUseExistingResume?: () => void; // Callback to use existing resume
 }
 
 export const ResumeUpload: React.FC<ResumeUploadProps> = ({
@@ -22,7 +24,9 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
   error,
   onRemoveFile,
   isProcessing,
-  resumeData
+  resumeData,
+  existingResumeData,
+  onUseExistingResume
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -150,6 +154,48 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
     </Upload.Dragger>
   ), [handleFileUpload, loading]);
 
+  // Memoize existing resume display
+  const existingResumeContent = useMemo(() => {
+    if (!existingResumeData) return null;
+
+    return (
+      <div style={{
+        padding: spacing.lg,
+        backgroundColor: colors.success.light + '20',
+        borderRadius: 8,
+        border: `1px solid ${colors.success.main}`,
+        marginBottom: spacing.lg
+      }}>
+        <Space direction="vertical" size={spacing.sm} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+            <CheckCircleOutlined style={{ color: colors.success.main }} />
+            <Text strong style={{ color: colors.success.main }}>
+              You have an existing resume on file
+            </Text>
+          </div>
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Name: {existingResumeData.personalInfo?.name || 'N/A'}
+          </Text>
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Email: {existingResumeData.personalInfo?.email || 'N/A'}
+          </Text>
+          <Space>
+            <Button 
+              type="primary" 
+              onClick={onUseExistingResume}
+              style={{ backgroundColor: colors.success.main, borderColor: colors.success.main }}
+            >
+              Use Existing Resume
+            </Button>
+            <Button onClick={onRemoveFile}>
+              Upload New Resume
+            </Button>
+          </Space>
+        </Space>
+      </div>
+    );
+  }, [existingResumeData, onUseExistingResume, onRemoveFile]);
+
   const renderContent = useCallback(() => {
     if (isProcessing) {
       return processingContent;
@@ -193,6 +239,7 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
           </Paragraph>
         </div>
 
+        {existingResumeContent}
         {errorDisplay}
         {renderContent()}
       </Space>

@@ -10,8 +10,10 @@ import { InterviewSession } from '../components/interview/InterviewSession';
 import { WelcomeBackModal } from '../components/interview/WelcomeBackModal';
 import { useResumeUpload } from '../hooks/api/useResumeUpload';
 import { useInterview } from '../hooks/api/useInterview';
+import { useResumeData } from '../hooks/useResumeData';
+import { useSessionManager } from '../hooks/useSessionManager';
 import { resetInterview } from '../store/slices/interviewSlice';
-import SessionManager from '../services/SessionManager';
+import { SESSION_CONFIG } from '../config/session';
 
 type Step = 'upload' | 'info' | 'interview';
 
@@ -22,10 +24,7 @@ export const InterviewChat: React.FC = () => {
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
   const [processingResume, setProcessingResume] = useState(false);
   const [collectingInfo, setCollectingInfo] = useState(false);
-  // FIXED: Add state for question progress and time away
-  const [questionsAnswered, setQuestionsAnswered] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(6);
-  const [timeAway, setTimeAway] = useState(0);
+  const [userHasChosen, setUserHasChosen] = useState(false); // Track if user made a choice about session
 
   // Hooks
   const {
@@ -35,98 +34,91 @@ export const InterviewChat: React.FC = () => {
     loading,
     error,
     uploadResume,
-    collectMissingInfo,
-    restoreSession: restoreResumeSession
+    collectMissingInfo
   } = useResumeUpload();
 
   const {
     currentSession,
     chatMessages,
-    startInterview,
     submitAnswer,
-    restoreSession: restoreInterviewSession,
     saveResults
   } = useInterview();
 
-  // Check for existing session on mount
+  const {
+    resumeData: existingResumeData,
+    hasResume
+  } = useResumeData();
+
+  // New unified session management
+  const {
+    storedSession,
+    shouldShowWelcomeBack,
+    sessionSummary,
+    restoreSession,
+    clearAllSessions
+  } = useSessionManager();
+
+  // Effect 1: Handle welcome back modal display
   useEffect(() => {
-    const lastSession = SessionManager.getLastSession();
-    const isInterviewActive = SessionManager.isInterviewActive();
+    console.log('=== WELCOME BACK MODAL CHECK ===');
+    console.log('Should show welcome back:', shouldShowWelcomeBack);
+    console.log('User has chosen:', userHasChosen);
+    console.log('Stored session exists:', !!storedSession);
+    console.log('Session summary exists:', !!sessionSummary);
 
-    console.log('=== SESSION CHECK ON MOUNT ===');
-    console.log('Last session:', lastSession);
-    console.log('Interview active:', isInterviewActive);
-    console.log('Session valid:', lastSession ? SessionManager.isSessionValid(lastSession) : false);
-    console.log('Current Redux session:', currentSession);
-    console.log('=== END SESSION CHECK ===');
+    // Don't show modal if user has already made a choice
+    if (userHasChosen) {
+      console.log('User has already made a choice, skipping modal check');
+      return;
+    }
 
-    if (lastSession && SessionManager.isSessionValid(lastSession) && isInterviewActive) {
-      // Extract question numbers and time away
-      const answered = lastSession.currentSession?.answers?.length || 0;
-      const total = lastSession.currentSession?.questions?.length || 6;
-
-      // Calculate time away using SessionManager
-      const sessionSummary = SessionManager.getSessionSummary(lastSession);
-      const timeAwayMinutes = sessionSummary?.timeAway || 0;
-
-      console.log('Valid active session found:', { answered, total, timeAwayMinutes });
-
-      setQuestionsAnswered(answered);
-      setTotalQuestions(total);
-      setTimeAway(timeAwayMinutes);
-
-      // Show welcome back modal if there's a valid ongoing session
+    // Show welcome back modal for interrupted interviews
+    if (shouldShowWelcomeBack && storedSession && sessionSummary) {
+      console.log('Valid interrupted session found:', {
+        answered: sessionSummary.questionsAnswered,
+        total: sessionSummary.totalQuestions,
+        timeAway: sessionSummary.timeAway
+      });
       setShowWelcomeBack(true);
-
-      // If we have resume data, go directly to interview
-      if (lastSession.resumeData) {
-        setCurrentStep('interview');
-      }
     } else {
-      console.log('No valid active session found - starting fresh');
+      console.log('No interrupted session found - not showing modal');
+      setShowWelcomeBack(false);
     }
-  }, []); // Empty dependency array - only run on mount
+  }, [shouldShowWelcomeBack, storedSession, sessionSummary, userHasChosen]);
 
-  // Real-time tracking of interview progress
+  // Effect 2: Handle initial step determination (separate from modal logic)
   useEffect(() => {
-    if (currentSession) {
-      const answered = currentSession.answers?.length || 0;
-      const total = currentSession.questions?.length || 6;
+    console.log('=== INITIAL STEP DETERMINATION ===');
+    console.log('Current step:', currentStep);
+    console.log('Has existing resume:', hasResume);
+    console.log('Stored session resume data:', !!storedSession?.resumeData);
 
-      console.log('Real-time progress update:', { answered, total });
-
-      setQuestionsAnswered(answered);
-      setTotalQuestions(total);
+    // Only set initial step if we're still on upload (initial state)
+    if (currentStep !== 'upload') {
+      console.log('Already on step:', currentStep, '- not changing');
+      return;
     }
-  }, [currentSession?.answers?.length, currentSession?.questions?.length]);
 
-  // Update time away periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const lastSession = SessionManager.getLastSession();
-      if (lastSession && SessionManager.isSessionValid(lastSession)) {
-        const sessionSummary = SessionManager.getSessionSummary(lastSession);
-        const timeAwayMinutes = sessionSummary?.timeAway || 0;
-        setTimeAway(timeAwayMinutes);
-      }
-    }, 30000); // Update every 30 seconds
+    // If we have a stored session with resume data, go to interview
+    if (storedSession?.resumeData) {
+      console.log('Stored session has resume data, going to interview step');
+      setCurrentStep('interview');
+    }
+    // If user has existing resume data, go to info collection
+    else if (hasResume && existingResumeData) {
+      console.log('User has existing resume data, going to info collection step');
+      setCurrentStep('info');
+    }
+    // Otherwise, stay on upload step
+    else {
+      console.log('No resume data found, staying on upload step');
+      setCurrentStep('upload');
+    }
+  }, [hasResume, existingResumeData, storedSession?.resumeData, currentStep]);
 
-    return () => clearInterval(interval);
-  }, []);
+  // Real-time tracking is now handled by useSessionManager hook
 
-  // Auto-save session activity
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (currentSession) {
-        SessionManager.updateActivity();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [currentSession]);
+  // Auto-save session activity is now handled by useSessionManager
 
   // Effect to transition from upload to info step after resumeData is available
   useEffect(() => {
@@ -165,58 +157,61 @@ export const InterviewChat: React.FC = () => {
 
   const handleStartNew = useCallback(() => {
     console.log('=== STARTING NEW INTERVIEW ===');
-    console.log('Before clearing - last session:', SessionManager.getLastSession());
 
-    // Clear localStorage session data completely
-    SessionManager.clearAllSessions();
+    try {
+      // Clear all session data using unified method
+      clearAllSessions();
 
-    // Clear Redux state
-    dispatch(resetInterview());
+      // Clear Redux state
+      dispatch(resetInterview());
 
-    // Reset local component state
-    setCurrentStep('upload');
-    setShowWelcomeBack(false); // Hide modal
-    setProcessingResume(false);
-    setCollectingInfo(false);
-    setQuestionsAnswered(0);
-    setTotalQuestions(6);
-    setTimeAway(0);
+      // Reset local component state
+      setCurrentStep('upload');
+      setShowWelcomeBack(false); // Hide modal
+      setProcessingResume(false);
+      setCollectingInfo(false);
+      setUserHasChosen(true); // Mark that user has made a choice
 
-    console.log('After clearing - last session:', SessionManager.getLastSession());
-    console.log('=== NEW INTERVIEW SETUP COMPLETE ===');
-  }, [dispatch]);
+      console.log('=== NEW INTERVIEW SETUP COMPLETE ===');
+    } catch (error) {
+      console.error('Failed to start new interview:', error);
+    }
+  }, [dispatch, clearAllSessions]);
 
   const handleInterviewComplete = useCallback(() => {
     console.log('Interview completed - clearing all data and redirecting');
 
-    // Clear all session data from localStorage
-    SessionManager.clearAllSessions();
+    try {
+      // Clear all session data using unified method
+      clearAllSessions();
 
-    // Clear Redux state
-    dispatch(resetInterview());
+      // Clear Redux state
+      dispatch(resetInterview());
 
-    // Redirect to home page
-    navigate('/');
-  }, [navigate, dispatch]);
+      // Redirect to home page
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to complete interview:', error);
+    }
+  }, [navigate, dispatch, clearAllSessions]);
 
   const handleContinueSession = useCallback(() => {
+    console.log('User chose to continue session');
+    setUserHasChosen(true); // Mark that user has made a choice
     setCurrentStep('interview');
     setShowWelcomeBack(false);
 
-    // Restore session data
-    const session = SessionManager.getLastSession();
-    if (session) {
-      // Restore resume data
-      restoreResumeSession();
-
-      // Restore interview session
-      if (session.currentSession) {
-        restoreInterviewSession(session.currentSession);
-      }
+    try {
+      // Restore session data using unified method
+      restoreSession();
+    } catch (error) {
+      console.error('Failed to continue session:', error);
     }
-  }, [restoreResumeSession, restoreInterviewSession]);
+  }, [restoreSession]);
 
   const handleWelcomeBackClose = useCallback(() => {
+    console.log('User closed welcome back modal');
+    setUserHasChosen(true); // Mark that user has made a choice (by closing)
     setShowWelcomeBack(false);
   }, []);
 
@@ -231,10 +226,19 @@ export const InterviewChat: React.FC = () => {
             error={error}
             onRemoveFile={() => {
               setProcessingResume(false);
-              SessionManager.clearSession(); // Clear session if file is removed
+              clearAllSessions(); // Clear session if file is removed
             }}
             isProcessing={processingResume} // Pass processing state
             resumeData={resumeData} // Pass resumeData to show file details
+            existingResumeData={existingResumeData} // Pass existing resume data
+            onUseExistingResume={() => {
+              // Use existing resume data and move to next step
+              if (existingResumeData) {
+                // Set the resume data in the hook state
+                // This will trigger the next step
+                setCurrentStep('info');
+              }
+            }}
           />
         );
 
@@ -255,7 +259,6 @@ export const InterviewChat: React.FC = () => {
             onStartNew={handleStartNew}
             currentSession={currentSession}
             chatMessages={chatMessages}
-            onStartInterview={startInterview}
             onSubmitAnswer={submitAnswer}
             onSaveResults={saveResults}
             onComplete={handleInterviewComplete}
@@ -265,7 +268,7 @@ export const InterviewChat: React.FC = () => {
       default:
         return null;
     }
-  }, [currentStep, handleFileUpload, handleCollectInfo, handleStartNew, handleInterviewComplete, uploading, loading, error, resumeData, detailedResumeData, currentSession, chatMessages, startInterview, submitAnswer, processingResume, collectingInfo]);
+  }, [currentStep, handleFileUpload, handleCollectInfo, handleStartNew, handleInterviewComplete, uploading, loading, error, resumeData, detailedResumeData, currentSession, chatMessages, submitAnswer, processingResume, collectingInfo]);
 
 
   return (
@@ -279,9 +282,9 @@ export const InterviewChat: React.FC = () => {
       {/* Welcome Back Modal */}
       <WelcomeBackModal
         visible={showWelcomeBack}
-        questionsAnswered={questionsAnswered}
-        totalQuestions={totalQuestions}
-        timeAway={timeAway}
+        questionsAnswered={sessionSummary?.questionsAnswered || 0}
+        totalQuestions={sessionSummary?.totalQuestions || SESSION_CONFIG.DEFAULT_QUESTION_COUNT}
+        timeAway={sessionSummary?.timeAway || 0}
         onContinue={handleContinueSession}
         onStartNew={handleStartNew}
         onClose={handleWelcomeBackClose}

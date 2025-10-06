@@ -1,17 +1,13 @@
 // src/hooks/api/useInterview.ts
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '../../store';
 import {
-  setCurrentSession,
-  updateSession,
-  addChatMessage,
-  setChatMessages,
   setStartingInterview,
   setSubmittingAnswer,
   setError
 } from '../../store/slices/interviewSlice';
-import SessionManager from '../../services/SessionManager';
+import { useSessionManager } from '../useSessionManager';
 import type { DetailedResumeData, ChatMessage } from '../../types';
 
 import { API_BASE_URL } from '../../constants/api';
@@ -20,47 +16,48 @@ export const useInterview = () => {
   const dispatch = useAppDispatch();
   const { currentSession, chatMessages, isStartingInterview, isSubmittingAnswer, error } = useAppSelector(state => state.interview);
   const { resumeData, detailedResumeData } = useAppSelector(state => state.interview);
+  const { token } = useAppSelector(state => state.auth);
 
-  // Memoize the stored session to avoid multiple calls
-  const storedSession = useMemo(() => {
-    return SessionManager.getLastSession();
-  }, [currentSession?.sessionId]); // Only recalculate when session ID changes
+  // Use the new unified session management
+  const { saveSession, updateSessionData, addChatMessage } = useSessionManager();
 
-  const startInterview = useCallback(async (candidateData: DetailedResumeData) => {
+  const startInterview = useCallback(async (candidateData: DetailedResumeData, linkToken: string) => {
     try {
       dispatch(setStartingInterview(true));
       dispatch(setError(null));
 
+      if (!linkToken) {
+        throw new Error('Interview link token is required');
+      }
+
       const response = await axios.post(`${API_BASE_URL}/interview/start`, {
-        candidateData
+        candidateData,
+        linkToken
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
       if (response.data.success) {
         const session = response.data;
 
-        // Clear Redux chat messages when starting new interview
-        dispatch(setChatMessages([]));
-
-        // Clear any existing session from localStorage before saving new one
-        SessionManager.clearSession();
-
-        dispatch(setCurrentSession(session));
-
-        // Save new session to localStorage with resume data
+        // Save new session using unified session management
         console.log('=== STARTING INTERVIEW - SAVING SESSION ===');
         console.log('Saving session to localStorage:', session.sessionId);
 
         // Create complete session with resume data
         const completeSession = {
-          resumeData,
-          detailedResumeData,
+          sessionId: session.sessionId,
+          resumeData: resumeData || undefined,
+          detailedResumeData: detailedResumeData || undefined,
           currentSession: session,
-          timestamp: Date.now(),
-          lastActivity: Date.now()
+          chatMessages: [],
+          sessionType: 'new' as const
         };
 
-        SessionManager.saveSession(completeSession);
-        SessionManager.setInterviewActive(true); // Mark interview as active
+        // Use unified session management (handles both Redux and localStorage)
+        saveSession(completeSession);
         console.log('Session saved successfully with resume data');
 
         // Always add first question for new interview (don't check stored messages)
@@ -75,8 +72,8 @@ export const useInterview = () => {
             timestamp: new Date().toISOString()
           };
 
-          dispatch(addChatMessage(questionMessage));
-          SessionManager.addChatMessage(questionMessage);
+          // Use unified session management for chat messages
+          addChatMessage(questionMessage);
         }
 
         return session;
@@ -89,7 +86,7 @@ export const useInterview = () => {
     } finally {
       dispatch(setStartingInterview(false));
     }
-  }, [dispatch, storedSession]); // Add storedSession to dependencies
+  }, [dispatch, saveSession, addChatMessage]);
 
   const submitAnswer = useCallback(async (
     questionId: string,
@@ -141,19 +138,16 @@ export const useInterview = () => {
           isCorrect: newAnswer.isCorrect
         });
 
-        // Update session locally
-        const updatedSession = {
-          ...currentSession,
-          answers: [...(currentSession.answers || []), newAnswer]
-        };
+        // Update session using unified session management
+        const updatedAnswers = [...(currentSession.answers || []), newAnswer];
+        
+        // Use unified session management (handles both Redux and localStorage)
+        updateSessionData({
+          answers: updatedAnswers,
+          lastActivity: Date.now()
+        });
 
-        dispatch(updateSession(updatedSession));
-        SessionManager.saveSession(updatedSession);
-
-        // Update activity timestamp
-        SessionManager.updateActivity();
-
-        console.log('Updated session with answers:', updatedSession.answers);
+        console.log('Updated session with answers:', updatedAnswers);
       }
 
       // Note: No backend call per question - only store locally until interview completion
@@ -180,19 +174,11 @@ export const useInterview = () => {
     return currentSession;
   }, [currentSession]);
 
-  const restoreSession = useCallback((session: any) => {
-    dispatch(setCurrentSession(session));
-
-    // Only restore chat messages if session has answers (ongoing interview)
-    // Don't restore for fresh sessions
-    if (session.answers && session.answers.length > 0) {
-      const messages = SessionManager.getLastSession()?.chatMessages || [];
-      dispatch(setChatMessages(messages));
-    } else {
-      // Clear chat messages for fresh sessions
-      dispatch(setChatMessages([]));
-    }
-  }, [dispatch]);
+  const restoreSession = useCallback((_session: any) => {
+    // This method is now handled by useSessionManager
+    // Keeping for backward compatibility but delegating to the new system
+    console.log('restoreSession called - this should use useSessionManager.restoreSession instead');
+  }, []);
 
   const saveResults = useCallback(async (results: any) => {
     try {
@@ -202,7 +188,11 @@ export const useInterview = () => {
       console.log('Request payload:', JSON.stringify(results, null, 2));
       console.log('About to send request...');
 
-      const response = await axios.post(`${API_BASE_URL}/interview/save-results`, results);
+      const response = await axios.post(`${API_BASE_URL}/interview/save-results`, results, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
       console.log('✅ API Response received:');
       console.log('Response status:', response.status);
@@ -228,6 +218,10 @@ export const useInterview = () => {
       const response = await axios.post(`${API_BASE_URL}/interview/validate-code`, {
         questionId,
         code
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
       console.log('✅ Code validation response:', response.data);

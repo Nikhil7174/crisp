@@ -7,7 +7,7 @@ import { colors, spacing } from '../../styles';
 import { useInterview } from '../../hooks/api/useInterview';
 import type { InterviewSession } from '../../types';
 import type { RootState } from '../../store';
-import SessionManager from '../../services/SessionManager';
+// import SessionManager from '../../services/SessionManager'; // No longer needed
 
 const { Title, Paragraph } = Typography;
 
@@ -242,8 +242,8 @@ export const InterviewCompletionModal: React.FC<InterviewCompletionModalProps> =
                     description: 'Your results have been saved successfully. Thank you for taking the interview!'
                 });
 
-                // Mark interview as inactive
-                SessionManager.setInterviewActive(false);
+                // Mark interview as inactive - this should be handled by useSessionManager
+                // SessionManager.setInterviewActive(false);
 
                 // Don't auto-close - wait for user to click button
             }

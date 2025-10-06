@@ -13,6 +13,8 @@ import morgan from 'morgan';
 import interviewRoutes from './routes/interviewRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import adminRoutes from './routes/adminRoutes';
+import authRoutes from './routes/authRoutes';
+import interviewerRoutes from './routes/interviewerRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +32,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/interviewer', interviewerRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin', adminRoutes);

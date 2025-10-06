@@ -9,7 +9,7 @@ import {
   setLoading,
   setError
 } from '../../store/slices/interviewSlice';
-import SessionManager from '../../services/SessionManager';
+import { useSessionManager } from '../useSessionManager';
 import type { ResumeData, DetailedResumeData } from '../../types';
 
 import { API_BASE_URL } from '../../constants/api';
@@ -17,6 +17,9 @@ import { API_BASE_URL } from '../../constants/api';
 export const useResumeUpload = () => {
   const dispatch = useAppDispatch();
   const { resumeData, detailedResumeData, isUploading, isLoading, error } = useAppSelector(state => state.interview);
+  
+  // Use the new unified session management
+  const { storedSession, clearAllSessions } = useSessionManager();
 
   const uploadResume = useCallback(async (file: File) => {
     try {
@@ -96,40 +99,35 @@ export const useResumeUpload = () => {
   }, [dispatch, resumeData]);
 
   const isDataFresh = useCallback(() => {
-    const session = SessionManager.getLastSession();
-    if (!session) return false;
-
+    if (!storedSession) return false;
     const oneHour = 60 * 60 * 1000;
-    return Date.now() - session.timestamp < oneHour;
-  }, []);
+    return Date.now() - storedSession.timestamp < oneHour;
+  }, [storedSession]);
 
   const getCachedResumeData = useCallback(() => {
-    const session = SessionManager.getLastSession();
-    return session?.resumeData || null;
-  }, []);
+    return storedSession?.resumeData || null;
+  }, [storedSession]);
 
   const getCachedDetailedData = useCallback(() => {
-    const session = SessionManager.getLastSession();
-    return session?.detailedResumeData || null;
-  }, []);
+    return storedSession?.detailedResumeData || null;
+  }, [storedSession]);
 
   const clearResumeCache = useCallback(() => {
-    SessionManager.clearSession();
-  }, []);
+    clearAllSessions();
+  }, [clearAllSessions]);
 
   const restoreSession = useCallback(() => {
-    const session = SessionManager.getLastSession();
-    if (session && SessionManager.isSessionValid(session)) {
-      if (session.resumeData) {
-        dispatch(setResumeData(session.resumeData));
+    if (storedSession) {
+      if (storedSession.resumeData) {
+        dispatch(setResumeData(storedSession.resumeData));
       }
-      if (session.detailedResumeData) {
-        dispatch(setDetailedResumeData(session.detailedResumeData));
+      if (storedSession.detailedResumeData) {
+        dispatch(setDetailedResumeData(storedSession.detailedResumeData));
       }
-      return session;
+      return storedSession;
     }
     return null;
-  }, [dispatch]);
+  }, [dispatch, storedSession]);
 
   return {
     resumeData,

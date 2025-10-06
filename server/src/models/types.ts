@@ -1,3 +1,32 @@
+export interface User {
+  id: number;
+  email: string;
+  password_hash: string;
+  full_name: string;
+  user_type: 'candidate' | 'interviewer';
+  phone?: string;
+  company?: string;
+  created_at: Date;
+  last_login?: Date;
+  is_active: boolean;
+}
+
+export interface InterviewLink {
+  id: number;
+  created_by: number;
+  link_token: string;
+  title: string;
+  description?: string;
+  expiry_date?: Date;
+  max_attempts: number;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+  creator_name?: string;
+  creator_email?: string;
+  total_attempts?: number;
+}
+
 export interface Candidate {
   id: string;
   name: string;

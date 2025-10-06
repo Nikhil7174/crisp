@@ -7,7 +7,7 @@ import { useUserSelection } from '../../hooks/useUserSelection';
 import { useNavigate } from 'react-router-dom';
 
 const intervieweeFeatures = [
-  'AI-powered mock interviews',
+  'Join interview sessions',
   'Real-time performance analysis',
   'Industry-specific questions',
   'Confidence building exercises',
@@ -24,12 +24,14 @@ export const DualColumnSection: React.FC = () => {
   const { activeUserType, selectUserType } = useUserSelection();
   const navigate = useNavigate();
 
-  const handleStartPracticing = useCallback(() => {
-    navigate('/interview');
+  const handleJoinInterview = useCallback(() => {
+    // Navigate to join interview page
+    navigate('/join');
   }, [navigate]);
 
   const handleCreateInterview = useCallback(() => {
-    navigate('/admin');
+    // Navigate to login with interviewer context
+    navigate('/login', { state: { userType: 'interviewer', returnTo: '/interviewer/dashboard' } });
   }, [navigate]);
 
   return (
@@ -42,13 +44,13 @@ export const DualColumnSection: React.FC = () => {
         <Col xs={24} md={12}>
           <UserTypeCard
             type="interviewee"
-            title="Practice & Perfect"
-            subtitle="Get personalized mock interviews, instant feedback, and skill improvement tips"
+            title="Join & Practice"
+            subtitle="Join interview sessions, get instant feedback, and improve your skills"
             features={intervieweeFeatures}
-            ctaText="Start Practicing"
+            ctaText="Join Interview"
             isActive={activeUserType === 'interviewee'}
             onSelect={() => selectUserType('interviewee')}
-            onCtaClick={handleStartPracticing}
+            onCtaClick={handleJoinInterview}
             icon={<UserOutlined />}
           />
         </Col>

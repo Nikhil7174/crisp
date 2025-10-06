@@ -1,6 +1,39 @@
 // src/types/index.ts
 export type UserType = 'interviewee' | 'interviewer';
 
+export interface User {
+  id: number;
+  email: string;
+  fullName: string;
+  userType: 'candidate' | 'interviewer';
+  phone?: string;
+  company?: string;
+  createdAt?: string;
+  lastLogin?: string;
+}
+
+export interface InterviewLink {
+  id: number;
+  token: string;
+  title: string;
+  description?: string;
+  expiryDate?: string;
+  maxAttempts: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  totalAttempts?: number;
+  url: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
 export interface ResumeData {
   name?: string | null;
   email?: string | null;
@@ -73,13 +106,35 @@ export interface InterviewState {
   error: string | null;
 }
 
+// Flattened session structure - no more confusing nesting
 export interface StoredSession {
+  // Session metadata
+  sessionId: string;
+  timestamp: number;
+  lastActivity: number;
+  sessionType: 'new' | 'interrupted' | 'completed';
+  
+  // Resume data
   resumeData?: ResumeData;
   detailedResumeData?: DetailedResumeData;
-  currentSession?: InterviewSession;
-  chatMessages?: ChatMessage[];
-  timestamp: number;
-  lastActivity?: number;
+  
+  // Interview data (flattened from currentSession)
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  questions?: Question[]; // Optional - session might be created before questions are generated
+  answers?: Answer[]; // Optional - new sessions might not have answers yet
+  startTime: Date;
+  endTime?: Date;
+  duration?: number;
+  score?: number;
+  summary?: string;
+  
+  // Chat messages
+  chatMessages?: ChatMessage[]; // Optional - new sessions might not have chat messages yet
+  
+  // Additional metadata
+  candidateId?: string;
+  success?: boolean;
+  message?: string;
 }
 
 export interface SessionSummary {

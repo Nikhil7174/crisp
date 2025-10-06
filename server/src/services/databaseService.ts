@@ -26,12 +26,70 @@ export class DatabaseService {
     }
 
     private initializeDatabase(): void {
-        // Create interviews table
+        // Create users table
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        user_type TEXT NOT NULL CHECK(user_type IN ('candidate', 'interviewer')),
+        phone TEXT,
+        company TEXT,
+        resume_data TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME,
+        is_active BOOLEAN DEFAULT 1
+      )
+    `, (err) => {
+            if (err) {
+                console.error('Error creating users table:', err);
+            } else {
+                console.log('Users table created successfully');
+        
+        // Add resume_data column if it doesn't exist (migration)
+        this.db.run(`
+            ALTER TABLE users ADD COLUMN resume_data TEXT
+        `, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding resume_data column:', err);
+            } else if (!err) {
+                console.log('Resume_data column added successfully');
+            }
+        });
+            }
+        });
+
+        // Create interview_links table
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS interview_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_by INTEGER NOT NULL,
+        link_token TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        expiry_date DATETIME,
+        max_attempts INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )
+    `, (err) => {
+            if (err) {
+                console.error('Error creating interview_links table:', err);
+            } else {
+                console.log('Interview links table created successfully');
+            }
+        });
+
         // Create sessions table
         this.db.run(`
       CREATE TABLE IF NOT EXISTS sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT UNIQUE NOT NULL,
+        user_id INTEGER,
+        interview_link_id INTEGER,
         candidate_id TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
         questions TEXT,
@@ -41,8 +99,11 @@ export class DatabaseService {
         duration INTEGER,
         score INTEGER,
         summary TEXT,
+        is_mock_interview BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (interview_link_id) REFERENCES interview_links(id)
       )
     `, (err) => {
             if (err) {
@@ -56,6 +117,8 @@ export class DatabaseService {
       CREATE TABLE IF NOT EXISTS interviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT UNIQUE NOT NULL,
+        user_id INTEGER,
+        interview_link_id INTEGER,
         candidate_name TEXT NOT NULL,
         candidate_email TEXT NOT NULL,
         candidate_phone TEXT,
@@ -71,8 +134,11 @@ export class DatabaseService {
         overall_feedback TEXT,
         detailed_answers TEXT,
         question_analysis TEXT,
+        is_mock_interview BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (interview_link_id) REFERENCES interview_links(id)
       )
     `, (err) => {
             if (err) {
@@ -134,19 +200,21 @@ export class DatabaseService {
         return new Promise((resolve, reject) => {
             // DEBUG: Log database operation
             console.log('=== DATABASE SERVICE DEBUG ===');
-            console.log('saveInterviewSummary called with:', JSON.stringify(summary, null, 2));
+            console.log('saveInterviewSummary called');
 
             const query = `
         INSERT OR REPLACE INTO interviews (
-          session_id, candidate_name, candidate_email, candidate_phone,
+          session_id, user_id, interview_link_id, candidate_name, candidate_email, candidate_phone,
           start_time, end_time, duration, score, total_questions, correct_answers,
           time_spent, strengths, areas_for_improvement, overall_feedback,
-          detailed_answers, question_analysis, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          detailed_answers, question_analysis, is_mock_interview, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
             const values = [
                 summary.sessionId,
+                summary.userId || null,
+                summary.interviewLinkId || null,
                 summary.candidateName || 'Unknown',
                 summary.candidateEmail || 'unknown@example.com',
                 summary.candidatePhone || '',
@@ -161,21 +229,16 @@ export class DatabaseService {
                 JSON.stringify(summary.areasForImprovement),
                 summary.overallFeedback,
                 JSON.stringify(summary.detailedAnswers),
-                JSON.stringify(summary.questionAnalysis)
+                JSON.stringify(summary.questionAnalysis),
+                summary.isMockInterview ? 1 : 0
             ];
-
-            console.log('SQL Query:', query);
-            console.log('Values:', values);
-            console.log('About to execute database query...');
 
             this.db.run(query, values, function (err) {
                 if (err) {
                     console.error('❌ Database error saving interview summary:', err);
-                    console.error('Error details:', JSON.stringify(err, null, 2));
                     reject(err);
                 } else {
                     console.log(`✅ Interview summary saved for session ${summary.sessionId}`);
-                    console.log('Database operation completed successfully');
                 }
                 console.log('=== END DATABASE SERVICE DEBUG ===');
                 resolve();
@@ -183,19 +246,21 @@ export class DatabaseService {
         });
     }
 
-    public async getAllInterviews(): Promise<any[]> {
+    public async getInterviewsByInterviewer(interviewerId: number): Promise<any[]> {
         return new Promise((resolve, reject) => {
             const query = `
         SELECT 
-          id, session_id, candidate_name, candidate_email, candidate_phone,
-          start_time, end_time, duration, score, total_questions, correct_answers,
-          time_spent, strengths, areas_for_improvement, overall_feedback,
-          detailed_answers, question_analysis, created_at, updated_at
-        FROM interviews 
-        ORDER BY created_at DESC
+          i.id, i.session_id, i.candidate_name, i.candidate_email, i.candidate_phone,
+          i.start_time, i.end_time, i.duration, i.score, i.total_questions, i.correct_answers,
+          i.time_spent, i.strengths, i.areas_for_improvement, i.overall_feedback,
+          i.detailed_answers, i.question_analysis, i.created_at, i.updated_at
+        FROM interviews i
+        LEFT JOIN interview_links il ON i.interview_link_id = il.id
+        WHERE il.created_by = ? OR i.interview_link_id IS NULL
+        ORDER BY i.created_at DESC
       `;
 
-            this.db.all(query, [], (err, rows) => {
+            this.db.all(query, [interviewerId], (err, rows) => {
                 if (err) {
                     console.error('Error fetching interviews:', err);
                     reject(err);
@@ -247,6 +312,26 @@ export class DatabaseService {
         });
     }
 
+    public async verifyInterviewerAccess(interviewId: number, interviewerId: number): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            const query = `
+        SELECT COUNT(*) as count
+        FROM interviews i
+        LEFT JOIN interview_links il ON i.interview_link_id = il.id
+        WHERE i.id = ? AND (il.created_by = ? OR i.interview_link_id IS NULL)
+      `;
+
+            this.db.get(query, [interviewId, interviewerId], (err, row: any) => {
+                if (err) {
+                    console.error('Error verifying interviewer access:', err);
+                    reject(err);
+                } else {
+                    resolve(row.count > 0);
+                }
+            });
+        });
+    }
+
     public async authenticateAdmin(username: string, password: string): Promise<boolean> {
         return new Promise((resolve, reject) => {
             const bcrypt = require('bcryptjs');
@@ -279,14 +364,16 @@ export class DatabaseService {
     // Session management methods
     public async saveSession(sessionData: any): Promise<void> {
         return new Promise((resolve, reject) => {
-            const { sessionId, candidateId, status, questions, answers, startTime, endTime, duration, score, summary } = sessionData;
+            const { sessionId, user_id, interview_link_id, candidateId, status, questions, answers, startTime, endTime, duration, score, summary, is_mock_interview } = sessionData;
 
             this.db.run(
                 `INSERT OR REPLACE INTO sessions 
-                 (session_id, candidate_id, status, questions, answers, start_time, end_time, duration, score, summary, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+                 (session_id, user_id, interview_link_id, candidate_id, status, questions, answers, start_time, end_time, duration, score, summary, is_mock_interview, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
                 [
                     sessionId,
+                    user_id || null,
+                    interview_link_id || null,
                     candidateId || null,
                     status || 'pending',
                     JSON.stringify(questions || []),
@@ -295,14 +382,15 @@ export class DatabaseService {
                     endTime || null,
                     duration || null,
                     score || null,
-                    summary || null
+                    summary || null,
+                    is_mock_interview ? 1 : 0
                 ],
                 function (err) {
                     if (err) {
                         console.error('Error saving session:', err);
                         reject(err);
                     } else {
-                        console.log('Session saved successfully');
+                        console.log('Session saved successfully with ID:', this.lastID);
                         resolve();
                     }
                 }
@@ -364,6 +452,329 @@ export class DatabaseService {
                         reject(err);
                     } else {
                         console.log('Session updated successfully');
+                        resolve();
+                    }
+                }
+            );
+        });
+    }
+
+    // User management methods
+    public async createUser(userData: {
+        email: string;
+        passwordHash: string;
+        fullName: string;
+        userType: 'candidate' | 'interviewer';
+        phone?: string;
+        company?: string;
+    }): Promise<number> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `INSERT INTO users (email, password_hash, full_name, user_type, phone, company)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [userData.email, userData.passwordHash, userData.fullName, userData.userType, userData.phone || null, userData.company || null],
+                function (err) {
+                    if (err) {
+                        console.error('Error creating user:', err);
+                        reject(err);
+                    } else {
+                        console.log('User created successfully with ID:', this.lastID);
+                        resolve(this.lastID);
+                    }
+                }
+            );
+        });
+    }
+
+    public async getUserByEmail(email: string): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT * FROM users WHERE email = ?',
+                [email],
+                (err, row) => {
+                    if (err) {
+                        console.error('Error fetching user:', err);
+                        reject(err);
+                    } else {
+                        resolve(row);
+                    }
+                }
+            );
+        });
+    }
+
+    public async getUserById(id: number): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT id, email, full_name, user_type, phone, company, created_at, last_login, is_active FROM users WHERE id = ?',
+                [id],
+                (err, row) => {
+                    if (err) {
+                        console.error('Error fetching user by ID:', err);
+                        reject(err);
+                    } else {
+                        resolve(row);
+                    }
+                }
+            );
+        });
+    }
+
+    public async updateUserLastLogin(userId: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                [userId],
+                (err) => {
+                    if (err) {
+                        console.error('Error updating last login:', err);
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                }
+            );
+        });
+    }
+
+    // Interview link management methods
+    public async createInterviewLink(linkData: {
+        createdBy: number;
+        linkToken: string;
+        title: string;
+        description?: string;
+        expiryDate?: string;
+        maxAttempts?: number;
+    }): Promise<number> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `INSERT INTO interview_links (created_by, link_token, title, description, expiry_date, max_attempts)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    linkData.createdBy,
+                    linkData.linkToken,
+                    linkData.title,
+                    linkData.description || null,
+                    linkData.expiryDate || null,
+                    linkData.maxAttempts || 0
+                ],
+                function (err) {
+                    if (err) {
+                        console.error('Error creating interview link:', err);
+                        reject(err);
+                    } else {
+                        console.log('Interview link created successfully with ID:', this.lastID);
+                        resolve(this.lastID);
+                    }
+                }
+            );
+        });
+    }
+
+    public async getInterviewLinkByToken(token: string): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                `SELECT il.*, u.full_name as creator_name, u.email as creator_email 
+                 FROM interview_links il
+                 LEFT JOIN users u ON il.created_by = u.id
+                 WHERE il.link_token = ?`,
+                [token],
+                (err, row) => {
+                    if (err) {
+                        console.error('Error fetching interview link:', err);
+                        reject(err);
+                    } else {
+                        resolve(row);
+                    }
+                }
+            );
+        });
+    }
+
+    public async getInterviewLinksByUser(userId: number): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT il.*, 
+                 (SELECT COUNT(*) FROM sessions WHERE interview_link_id = il.id) as total_attempts,
+                 (SELECT COUNT(*) FROM interviews WHERE interview_link_id = il.id) as completed_interviews
+                 FROM interview_links il
+                 WHERE il.created_by = ?
+                 ORDER BY il.created_at DESC`,
+                [userId],
+                (err, rows) => {
+                    if (err) {
+                        console.error('Error fetching interview links:', err);
+                        reject(err);
+                    } else {
+                        resolve(rows);
+                    }
+                }
+            );
+        });
+    }
+
+    public async updateInterviewLink(linkId: number, updates: {
+        title?: string;
+        description?: string;
+        isActive?: boolean;
+        expiryDate?: string;
+        maxAttempts?: number;
+    }): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const fields = [];
+            const values = [];
+
+            if (updates.title !== undefined) {
+                fields.push('title = ?');
+                values.push(updates.title);
+            }
+            if (updates.description !== undefined) {
+                fields.push('description = ?');
+                values.push(updates.description);
+            }
+            if (updates.isActive !== undefined) {
+                fields.push('is_active = ?');
+                values.push(updates.isActive ? 1 : 0);
+            }
+            if (updates.expiryDate !== undefined) {
+                fields.push('expiry_date = ?');
+                values.push(updates.expiryDate);
+            }
+            if (updates.maxAttempts !== undefined) {
+                fields.push('max_attempts = ?');
+                values.push(updates.maxAttempts);
+            }
+
+            fields.push('updated_at = CURRENT_TIMESTAMP');
+            values.push(linkId);
+
+            this.db.run(
+                `UPDATE interview_links SET ${fields.join(', ')} WHERE id = ?`,
+                values,
+                (err) => {
+                    if (err) {
+                        console.error('Error updating interview link:', err);
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                }
+            );
+        });
+    }
+
+    public async deleteInterviewLink(linkId: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                'DELETE FROM interview_links WHERE id = ?',
+                [linkId],
+                (err) => {
+                    if (err) {
+                        console.error('Error deleting interview link:', err);
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                }
+            );
+        });
+    }
+
+    public async getInterviewLinkById(linkId: number): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                `SELECT il.*, u.full_name as creator_name, u.email as creator_email 
+                 FROM interview_links il
+                 LEFT JOIN users u ON il.created_by = u.id
+                 WHERE il.id = ?`,
+                [linkId],
+                (err, row) => {
+                    if (err) {
+                        console.error('Error fetching interview link:', err);
+                        reject(err);
+                    } else {
+                        resolve(row);
+                    }
+                }
+            );
+        });
+    }
+
+    public async getCandidatesByInterviewLink(linkId: number): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT i.*, u.full_name, u.email
+                 FROM interviews i
+                 LEFT JOIN users u ON i.user_id = u.id
+                 WHERE i.interview_link_id = ?
+                 ORDER BY i.created_at DESC`,
+                [linkId],
+                (err, rows) => {
+                    if (err) {
+                        console.error('Error fetching candidates:', err);
+                        reject(err);
+                    } else {
+                        const parsedRows = rows.map((row: any) => ({
+                            ...row,
+                            strengths: row.strengths ? JSON.parse(row.strengths) : [],
+                            areasForImprovement: row.areas_for_improvement ? JSON.parse(row.areas_for_improvement) : [],
+                            detailedAnswers: row.detailed_answers ? JSON.parse(row.detailed_answers) : [],
+                            questionAnalysis: row.question_analysis ? JSON.parse(row.question_analysis) : []
+                        }));
+                        resolve(parsedRows);
+                    }
+                }
+            );
+        });
+    }
+
+    // Resume management methods
+    public async getUserResume(userId: number): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT resume_data FROM users WHERE id = ?',
+                [userId],
+                (err, row: any) => {
+                    if (err) {
+                        console.error('Error fetching user resume:', err);
+                        reject(err);
+                    } else {
+                        resolve(row?.resume_data ? JSON.parse(row.resume_data) : null);
+                    }
+                }
+            );
+        });
+    }
+
+    public async updateUserResume(userId: number, resumeData: any): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                'UPDATE users SET resume_data = ? WHERE id = ?',
+                [JSON.stringify(resumeData), userId],
+                function (err) {
+                    if (err) {
+                        console.error('Error updating user resume:', err);
+                        reject(err);
+                    } else {
+                        console.log('User resume updated successfully');
+                        resolve();
+                    }
+                }
+            );
+        });
+    }
+
+    public async clearUserSessions(userId: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                'DELETE FROM sessions WHERE user_id = ?',
+                [userId],
+                function (err) {
+                    if (err) {
+                        console.error('Error clearing user sessions:', err);
+                        reject(err);
+                    } else {
+                        console.log(`Cleared ${this.changes} sessions for user ${userId}`);
                         resolve();
                     }
                 }

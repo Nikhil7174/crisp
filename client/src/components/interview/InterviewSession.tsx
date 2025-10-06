@@ -5,7 +5,7 @@ import { RobotOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { ChatContainer } from './chat';
 import { InterviewCompletionModal } from './InterviewCompletionModal';
-import SessionManager from '../../services/SessionManager';
+// import SessionManager from '../../services/SessionManager'; // No longer needed
 import type { InterviewSession as InterviewSessionType, ChatMessage } from '../../types';
 
 const { Title, Paragraph } = Typography;
@@ -14,7 +14,6 @@ interface InterviewSessionProps {
   onStartNew: () => void;
   currentSession?: InterviewSessionType | null;
   chatMessages?: ChatMessage[];
-  onStartInterview?: (candidateData: any) => Promise<any>;
   onSubmitAnswer?: (questionId: string, answer: string, timeTaken: number) => Promise<any>;
   onSaveResults?: (results: any) => Promise<void>;
   onComplete?: () => void;
@@ -23,7 +22,6 @@ interface InterviewSessionProps {
 export const InterviewSession: React.FC<InterviewSessionProps> = ({
   currentSession,
   chatMessages = [],
-  onStartInterview,
   onSubmitAnswer,
   onSaveResults,
   onComplete
@@ -74,31 +72,7 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
     }
   }, [currentSession?.sessionId]);
 
-  // Start interview when component mounts - BUT ONLY IF NO SESSION EXISTS
-  useEffect(() => {
-    // Check if there's a stored session first
-    const storedSession = SessionManager.getLastSession();
-    const hasStoredSession = storedSession && storedSession.currentSession;
-
-    // Only start new interview if NO currentSession exists AND no stored session AND no chatMessages
-    if (!currentSession && !hasStoredSession && !chatMessages.length && onStartInterview && !sessionStarted) {
-      setSessionStarted(true);
-
-      // Start new interview
-      const candidateData = {
-        id: `candidate-${Date.now()}`,
-        timestamp: Date.now()
-      };
-
-      onStartInterview(candidateData).catch(error => {
-        notification.error({
-          message: 'Failed to start interview',
-          description: error.message || 'Please try again'
-        });
-        setSessionStarted(false);
-      });
-    }
-  }, [currentSession, chatMessages.length, onStartInterview, sessionStarted]);
+  // Note: Auto-start interview logic removed - interviews can only be started via interview links
 
   const handleAnswerSubmit = useCallback(async (answer: string) => {
     if (!currentQuestion || !onSubmitAnswer || !currentSession) {
@@ -201,11 +175,9 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
   }, [currentSession, currentQuestion, currentQuestionIndex, handleAnswerSubmit, handleTimerExpire, isSubmitting, isInterviewCompleted]);
 
   const handleCompletion = useCallback(() => {
-    // Clear session from localStorage
-    if (currentSession) {
-      SessionManager.clearSession();
-    }
-
+    // Session clearing should be handled by useSessionManager
+    // This component should not directly manage sessions
+    
     // Call the onComplete callback to redirect to home
     if (onComplete) {
       onComplete();
@@ -213,7 +185,7 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
       // Fallback: redirect to home page
       window.location.href = '/';
     }
-  }, [currentSession, onComplete]);
+  }, [onComplete]);
 
   return (
     <Card style={{

@@ -15,13 +15,120 @@ export class InterviewController {
     this.codeExecutionService = new CodeExecutionService();
   }
 
+  /**
+   * Validate interview link (public endpoint)
+   */
+  async validateLink(req: Request, res: Response): Promise<void> {
+    try {
+      const { token } = req.params;
+
+      if (!token) {
+        res.status(400).json({ error: 'Link token is required' });
+        return;
+      }
+
+      const link = await this.dbService.getInterviewLinkByToken(token);
+
+      if (!link) {
+        res.status(404).json({ error: 'Interview link not found' });
+        return;
+      }
+
+      // Check if link is active
+      if (!link.is_active) {
+        res.status(403).json({
+          error: 'Link inactive',
+          message: 'This interview link has been deactivated'
+        });
+        return;
+      }
+
+      // Check if link has expired
+      if (link.expiry_date) {
+        const expiryDate = new Date(link.expiry_date);
+        if (expiryDate < new Date()) {
+          res.status(403).json({
+            error: 'Link expired',
+            message: 'This interview link has expired'
+          });
+          return;
+        }
+      }
+
+      res.json({
+        success: true,
+        link: {
+          title: link.title,
+          description: link.description,
+          creatorName: link.creator_name,
+          expiryDate: link.expiry_date
+        }
+      });
+
+    } catch (error) {
+      console.error('Validate link error:', error);
+      res.status(500).json({
+        error: 'Failed to validate link',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
   async startInterview(req: Request, res: Response): Promise<void> {
     try {
-      const { candidateData } = req.body;
+      const { candidateData, linkToken } = req.body;
+      const userId = (req as any).user?.userId; // Optional, only if authenticated
 
       if (!candidateData) {
         res.status(400).json({ error: 'Candidate data is required' });
         return;
+      }
+
+      if (!linkToken) {
+        res.status(400).json({ error: 'Interview link token is required' });
+        return;
+      }
+
+      // Validate the interview link
+      const link = await this.dbService.getInterviewLinkByToken(linkToken);
+
+      if (!link) {
+        res.status(404).json({ error: 'Interview link not found' });
+        return;
+      }
+
+      if (!link.is_active) {
+        res.status(403).json({ error: 'Interview link is inactive' });
+        return;
+      }
+
+      if (link.expiry_date && new Date(link.expiry_date) < new Date()) {
+        res.status(403).json({ error: 'Interview link has expired' });
+        return;
+      }
+
+      const interviewLinkId = link.id;
+
+      // Clear all existing sessions for the user when starting a new interview
+      if (userId) {
+        try {
+          await this.dbService.clearUserSessions(userId);
+          console.log('Cleared all existing sessions for user:', userId);
+        } catch (error) {
+          console.error('Failed to clear user sessions:', error);
+          // Don't fail the interview start if session clearing fails
+        }
+      }
+
+      // Save resume data to user profile if user is authenticated and has resume data
+      if (userId && candidateData.resumeData) {
+        try {
+          await this.dbService.updateUserResume(userId, candidateData.resumeData);
+          console.log('Resume data saved to user profile for user:', userId);
+        } catch (error) {
+          console.error('Failed to save resume data to user profile:', error);
+          // Don't fail the interview start if resume saving fails
+        }
       }
 
       // Generate 6 questions: 2 Easy + 2 Medium + 2 Hard
@@ -41,11 +148,14 @@ export class InterviewController {
       // Save session to SQLite
       await this.dbService.saveSession({
         sessionId,
+        user_id: userId || null,
+        interview_link_id: interviewLinkId,
         candidateId: session.candidateId,
         status: session.status,
         questions: session.questions,
         answers: session.answers,
-        startTime: session.startTime
+        startTime: session.startTime,
+        is_mock_interview: false // All interviews are now link-based
       });
 
       // In startInterview - just return questions
@@ -204,16 +314,16 @@ export class InterviewController {
   async saveResults(req: Request, res: Response): Promise<void> {
     try {
       const completeSummary = req.body;
+      const userId = (req as any).user?.userId; // Optional, only if authenticated
 
       // DEBUG: Log incoming request data
       console.log('=== SAVE RESULTS DEBUG ===');
       console.log('Request received at:', new Date().toISOString());
-      console.log('Request body keys:', Object.keys(completeSummary));
+      console.log('User ID:', userId);
       console.log('Session ID:', completeSummary.sessionId);
       console.log('Candidate Name:', completeSummary.candidateName);
       console.log('Candidate Email:', completeSummary.candidateEmail);
       console.log('Score:', completeSummary.score);
-      console.log('Full request body:', JSON.stringify(completeSummary, null, 2));
       console.log('=== END SAVE RESULTS DEBUG ===');
 
       if (!completeSummary.sessionId) {
@@ -221,9 +331,13 @@ export class InterviewController {
         return;
       }
 
-      // Update session in SQLite if it exists
+      // Get session to retrieve linkId
       const session = await this.dbService.getSession(completeSummary.sessionId);
+      let interviewLinkId = null;
+
+
       if (session) {
+        interviewLinkId = session.interview_link_id;
         // Update session with complete summary
         await this.dbService.updateSession(completeSummary.sessionId, {
           status: 'completed',
@@ -237,19 +351,17 @@ export class InterviewController {
       // Log the complete summary for debugging
       console.log('=== COMPLETE INTERVIEW SUMMARY ===');
       console.log('Session ID:', completeSummary.sessionId);
+      console.log('Interview Link ID:', interviewLinkId);
       console.log('Score:', completeSummary.score);
       console.log('Correct Answers:', completeSummary.correctAnswers, '/', completeSummary.totalQuestions);
-      console.log('Time Spent:', completeSummary.timeSpent, 'seconds');
-      console.log('Strengths:', completeSummary.strengths);
-      console.log('Areas for Improvement:', completeSummary.areasForImprovement);
-      console.log('Question Analysis:', completeSummary.questionAnalysis);
-      console.log('Complete Summary:', JSON.stringify(completeSummary, null, 2));
       console.log('=== END COMPLETE INTERVIEW SUMMARY ===');
 
       // Save to database
       try {
         const interviewSummary = {
           sessionId: completeSummary.sessionId,
+          userId: userId || null,
+          interviewLinkId: interviewLinkId,
           candidateName: completeSummary.candidateName || completeSummary.candidateId || 'Unknown',
           candidateEmail: completeSummary.candidateEmail || completeSummary.candidateId || 'unknown@example.com',
           candidatePhone: completeSummary.candidatePhone || '',
@@ -264,20 +376,14 @@ export class InterviewController {
           areasForImprovement: completeSummary.areasForImprovement,
           overallFeedback: completeSummary.overallFeedback,
           detailedAnswers: completeSummary.detailedAnswers,
-          questionAnalysis: completeSummary.questionAnalysis
+          questionAnalysis: completeSummary.questionAnalysis,
+          isMockInterview: false // All interviews are now link-based
         };
-
-        // DEBUG: Log interview summary before saving
-        console.log('=== DATABASE SAVE DEBUG ===');
-        console.log('Interview summary to save:', JSON.stringify(interviewSummary, null, 2));
-        console.log('About to call saveInterviewSummary...');
 
         await this.dbService.saveInterviewSummary(interviewSummary);
         console.log('✅ Interview summary saved to database successfully');
-        console.log('=== END DATABASE SAVE DEBUG ===');
       } catch (dbError) {
         console.error('❌ Error saving to database:', dbError);
-        console.error('Database error details:', JSON.stringify(dbError, null, 2));
         // Don't fail the request if database save fails
       }
 

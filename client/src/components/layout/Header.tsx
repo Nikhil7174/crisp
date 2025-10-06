@@ -1,21 +1,28 @@
 // src/components/layout/Header.tsx
 import React from 'react';
 import { Layout, Button, Space } from 'antd';
-import { DashboardOutlined } from '@ant-design/icons';
+import { LoginOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import crispLogo from '../../assets/images/crisp.png';
+import { useAuth } from '../../hooks/useAuth';
 
 const { Header: AntHeader } = Layout;
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
-
-  const handleAdminClick = () => {
-    navigate('/admin');
-  };
+  const { isAuthenticated, logout } = useAuth();
 
   const handleTitleClick = () => {
+    navigate('/');
+  };
+
+  const handleLoginClick = () => {
+    navigate('/login');
+  };
+
+  const handleLogoutClick = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -65,14 +72,24 @@ export const Header: React.FC = () => {
         </div>
 
         <Space>
-          <Button
-            type="text"
-            icon={<DashboardOutlined />}
-            onClick={handleAdminClick}
-            style={{ color: colors.info.main }}
-          >
-            View Dashboard
-          </Button>
+          {isAuthenticated ? (
+            <Button
+              type="text"
+              icon={<LogoutOutlined />}
+              onClick={handleLogoutClick}
+              style={{ color: colors.error.main }}
+            >
+              Logout
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              icon={<LoginOutlined />}
+              onClick={handleLoginClick}
+            >
+              Login
+            </Button>
+          )}
         </Space>
       </div>
     </AntHeader>
