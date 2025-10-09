@@ -14,7 +14,7 @@ export const JoinInterview: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { token: tokenFromPath } = useParams<{ token: string }>();
-  const { user, isAuthenticated, token: authToken } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { startInterview } = useInterview();
   const [interviewLink, setInterviewLink] = useState('');
   const [loading, setLoading] = useState(false);

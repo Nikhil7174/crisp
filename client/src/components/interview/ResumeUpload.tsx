@@ -16,6 +16,7 @@ interface ResumeUploadProps {
   resumeData?: ResumeData | null; // To show file details if already processed
   existingResumeData?: any; // Existing resume data from user profile
   onUseExistingResume?: () => void; // Callback to use existing resume
+  existingFileName?: string; // Name of the stored PDF file
 }
 
 export const ResumeUpload: React.FC<ResumeUploadProps> = ({
@@ -26,7 +27,8 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
   isProcessing,
   resumeData,
   existingResumeData,
-  onUseExistingResume
+  onUseExistingResume,
+  existingFileName
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -168,33 +170,55 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
       }}>
         <Space direction="vertical" size={spacing.sm} style={{ width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-            <CheckCircleOutlined style={{ color: colors.success.main }} />
-            <Text strong style={{ color: colors.success.main }}>
+            <CheckCircleOutlined style={{ color: colors.success.main, fontSize: 20 }} />
+            <Text strong style={{ color: colors.success.main, fontSize: 16 }}>
               You have an existing resume on file
             </Text>
           </div>
-          <Text type="secondary" style={{ fontSize: 14 }}>
-            Name: {existingResumeData.personalInfo?.name || 'N/A'}
-          </Text>
-          <Text type="secondary" style={{ fontSize: 14 }}>
-            Email: {existingResumeData.personalInfo?.email || 'N/A'}
-          </Text>
+          
+          {/* Show stored PDF filename */}
+          {existingFileName && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: spacing.sm,
+              padding: spacing.sm,
+              backgroundColor: colors.neutral[50],
+              borderRadius: 6,
+              border: `1px solid ${colors.neutral[200]}`
+            }}>
+              <FileTextOutlined style={{ color: colors.primary.main, fontSize: 16 }} />
+              <Text style={{ fontSize: 14, fontWeight: 500 }}>
+                {existingFileName}
+              </Text>
+            </div>
+          )}
+          
+          <div style={{ fontSize: 14, color: colors.neutral[600] }}>
+            <div><strong>Name:</strong> {existingResumeData.personalInfo?.name || 'N/A'}</div>
+            <div><strong>Email:</strong> {existingResumeData.personalInfo?.email || 'N/A'}</div>
+          </div>
+          
           <Space>
             <Button 
               type="primary" 
               onClick={onUseExistingResume}
               style={{ backgroundColor: colors.success.main, borderColor: colors.success.main }}
+              size="large"
             >
-              Use Existing Resume
+              Use This Resume
             </Button>
-            <Button onClick={onRemoveFile}>
-              Upload New Resume
+            <Button 
+              onClick={onRemoveFile}
+              size="large"
+            >
+              Upload Different Resume
             </Button>
           </Space>
         </Space>
       </div>
     );
-  }, [existingResumeData, onUseExistingResume, onRemoveFile]);
+  }, [existingResumeData, existingFileName, onUseExistingResume, onRemoveFile]);
 
   const renderContent = useCallback(() => {
     if (isProcessing) {
@@ -233,9 +257,14 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
     <Card style={{ maxWidth: 600, margin: '0 auto' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
-          <Title level={3}>Upload Your Resume</Title>
+          <Title level={3}>
+            {existingResumeData ? 'Resume Management' : 'Upload Your Resume'}
+          </Title>
           <Paragraph>
-            Upload your resume (PDF or DOCX) to get started with your AI interview practice.
+            {existingResumeData 
+              ? 'You have a resume on file. You can use it or upload a new one.'
+              : 'Upload your resume (PDF or DOCX) to get started with your AI interview practice.'
+            }
           </Paragraph>
         </div>
 

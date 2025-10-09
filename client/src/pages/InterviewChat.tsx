@@ -11,9 +11,9 @@ import { WelcomeBackModal } from '../components/interview/WelcomeBackModal';
 import { useResumeUpload } from '../hooks/api/useResumeUpload';
 import { useInterview } from '../hooks/api/useInterview';
 import { useResumeData } from '../hooks/useResumeData';
-import { useSessionManager } from '../hooks/useSessionManager';
+import { useSession } from '../hooks/useSession';
 import { resetInterview } from '../store/slices/interviewSlice';
-import { SESSION_CONFIG } from '../config/session';
+// SESSION_CONFIG removed - using Redux-only session management
 
 type Step = 'upload' | 'info' | 'interview';
 
@@ -38,7 +38,6 @@ export const InterviewChat: React.FC = () => {
   } = useResumeUpload();
 
   const {
-    currentSession,
     chatMessages,
     submitAnswer,
     saveResults
@@ -49,21 +48,22 @@ export const InterviewChat: React.FC = () => {
     hasResume
   } = useResumeData();
 
-  // New unified session management
+  // Redux-only session management
   const {
-    storedSession,
+    currentSession,
+    resumeData: sessionResumeData,
     shouldShowWelcomeBack,
     sessionSummary,
-    restoreSession,
-    clearAllSessions
-  } = useSessionManager();
+    clearAllSessions,
+    resetPageVisibilityTracking
+  } = useSession();
 
   // Effect 1: Handle welcome back modal display
   useEffect(() => {
     console.log('=== WELCOME BACK MODAL CHECK ===');
     console.log('Should show welcome back:', shouldShowWelcomeBack);
     console.log('User has chosen:', userHasChosen);
-    console.log('Stored session exists:', !!storedSession);
+    console.log('Current session exists:', !!currentSession);
     console.log('Session summary exists:', !!sessionSummary);
 
     // Don't show modal if user has already made a choice
@@ -73,7 +73,7 @@ export const InterviewChat: React.FC = () => {
     }
 
     // Show welcome back modal for interrupted interviews
-    if (shouldShowWelcomeBack && storedSession && sessionSummary) {
+    if (shouldShowWelcomeBack && currentSession && sessionSummary) {
       console.log('Valid interrupted session found:', {
         answered: sessionSummary.questionsAnswered,
         total: sessionSummary.totalQuestions,
@@ -84,14 +84,14 @@ export const InterviewChat: React.FC = () => {
       console.log('No interrupted session found - not showing modal');
       setShowWelcomeBack(false);
     }
-  }, [shouldShowWelcomeBack, storedSession, sessionSummary, userHasChosen]);
+  }, [shouldShowWelcomeBack, currentSession, sessionSummary, userHasChosen]);
 
   // Effect 2: Handle initial step determination (separate from modal logic)
   useEffect(() => {
     console.log('=== INITIAL STEP DETERMINATION ===');
     console.log('Current step:', currentStep);
     console.log('Has existing resume:', hasResume);
-    console.log('Stored session resume data:', !!storedSession?.resumeData);
+    console.log('Current session resume data:', !!sessionResumeData);
 
     // Only set initial step if we're still on upload (initial state)
     if (currentStep !== 'upload') {
@@ -99,22 +99,24 @@ export const InterviewChat: React.FC = () => {
       return;
     }
 
-    // If we have a stored session with resume data, go to interview
-    if (storedSession?.resumeData) {
-      console.log('Stored session has resume data, going to interview step');
-      setCurrentStep('interview');
-    }
-    // If user has existing resume data, go to info collection
-    else if (hasResume && existingResumeData) {
-      console.log('User has existing resume data, going to info collection step');
-      setCurrentStep('info');
-    }
-    // Otherwise, stay on upload step
-    else {
-      console.log('No resume data found, staying on upload step');
-      setCurrentStep('upload');
-    }
-  }, [hasResume, existingResumeData, storedSession?.resumeData, currentStep]);
+    // Always start with upload page - enhanced to show existing resume with replace option
+    console.log('Starting with upload page (enhanced for existing resumes)');
+    setCurrentStep('upload');
+
+    // ENHANCED: Resume Data Persistence with Better UX
+    // Problem: When the same user gives multiple interviews, their previously provided resume data
+    // is not being retrieved, causing them to upload a PDF every time they give an interview.
+    // 
+    // SOLUTION IMPLEMENTED:
+    // 1. Session cleanup on logout/login to prevent data leakage between different users
+    // 2. Resume data is now saved to user profile during info collection step
+    // 3. useResumeData hook syncs data between backend and Redux state
+    // 4. SessionCleanup component clears data when different users log in
+    // 5. Each user now gets their own isolated resume data
+    // 6. ENHANCED: Upload page now shows existing resume with option to replace
+
+  }, [hasResume, existingResumeData, sessionResumeData, currentStep]);
+
 
   // Real-time tracking is now handled by useSessionManager hook
 
@@ -172,11 +174,14 @@ export const InterviewChat: React.FC = () => {
       setCollectingInfo(false);
       setUserHasChosen(true); // Mark that user has made a choice
 
+      // Reset page visibility tracking for new session
+      resetPageVisibilityTracking();
+
       console.log('=== NEW INTERVIEW SETUP COMPLETE ===');
     } catch (error) {
       console.error('Failed to start new interview:', error);
     }
-  }, [dispatch, clearAllSessions]);
+  }, [dispatch, clearAllSessions, resetPageVisibilityTracking]);
 
   const handleInterviewComplete = useCallback(() => {
     console.log('Interview completed - clearing all data and redirecting');
@@ -201,19 +206,21 @@ export const InterviewChat: React.FC = () => {
     setCurrentStep('interview');
     setShowWelcomeBack(false);
 
-    try {
-      // Restore session data using unified method
-      restoreSession();
-    } catch (error) {
-      console.error('Failed to continue session:', error);
-    }
-  }, [restoreSession]);
+    // Reset page visibility tracking since user is continuing
+    resetPageVisibilityTracking();
+
+    // No need to restore - data is already in Redux
+    console.log('Session data already available in Redux');
+  }, [resetPageVisibilityTracking]);
 
   const handleWelcomeBackClose = useCallback(() => {
     console.log('User closed welcome back modal');
     setUserHasChosen(true); // Mark that user has made a choice (by closing)
     setShowWelcomeBack(false);
-  }, []);
+
+    // Reset page visibility tracking since user dismissed the modal
+    resetPageVisibilityTracking();
+  }, [resetPageVisibilityTracking]);
 
 
   const renderCurrentStep = useCallback(() => {
@@ -231,6 +238,7 @@ export const InterviewChat: React.FC = () => {
             isProcessing={processingResume} // Pass processing state
             resumeData={resumeData} // Pass resumeData to show file details
             existingResumeData={existingResumeData} // Pass existing resume data
+            existingFileName={existingResumeData?.fileName || existingResumeData?.originalFileName || 'resume.pdf'} // Pass filename
             onUseExistingResume={() => {
               // Use existing resume data and move to next step
               if (existingResumeData) {
@@ -283,7 +291,7 @@ export const InterviewChat: React.FC = () => {
       <WelcomeBackModal
         visible={showWelcomeBack}
         questionsAnswered={sessionSummary?.questionsAnswered || 0}
-        totalQuestions={sessionSummary?.totalQuestions || SESSION_CONFIG.DEFAULT_QUESTION_COUNT}
+        totalQuestions={sessionSummary?.totalQuestions || 6}
         timeAway={sessionSummary?.timeAway || 0}
         onContinue={handleContinueSession}
         onStartNew={handleStartNew}

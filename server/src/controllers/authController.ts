@@ -323,5 +323,72 @@ export class AuthController {
             });
         }
     }
+
+    /**
+     * Get candidate's interview history
+     */
+    async getCandidateInterviews(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('=== GET CANDIDATE INTERVIEWS DEBUG ===');
+            console.log('Request received at:', new Date().toISOString());
+            console.log('Request headers:', req.headers);
+            
+            const userId = (req as any).user?.userId;
+            console.log('User ID from token:', userId);
+
+            if (!userId) {
+                console.log('No user ID found - unauthorized');
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+
+            const user = await this.dbService.getUserById(userId);
+            console.log('User found:', user ? { id: user.id, email: user.email, name: user.full_name } : 'null');
+
+            if (!user) {
+                console.log('User not found in database');
+                res.status(404).json({ error: 'User not found' });
+                return;
+            }
+
+            // Get all interviews for this candidate
+            console.log('Fetching interviews for email:', user.email);
+            const interviews = await this.dbService.getInterviewsByCandidate(user.email);
+            console.log('Raw interviews from DB:', interviews.length, 'interviews found');
+            console.log('Sample interview data:', interviews.slice(0, 2));
+
+            const formattedInterviews = interviews.map(interview => ({
+                id: interview.id,
+                sessionId: interview.session_id,
+                title: interview.title || 'Interview',
+                status: interview.end_time ? 'completed' : 'in_progress',
+                score: interview.score,
+                startTime: interview.start_time,
+                endTime: interview.end_time,
+                duration: interview.duration,
+                totalQuestions: interview.total_questions,
+                correctAnswers: interview.correct_answers,
+                linkId: interview.interview_link_id
+            }));
+
+            console.log('Formatted interviews:', formattedInterviews.length, 'interviews');
+            console.log('Sample formatted interview:', formattedInterviews.slice(0, 1));
+
+            const response = {
+                success: true,
+                interviews: formattedInterviews
+            };
+
+            console.log('Sending response:', response);
+            res.json(response);
+
+        } catch (error) {
+            console.error('Get candidate interviews error:', error);
+            res.status(500).json({
+                error: 'Failed to fetch interview history',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
 }
 

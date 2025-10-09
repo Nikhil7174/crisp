@@ -123,6 +123,38 @@ const interviewSlice = createSlice({
       state.lastDataFetch = null;
     },
 
+    // Session Management Actions
+    restoreSession: (state, action: PayloadAction<{
+      currentSession: InterviewSession;
+      resumeData?: ResumeData;
+      detailedResumeData?: DetailedResumeData;
+      chatMessages: ChatMessage[];
+    }>) => {
+      state.currentSession = action.payload.currentSession;
+      if (action.payload.resumeData) {
+        state.resumeData = action.payload.resumeData;
+      }
+      if (action.payload.detailedResumeData) {
+        state.detailedResumeData = action.payload.detailedResumeData;
+      }
+      state.chatMessages = action.payload.chatMessages;
+    },
+
+    clearSession: (state) => {
+      state.currentSession = null;
+      state.chatMessages = [];
+      state.sessionHistory = [];
+    },
+
+    clearAllSessions: (state) => {
+      state.currentSession = null;
+      state.chatMessages = [];
+      state.sessionHistory = [];
+      state.resumeData = null;
+      state.detailedResumeData = null;
+      state.resumeUploadTimestamp = null;
+    },
+
     // Reset Actions
     resetInterview: () => initialState,
 
@@ -147,6 +179,9 @@ export const {
   setChatMessages,
   setError,
   clearCache,
+  restoreSession,
+  clearSession,
+  clearAllSessions,
   resetInterview,
   resetSession
 } = interviewSlice.actions;

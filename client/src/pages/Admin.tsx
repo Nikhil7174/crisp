@@ -49,7 +49,7 @@ export const Admin: React.FC = () => {
         }
     }, []);
 
-    const handleLogin = (token: string, userData?: any) => {
+    const handleLogin = (_token: string, userData?: any) => {
         setIsAuthenticated(true);
         if (userData) {
             setUser(userData);

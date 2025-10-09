@@ -20,15 +20,7 @@ router.post('/validate-code', (req: Request, res: Response) => {
     interviewController.validateCodeAnswer(req, res);
 });
 
-// Get session status endpoint
-router.get('/session/:sessionId', (req: Request, res: Response) => {
-    interviewController.getSession(req, res);
-});
-
-// Get final results endpoint (comprehensive evaluation)
-router.get('/results/:sessionId', (req: Request, res: Response) => {
-    interviewController.getSessionResults(req, res);
-});
+// Session endpoints removed - no longer needed without sessions table
 
 // Save interview results endpoint - optional authentication
 router.post('/save-results', (req: Request, res: Response, next) => {

@@ -5,9 +5,10 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import {
   setStartingInterview,
   setSubmittingAnswer,
-  setError
+  setError,
+  updateSession
 } from '../../store/slices/interviewSlice';
-import { useSessionManager } from '../useSessionManager';
+import { useSession } from '../useSession';
 import type { DetailedResumeData, ChatMessage } from '../../types';
 
 import { API_BASE_URL } from '../../constants/api';
@@ -19,7 +20,7 @@ export const useInterview = () => {
   const { token } = useAppSelector(state => state.auth);
 
   // Use the new unified session management
-  const { saveSession, updateSessionData, addChatMessage } = useSessionManager();
+  const { saveSession, addChatMessage, markUserInteraction } = useSession();
 
   const startInterview = useCallback(async (candidateData: DetailedResumeData, linkToken: string) => {
     try {
@@ -44,19 +45,22 @@ export const useInterview = () => {
 
         // Save new session using unified session management
         console.log('=== STARTING INTERVIEW - SAVING SESSION ===');
-        console.log('Saving session to localStorage:', session.sessionId);
+        console.log('Saving session to Redux:', session.sessionId);
 
         // Create complete session with resume data
         const completeSession = {
           sessionId: session.sessionId,
           resumeData: resumeData || undefined,
           detailedResumeData: detailedResumeData || undefined,
-          currentSession: session,
+          currentSession: {
+            ...session,
+            interviewLinkId: session.interviewLinkId // Store the interview link ID
+          },
           chatMessages: [],
           sessionType: 'new' as const
         };
 
-        // Use unified session management (handles both Redux and localStorage)
+        // Use Redux-only session management (automatically persisted via redux-persist)
         saveSession(completeSession);
         console.log('Session saved successfully with resume data');
 
@@ -141,11 +145,13 @@ export const useInterview = () => {
         // Update session using unified session management
         const updatedAnswers = [...(currentSession.answers || []), newAnswer];
         
-        // Use unified session management (handles both Redux and localStorage)
-        updateSessionData({
-          answers: updatedAnswers,
-          lastActivity: Date.now()
-        });
+        // Use Redux-only session management (automatically persisted via redux-persist)
+        dispatch(updateSession({
+          answers: updatedAnswers
+        }));
+
+        // Mark user interaction to prevent welcome back modal during active session
+        markUserInteraction();
 
         console.log('Updated session with answers:', updatedAnswers);
       }
@@ -175,9 +181,9 @@ export const useInterview = () => {
   }, [currentSession]);
 
   const restoreSession = useCallback((_session: any) => {
-    // This method is now handled by useSessionManager
+    // This method is now handled by useSession
     // Keeping for backward compatibility but delegating to the new system
-    console.log('restoreSession called - this should use useSessionManager.restoreSession instead');
+    console.log('restoreSession called - this should use useSession.restoreSession instead');
   }, []);
 
   const saveResults = useCallback(async (results: any) => {

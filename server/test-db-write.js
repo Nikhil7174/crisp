@@ -20,29 +20,8 @@ const sessionData = {
     score: 85
 };
 
-db.run(
-    `INSERT OR REPLACE INTO sessions 
-     (session_id, candidate_id, status, questions, answers, start_time, end_time, duration, score, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    [
-        sessionData.sessionId,
-        sessionData.candidateId,
-        sessionData.status,
-        JSON.stringify(sessionData.questions),
-        JSON.stringify(sessionData.answers),
-        sessionData.startTime,
-        sessionData.endTime,
-        sessionData.duration,
-        sessionData.score
-    ],
-    function(err) {
-        if (err) {
-            console.error('❌ Error saving session:', err);
-        } else {
-            console.log('✅ Session saved successfully!');
-        }
-    }
-);
+// Sessions table removed - using interviews table for all data storage
+console.log('ℹ️  Sessions table removed - using interviews table for all data storage');
 
 // Test 2: Save an interview summary
 console.log('\n📊 Test 2: Saving interview summary...');
@@ -102,13 +81,8 @@ db.run(query, values, function(err) {
     
     // Test 3: Verify data was saved
     console.log('\n🔍 Test 3: Verifying saved data...');
-    db.all('SELECT COUNT(*) as count FROM sessions', (err, rows) => {
-        if (err) {
-            console.error('❌ Error counting sessions:', err);
-        } else {
-            console.log(`📋 Sessions count: ${rows[0].count}`);
-        }
-    });
+    // Sessions table removed - using interviews table for all data storage
+    console.log('ℹ️  Sessions table removed - using interviews table for all data storage');
     
     db.all('SELECT COUNT(*) as count FROM interviews', (err, rows) => {
         if (err) {

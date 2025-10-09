@@ -148,6 +148,7 @@ export interface SessionSummary {
 export interface InterviewSession {
   id?: string; // Optional for backward compatibility
   sessionId: string; // Added to match server response
+  interviewLinkId?: number; // Link to interview_links table
   candidateId?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   questions: Question[];
@@ -163,6 +164,12 @@ export interface InterviewSession {
   timestamp?: number;
   lastActivity?: number;
   chatMessages?: ChatMessage[];
+  
+  // Enhanced session tracking
+  currentStep?: 'upload' | 'info' | 'interview' | 'completed';
+  lastUserInteraction?: number; // Timestamp of last user action
+  isActivelyInProgress?: boolean; // True if user is currently taking the interview
+  sessionPhase?: 'setup' | 'active' | 'paused' | 'completed'; // More granular than status
 }
 
 // Add new interfaces for multiple choice

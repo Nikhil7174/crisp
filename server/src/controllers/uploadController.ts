@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { ResumeParserService, DetailedResumeData } from '../services/resumeParserService';
+import { DatabaseService } from '../services/databaseService';
 
 export class UploadController {
   private resumeParser: ResumeParserService;
+  private dbService: DatabaseService;
   
   constructor() {
     this.resumeParser = new ResumeParserService();
+    this.dbService = DatabaseService.getInstance();
   }
   
   async uploadResume(req: Request, res: Response): Promise<void> {
@@ -60,6 +63,12 @@ export class UploadController {
   async collectMissingInfo(req: Request, res: Response): Promise<void> {
     try {
       const { name, email, phone, resumeData } = req.body;
+      const userId = (req as any).user?.userId; // Get user ID if authenticated
+      
+      console.log('=== COLLECT INFO DEBUG ===');
+      console.log('User ID:', userId);
+      console.log('Request body keys:', Object.keys(req.body));
+      console.log('Has resumeData:', !!resumeData);
       
       if (!name || !email || !phone) {
         res.status(400).json({ error: 'Name, email, and phone are required' });
@@ -100,6 +109,20 @@ export class UploadController {
           phone
         }
       };
+      
+      // Save resume data to user profile if user is authenticated
+      if (userId) {
+        try {
+          console.log('Attempting to save resume data for user:', userId);
+          await this.dbService.updateUserResume(userId, completeResumeData);
+          console.log('✅ Resume data saved to user profile for user:', userId);
+        } catch (error) {
+          console.error('❌ Failed to save resume data to user profile:', error);
+          // Don't fail the request if resume saving fails
+        }
+      } else {
+        console.log('⚠️ No user ID found - resume data not saved to profile');
+      }
       
       res.json({
         success: true,

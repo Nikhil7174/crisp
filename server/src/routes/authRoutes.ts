@@ -32,5 +32,10 @@ router.post('/resume', authMiddleware, (req: Request, res: Response) => {
     authController.updateUserResume(req, res);
 });
 
+// Candidate interview history route
+router.get('/interviews', authMiddleware, (req: Request, res: Response) => {
+    authController.getCandidateInterviews(req, res);
+});
+
 export default router;
 

@@ -9,7 +9,7 @@ import {
   setLoading,
   setError
 } from '../../store/slices/interviewSlice';
-import { useSessionManager } from '../useSessionManager';
+import { useSession } from '../useSession';
 import type { ResumeData, DetailedResumeData } from '../../types';
 
 import { API_BASE_URL } from '../../constants/api';
@@ -19,7 +19,7 @@ export const useResumeUpload = () => {
   const { resumeData, detailedResumeData, isUploading, isLoading, error } = useAppSelector(state => state.interview);
   
   // Use the new unified session management
-  const { storedSession, clearAllSessions } = useSessionManager();
+  const { clearAllSessions } = useSession();
 
   const uploadResume = useCallback(async (file: File) => {
     try {
@@ -71,6 +71,11 @@ export const useResumeUpload = () => {
         email: info.email,
         phone: info.phone,
         resumeData: resumeData
+      }, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       console.log('Collect info response:', response.data);
@@ -99,35 +104,28 @@ export const useResumeUpload = () => {
   }, [dispatch, resumeData]);
 
   const isDataFresh = useCallback(() => {
-    if (!storedSession) return false;
-    const oneHour = 60 * 60 * 1000;
-    return Date.now() - storedSession.timestamp < oneHour;
-  }, [storedSession]);
+    if (!resumeData) return false;
+    // For now, consider data fresh if it exists
+    // In a real app, you'd store upload timestamp separately
+    return true;
+  }, [resumeData]);
 
   const getCachedResumeData = useCallback(() => {
-    return storedSession?.resumeData || null;
-  }, [storedSession]);
+    return resumeData || null;
+  }, [resumeData]);
 
   const getCachedDetailedData = useCallback(() => {
-    return storedSession?.detailedResumeData || null;
-  }, [storedSession]);
+    return detailedResumeData || null;
+  }, [detailedResumeData]);
 
   const clearResumeCache = useCallback(() => {
     clearAllSessions();
   }, [clearAllSessions]);
 
   const restoreSession = useCallback(() => {
-    if (storedSession) {
-      if (storedSession.resumeData) {
-        dispatch(setResumeData(storedSession.resumeData));
-      }
-      if (storedSession.detailedResumeData) {
-        dispatch(setDetailedResumeData(storedSession.detailedResumeData));
-      }
-      return storedSession;
-    }
-    return null;
-  }, [dispatch, storedSession]);
+    // Data is already in Redux state, no need to restore
+    return { resumeData, detailedResumeData };
+  }, [resumeData, detailedResumeData]);
 
   return {
     resumeData,

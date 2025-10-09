@@ -83,35 +83,7 @@ export class DatabaseService {
             }
         });
 
-        // Create sessions table
-        this.db.run(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT UNIQUE NOT NULL,
-        user_id INTEGER,
-        interview_link_id INTEGER,
-        candidate_id TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        questions TEXT,
-        answers TEXT,
-        start_time DATETIME NOT NULL,
-        end_time DATETIME,
-        duration INTEGER,
-        score INTEGER,
-        summary TEXT,
-        is_mock_interview BOOLEAN DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (interview_link_id) REFERENCES interview_links(id)
-      )
-    `, (err) => {
-            if (err) {
-                console.error('Error creating sessions table:', err);
-            } else {
-                console.log('Sessions table created successfully');
-            }
-        });
+        // Sessions table removed - using interviews table for all data storage
 
         this.db.run(`
       CREATE TABLE IF NOT EXISTS interviews (
@@ -279,6 +251,54 @@ export class DatabaseService {
         });
     }
 
+    public async getInterviewsByCandidate(candidateEmail: string): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            console.log('=== DATABASE SERVICE DEBUG ===');
+            console.log('Querying interviews for candidate email:', candidateEmail);
+            
+            const query = `
+        SELECT 
+          i.id, i.session_id, i.candidate_name, i.candidate_email, i.candidate_phone,
+          i.start_time, i.end_time, i.duration, i.score, i.total_questions, i.correct_answers,
+          i.time_spent, i.strengths, i.areas_for_improvement, i.overall_feedback,
+          i.detailed_answers, i.question_analysis, i.created_at, i.updated_at,
+          il.title, il.description
+        FROM interviews i
+        LEFT JOIN interview_links il ON i.interview_link_id = il.id
+        WHERE i.candidate_email = ?
+        ORDER BY i.created_at DESC
+      `;
+
+            console.log('Executing query:', query);
+            console.log('With parameters:', [candidateEmail]);
+
+            this.db.all(query, [candidateEmail], (err, rows) => {
+                if (err) {
+                    console.error('Database error fetching interviews by candidate:', err);
+                    reject(err);
+                } else {
+                    console.log('Database returned', rows.length, 'rows');
+                    console.log('Sample raw row:', rows.slice(0, 1));
+                    
+                    // Parse JSON fields
+                    const parsedRows = rows.map((row: any) => ({
+                        ...row,
+                        strengths: row.strengths ? JSON.parse(row.strengths) : [],
+                        areasForImprovement: row.areas_for_improvement ? JSON.parse(row.areas_for_improvement) : [],
+                        detailedAnswers: row.detailed_answers ? JSON.parse(row.detailed_answers) : [],
+                        questionAnalysis: row.question_analysis ? JSON.parse(row.question_analysis) : []
+                    }));
+                    
+                    console.log('Parsed rows count:', parsedRows.length);
+                    console.log('Sample parsed row:', parsedRows.slice(0, 1));
+                    console.log('=== END DATABASE SERVICE DEBUG ===');
+                    
+                    resolve(parsedRows);
+                }
+            });
+        });
+    }
+
     public async getInterviewById(id: number): Promise<any> {
         return new Promise((resolve, reject) => {
             const query = `
@@ -361,103 +381,7 @@ export class DatabaseService {
         });
     }
 
-    // Session management methods
-    public async saveSession(sessionData: any): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const { sessionId, user_id, interview_link_id, candidateId, status, questions, answers, startTime, endTime, duration, score, summary, is_mock_interview } = sessionData;
-
-            this.db.run(
-                `INSERT OR REPLACE INTO sessions 
-                 (session_id, user_id, interview_link_id, candidate_id, status, questions, answers, start_time, end_time, duration, score, summary, is_mock_interview, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-                [
-                    sessionId,
-                    user_id || null,
-                    interview_link_id || null,
-                    candidateId || null,
-                    status || 'pending',
-                    JSON.stringify(questions || []),
-                    JSON.stringify(answers || []),
-                    startTime,
-                    endTime || null,
-                    duration || null,
-                    score || null,
-                    summary || null,
-                    is_mock_interview ? 1 : 0
-                ],
-                function (err) {
-                    if (err) {
-                        console.error('Error saving session:', err);
-                        reject(err);
-                    } else {
-                        console.log('Session saved successfully with ID:', this.lastID);
-                        resolve();
-                    }
-                }
-            );
-        });
-    }
-
-    public async getSession(sessionId: string): Promise<any> {
-        return new Promise((resolve, reject) => {
-            this.db.get(
-                'SELECT * FROM sessions WHERE session_id = ?',
-                [sessionId],
-                (err, row: any) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    if (!row) {
-                        resolve(null);
-                        return;
-                    }
-
-                    // Parse JSON fields
-                    const session = {
-                        ...row,
-                        questions: row.questions ? JSON.parse(row.questions) : [],
-                        answers: row.answers ? JSON.parse(row.answers) : []
-                    };
-                    resolve(session);
-                }
-            );
-        });
-    }
-
-    public async updateSession(sessionId: string, updates: any): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const fields = [];
-            const values = [];
-
-            Object.keys(updates).forEach(key => {
-                if (key === 'questions' || key === 'answers') {
-                    fields.push(`${key} = ?`);
-                    values.push(JSON.stringify(updates[key]));
-                } else {
-                    fields.push(`${key} = ?`);
-                    values.push(updates[key]);
-                }
-            });
-
-            fields.push('updated_at = CURRENT_TIMESTAMP');
-            values.push(sessionId);
-
-            this.db.run(
-                `UPDATE sessions SET ${fields.join(', ')} WHERE session_id = ?`,
-                values,
-                function (err) {
-                    if (err) {
-                        console.error('Error updating session:', err);
-                        reject(err);
-                    } else {
-                        console.log('Session updated successfully');
-                        resolve();
-                    }
-                }
-            );
-        });
-    }
+    // Session management methods removed - using interviews table for all data storage
 
     // User management methods
     public async createUser(userData: {
@@ -595,8 +519,8 @@ export class DatabaseService {
         return new Promise((resolve, reject) => {
             this.db.all(
                 `SELECT il.*, 
-                 (SELECT COUNT(*) FROM sessions WHERE interview_link_id = il.id) as total_attempts,
-                 (SELECT COUNT(*) FROM interviews WHERE interview_link_id = il.id) as completed_interviews
+                 (SELECT COUNT(*) FROM interviews WHERE interview_link_id = il.id) as total_attempts,
+                 (SELECT COUNT(*) FROM interviews WHERE interview_link_id = il.id AND end_time IS NOT NULL) as completed_interviews
                  FROM interview_links il
                  WHERE il.created_by = ?
                  ORDER BY il.created_at DESC`,
@@ -748,15 +672,19 @@ export class DatabaseService {
 
     public async updateUserResume(userId: number, resumeData: any): Promise<void> {
         return new Promise((resolve, reject) => {
+            console.log('=== DATABASE UPDATE USER RESUME ===');
+            console.log('User ID:', userId);
+            console.log('Resume data keys:', Object.keys(resumeData || {}));
+            
             this.db.run(
                 'UPDATE users SET resume_data = ? WHERE id = ?',
                 [JSON.stringify(resumeData), userId],
                 function (err) {
                     if (err) {
-                        console.error('Error updating user resume:', err);
+                        console.error('❌ Error updating user resume:', err);
                         reject(err);
                     } else {
-                        console.log('User resume updated successfully');
+                        console.log('✅ User resume updated successfully, changes:', this.changes);
                         resolve();
                     }
                 }
@@ -764,23 +692,7 @@ export class DatabaseService {
         });
     }
 
-    public async clearUserSessions(userId: number): Promise<void> {
-        return new Promise((resolve, reject) => {
-            this.db.run(
-                'DELETE FROM sessions WHERE user_id = ?',
-                [userId],
-                function (err) {
-                    if (err) {
-                        console.error('Error clearing user sessions:', err);
-                        reject(err);
-                    } else {
-                        console.log(`Cleared ${this.changes} sessions for user ${userId}`);
-                        resolve();
-                    }
-                }
-            );
-        });
-    }
+    // clearUserSessions method removed - no longer needed without sessions table
 
     public close(): void {
         this.db.close();

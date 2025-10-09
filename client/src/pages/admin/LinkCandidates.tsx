@@ -20,7 +20,6 @@ import {
   CheckCircleOutlined,
   ArrowLeftOutlined,
   HomeOutlined,
-  LinkOutlined,
 } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { API_BASE_URL } from '../../constants/api';
@@ -311,6 +310,9 @@ export const LinkCandidates: React.FC = () => {
     </div>
   );
 };
+
+
+
 
 
 

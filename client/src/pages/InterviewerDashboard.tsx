@@ -14,7 +14,6 @@ import {
   Space,
   Tag,
   Tooltip,
-  Divider,
   Row,
   Col,
   Statistic,
@@ -27,6 +26,7 @@ import {
   LinkOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
+  ReloadOutlined,
   CloseCircleOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
@@ -38,7 +38,7 @@ import { API_BASE_URL } from '../constants/api';
 import type { InterviewLink } from '../types';
 import { colors, spacing } from '../styles';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 export const InterviewerDashboard: React.FC = () => {
   const { user, token, logout } = useAuth();
@@ -47,10 +47,19 @@ export const InterviewerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLink, setEditingLink] = useState<InterviewLink | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
     fetchLinks();
+    
+    // Auto-refresh every 30 seconds to get updated candidate counts
+    const interval = setInterval(() => {
+      fetchLinks();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchLinks = async () => {
@@ -116,29 +125,37 @@ export const InterviewerDashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteLink = async (id: number) => {
-    Modal.confirm({
-      title: 'Delete Interview Link',
-      content: 'Are you sure you want to delete this link? This action cannot be undone.',
-      okText: 'Delete',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          const response = await axios.delete(
-            `${API_BASE_URL}/interviewer/links/${id}`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
-          if (response.data.success) {
-            message.success('Link deleted successfully!');
-            fetchLinks();
-          }
-        } catch (error: any) {
-          message.error(error.response?.data?.message || 'Failed to delete link');
+  const handleDeleteLink = (link: InterviewLink) => {
+    setLinkToDelete(link);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!linkToDelete) return;
+    
+    try {
+      setLoading(true);
+      const response = await axios.delete(
+        `${API_BASE_URL}/interviewer/links/${linkToDelete.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
         }
-      },
-    });
+      );
+      
+      if (response.data.success) {
+        message.success('Link deleted successfully!');
+        fetchLinks();
+      } else {
+        message.error(response.data.message || 'Failed to delete link');
+      }
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      message.error(error.response?.data?.message || 'Failed to delete link');
+    } finally {
+      setLoading(false);
+      setDeleteModalVisible(false);
+      setLinkToDelete(null);
+    }
   };
 
   const handleEditLink = (link: InterviewLink) => {
@@ -174,8 +191,19 @@ export const InterviewerDashboard: React.FC = () => {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'isActive',
-      render: (isActive: boolean) =>
-        isActive ? (
+      render: (isActive: boolean, record: InterviewLink) => {
+        // Check if link has expired
+        const isExpired = record.expiryDate && dayjs(record.expiryDate).isBefore(dayjs());
+        
+        if (isExpired) {
+          return (
+            <Tag icon={<CloseCircleOutlined />} color="error">
+              Expired
+            </Tag>
+          );
+        }
+        
+        return isActive ? (
           <Tag icon={<CheckCircleOutlined />} color="success">
             Active
           </Tag>
@@ -183,16 +211,8 @@ export const InterviewerDashboard: React.FC = () => {
           <Tag icon={<CloseCircleOutlined />} color="error">
             Inactive
           </Tag>
-        ),
-    },
-    {
-      title: 'Candidates',
-      key: 'candidates',
-      render: (_: any, record: InterviewLink) => (
-        <Text>
-          {record.totalAttempts || 0}
-        </Text>
-      ),
+        );
+      },
     },
     {
       title: 'Expiry Date',
@@ -214,38 +234,66 @@ export const InterviewerDashboard: React.FC = () => {
       render: (date: string) => dayjs(date).format('MMM D, YYYY'),
     },
     {
+      title: 'Candidates',
+      key: 'viewCandidates',
+      render: (_: any, record: InterviewLink) => (
+        <Button
+          type="primary"
+          size="small"
+          onClick={() => navigate(`/interviewer/link/${record.id}/candidates`)}
+          style={{ 
+            background: colors.info.main,
+            border: 'none'
+          }}
+        >
+          View Candidates ({record.totalAttempts || 0})
+        </Button>
+      ),
+    },
+    {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: InterviewLink) => (
-        <Space>
-          <Tooltip title="Copy Link">
-            <Button
-              icon={<CopyOutlined />}
-              onClick={() => handleCopyLink(record.url)}
-              size="small"
-            />
-          </Tooltip>
-          <Tooltip title="Edit">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => handleEditLink(record)}
-              size="small"
-            />
-          </Tooltip>
-          <Tooltip title="Delete">
-            <Button
-              icon={<DeleteOutlined />}
-              onClick={() => handleDeleteLink(record.id)}
-              danger
-              size="small"
-            />
-          </Tooltip>
-        </Space>
-      ),
+      render: (_: any, record: InterviewLink) => {
+        // Check if link is active and not expired
+        const isExpired = record.expiryDate && dayjs(record.expiryDate).isBefore(dayjs());
+        const isActive = record.isActive && !isExpired;
+        
+        return (
+          <Space>
+            <Tooltip title={isActive ? "Copy Link" : "Link is inactive or expired"}>
+              <Button
+                icon={<CopyOutlined />}
+                onClick={() => handleCopyLink(record.url)}
+                disabled={!isActive}
+                size="small"
+              />
+            </Tooltip>
+            <Tooltip title={isActive ? "Edit Link" : "Link is inactive or expired"}>
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => handleEditLink(record)}
+                disabled={!isActive}
+                size="small"
+              />
+            </Tooltip>
+            <Tooltip title="Delete">
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={() => handleDeleteLink(record)}
+                danger
+                size="small"
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
-  const activeLinks = links.filter((link) => link.isActive);
+  const activeLinks = links.filter((link) => {
+    const isExpired = link.expiryDate && dayjs(link.expiryDate).isBefore(dayjs());
+    return link.isActive && !isExpired;
+  });
   const totalAttempts = links.reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
 
   return (
@@ -328,22 +376,37 @@ export const InterviewerDashboard: React.FC = () => {
               <Title level={4} style={{ margin: 0 }}>
                 Interview Links
               </Title>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setEditingLink(null);
-                  form.resetFields();
-                  setModalVisible(true);
-                }}
-                size="large"
-                style={{
-                  background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                  border: 'none',
-                }}
-              >
-                Create New Link
-              </Button>
+              <Space>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={fetchLinks}
+                  loading={loading}
+                  size="large"
+                  style={{
+                    background: colors.success.main,
+                    border: 'none',
+                    color: 'white',
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => {
+                    setEditingLink(null);
+                    form.resetFields();
+                    setModalVisible(true);
+                  }}
+                  size="large"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                    border: 'none',
+                  }}
+                >
+                  Create New Link
+                </Button>
+              </Space>
             </div>
           }
           style={{ borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
@@ -433,6 +496,29 @@ export const InterviewerDashboard: React.FC = () => {
               </Space>
             </Form.Item>
           </Form>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          title="Delete Interview Link"
+          open={deleteModalVisible}
+          onOk={confirmDelete}
+          onCancel={() => {
+            setDeleteModalVisible(false);
+            setLinkToDelete(null);
+          }}
+          okText="Delete"
+          cancelText="Cancel"
+          okType="danger"
+          confirmLoading={loading}
+        >
+          <p>
+            Are you sure you want to delete the interview link{' '}
+            <strong>"{linkToDelete?.title}"</strong>?
+          </p>
+          <p style={{ color: '#ff4d4f', marginBottom: 0 }}>
+            This action cannot be undone and will remove all associated data.
+          </p>
         </Modal>
       </div>
     </div>

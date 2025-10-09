@@ -27,7 +27,7 @@ import { API_BASE_URL } from '../../constants/api';
 import type { InterviewLink } from '../../types';
 import { colors, spacing } from '../../styles';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Paragraph } = Typography;
 
 export const InterviewLinks: React.FC = () => {
   const [links, setLinks] = useState<InterviewLink[]>([]);

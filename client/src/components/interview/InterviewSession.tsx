@@ -21,14 +21,12 @@ interface InterviewSessionProps {
 
 export const InterviewSession: React.FC<InterviewSessionProps> = ({
   currentSession,
-  chatMessages = [],
   onSubmitAnswer,
   onSaveResults,
   onComplete
 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isSubmitting] = useState(false);
-  const [sessionStarted, setSessionStarted] = useState(false);
   const [isInterviewCompleted, setIsInterviewCompleted] = useState(false);
   const [sessionRestored, setSessionRestored] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);

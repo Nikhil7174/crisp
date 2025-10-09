@@ -25,7 +25,6 @@ import {
   LinkOutlined,
   UserOutlined,
   CheckCircleOutlined,
-  CalendarOutlined,
   CopyOutlined,
   EditOutlined,
   DeleteOutlined,
@@ -275,12 +274,12 @@ export const InterviewResults: React.FC = () => {
               <div>
                 <div style={{ marginBottom: 4 }}>
                   <Text strong style={{ color: colors.primary.main, fontSize: 16 }}>
-                    {record.totalAttempts} Candidate{record.totalAttempts > 1 ? 's' : ''}
+                    {record.totalAttempts || 0} Candidate{(record.totalAttempts || 0) > 1 ? 's' : ''}
                   </Text>
                 </div>
                 <div style={{ marginBottom: 8 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    {record.totalAttempts === 1 ? '1 interview completed' : `${record.totalAttempts} interviews completed`}
+                    {(record.totalAttempts || 0) === 1 ? '1 interview completed' : `${record.totalAttempts || 0} interviews completed`}
                   </Text>
                 </div>
                 <Button

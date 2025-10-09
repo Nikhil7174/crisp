@@ -1,6 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import type { AuthState, User } from '../../types';
+// clearAllSessions import removed - handled by SessionCleanup component
 
 const initialState: AuthState = {
   user: null,
@@ -28,6 +29,8 @@ const authSlice = createSlice({
       state.error = null;
       // Store token in localStorage
       localStorage.setItem('authToken', action.payload.token);
+      // Clear any existing session data to ensure fresh start for new user
+      // Note: clearAllSessions will be dispatched by the component using useSession
     },
     registerSuccess: (state, action: PayloadAction<{ user: User; token: string }>) => {
       state.user = action.payload.user;
@@ -37,6 +40,8 @@ const authSlice = createSlice({
       state.error = null;
       // Store token in localStorage
       localStorage.setItem('authToken', action.payload.token);
+      // Clear any existing session data to ensure fresh start for new user
+      // Note: clearAllSessions will be dispatched by the component using useSession
     },
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
@@ -50,6 +55,8 @@ const authSlice = createSlice({
       state.error = null;
       // Remove token from localStorage
       localStorage.removeItem('authToken');
+      // Clear all interview session data to prevent data leakage between users
+      // Note: clearAllSessions will be dispatched by the component using useSession
     },
   },
 });

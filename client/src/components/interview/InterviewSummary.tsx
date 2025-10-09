@@ -159,6 +159,7 @@ export const InterviewSummary: React.FC<InterviewSummaryProps> = ({
         const summary = {
             // Session Information
             sessionId: session.sessionId,
+            interviewLinkId: session.interviewLinkId, // Include the interview link ID
             candidateId: session.candidateId,
             candidateName: resumeData?.name || 'Unknown',
             candidateEmail: resumeData?.email || 'unknown@example.com',

@@ -20,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import { spacing } from '../styles';
 import { API_BASE_URL } from '../constants/api';
+import { useAuth } from '../hooks/useAuth';
 
 const { Title, Text } = Typography;
 
@@ -47,16 +48,16 @@ interface Interview {
 export const InterviewDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { token } = useAuth();
     const [interview, setInterview] = useState<Interview | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchInterviewDetails = async () => {
             try {
-                const token = localStorage.getItem('adminToken');
                 if (!token) {
                     message.error('Authentication token not found. Please log in.');
-                    navigate('/admin');
+                    navigate('/login');
                     return;
                 }
 
@@ -90,8 +91,10 @@ export const InterviewDetails: React.FC = () => {
             }
         };
 
-        fetchInterviewDetails();
-    }, [id, navigate]);
+        if (id && token) {
+            fetchInterviewDetails();
+        }
+    }, [id, token, navigate]);
 
     if (loading) {
         return (
@@ -132,7 +135,7 @@ export const InterviewDetails: React.FC = () => {
                     onClick={() => navigate(-1)}
                     style={{ marginBottom: spacing.md }}
                 >
-                    Back to Dashboard
+                    Back
                 </Button>
 
                 <div style={{

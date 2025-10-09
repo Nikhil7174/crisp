@@ -109,16 +109,7 @@ export class InterviewController {
 
       const interviewLinkId = link.id;
 
-      // Clear all existing sessions for the user when starting a new interview
-      if (userId) {
-        try {
-          await this.dbService.clearUserSessions(userId);
-          console.log('Cleared all existing sessions for user:', userId);
-        } catch (error) {
-          console.error('Failed to clear user sessions:', error);
-          // Don't fail the interview start if session clearing fails
-        }
-      }
+      // Session clearing removed - no longer needed without sessions table
 
       // Save resume data to user profile if user is authenticated and has resume data
       if (userId && candidateData.resumeData) {
@@ -145,23 +136,13 @@ export class InterviewController {
         startTime: new Date()
       };
 
-      // Save session to SQLite
-      await this.dbService.saveSession({
-        sessionId,
-        user_id: userId || null,
-        interview_link_id: interviewLinkId,
-        candidateId: session.candidateId,
-        status: session.status,
-        questions: session.questions,
-        answers: session.answers,
-        startTime: session.startTime,
-        is_mock_interview: false // All interviews are now link-based
-      });
+      // Session saving removed - no longer needed without sessions table
 
       // In startInterview - just return questions
       const responseData = {
         success: true,
         sessionId,
+        interviewLinkId,
         questions: questions.map(q => ({
           id: q.id,
           question: q.question,
@@ -242,74 +223,7 @@ export class InterviewController {
     }
   }
 
-  async getSessionResults(req: Request, res: Response): Promise<void> {
-    try {
-      const { sessionId } = req.params;
-
-      const session = await this.dbService.getSession(sessionId);
-      if (!session) {
-        res.status(404).json({ error: 'Interview session not found' });
-        return;
-      }
-
-      if (session.status !== 'completed') {
-        res.status(400).json({ error: 'Interview session is not completed yet' });
-        return;
-      }
-
-      // Generate comprehensive evaluation
-      const finalResults = await this.openaiService.generateFinalResults(session);
-
-      // Update session with results
-      session.score = finalResults.finalScore;
-      session.summary = finalResults.summary;
-
-      res.json({
-        success: true,
-        results: finalResults
-      });
-
-    } catch (error) {
-      console.error('Get results error:', error);
-      res.status(500).json({
-        error: 'Failed to get results',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  }
-
-  async getSession(req: Request, res: Response): Promise<void> {
-    try {
-      const { sessionId } = req.params;
-
-      const session = await this.dbService.getSession(sessionId);
-      if (!session) {
-        res.status(404).json({ error: 'Interview session not found' });
-        return;
-      }
-
-      res.json({
-        success: true,
-        session: {
-          id: session.id,
-          status: session.status,
-          startTime: session.startTime,
-          endTime: session.endTime,
-          duration: session.duration,
-          score: session.score,
-          questionsCount: session.questions.length,
-          answersCount: session.answers.length
-        }
-      });
-
-    } catch (error) {
-      console.error('Get session error:', error);
-      res.status(500).json({
-        error: 'Failed to get session',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  }
+  // getSessionResults and getSession methods removed - no longer needed without sessions table
 
   async saveResults(req: Request, res: Response): Promise<void> {
     try {
@@ -331,22 +245,8 @@ export class InterviewController {
         return;
       }
 
-      // Get session to retrieve linkId
-      const session = await this.dbService.getSession(completeSummary.sessionId);
-      let interviewLinkId = null;
-
-
-      if (session) {
-        interviewLinkId = session.interview_link_id;
-        // Update session with complete summary
-        await this.dbService.updateSession(completeSummary.sessionId, {
-          status: 'completed',
-          end_time: new Date(),
-          duration: completeSummary.duration,
-          score: completeSummary.score,
-          summary: JSON.stringify(completeSummary)
-        });
-      }
+      // Get interviewLinkId from the request body (should be included by frontend)
+      const interviewLinkId = completeSummary.interviewLinkId || null;
 
       // Log the complete summary for debugging
       console.log('=== COMPLETE INTERVIEW SUMMARY ===');

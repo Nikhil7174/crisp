@@ -17,6 +17,9 @@ import { Register } from './pages/auth/Register';
 import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
+import { LinkCandidates } from './pages/LinkCandidates';
+import { InterviewDetails } from './pages/InterviewDetails';
+import { SessionCleanup } from './components/SessionCleanup';
 
 const App: React.FC = () => {
   return (
@@ -25,6 +28,7 @@ const App: React.FC = () => {
         <ConfigProvider theme={theme}>
           <AntApp>
             <Router>
+              <SessionCleanup />
               <Routes>
                 {/* Public Routes */}
                 {/* Public Routes */}
@@ -49,6 +53,22 @@ const App: React.FC = () => {
                   element={
                     <ProtectedRoute allowedUserTypes={['interviewer']}>
                       <InterviewerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/interviewer/link/:linkId/candidates"
+                  element={
+                    <ProtectedRoute allowedUserTypes={['interviewer']}>
+                      <LinkCandidates />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/interviewer/interview/:id"
+                  element={
+                    <ProtectedRoute allowedUserTypes={['interviewer']}>
+                      <InterviewDetails />
                     </ProtectedRoute>
                   }
                 />
