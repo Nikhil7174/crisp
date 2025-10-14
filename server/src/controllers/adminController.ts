@@ -111,6 +111,10 @@ export class AdminController {
                 ? Math.round(interviews.reduce((sum, i) => sum + (i.score || 0), 0) / totalInterviews)
                 : 0;
             const completedInterviews = interviews.filter(i => i.end_time).length;
+            
+            // Calculate cheating detection statistics
+            const cheatingDetectedCount = interviews.filter(i => i.cheating_detected).length;
+            const securityAgentConnectedCount = interviews.filter(i => i.security_agent_connected).length;
 
             res.json({
                 success: true,
@@ -120,7 +124,9 @@ export class AdminController {
                         totalInterviews,
                         totalCandidates,
                         averageScore,
-                        completedInterviews
+                        completedInterviews,
+                        cheatingDetectedCount,
+                        securityAgentConnectedCount
                     }
                 }
             });

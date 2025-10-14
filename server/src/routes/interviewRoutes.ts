@@ -34,4 +34,9 @@ router.post('/save-results', (req: Request, res: Response, next) => {
     }
 });
 
+// Update cheating detection endpoint - requires authentication
+router.put('/:sessionId/cheating-detection', authMiddleware, (req: Request, res: Response) => {
+    interviewController.updateCheatingDetection(req, res);
+});
+
 export default router;

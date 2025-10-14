@@ -18,7 +18,10 @@ import {
     UserOutlined,
     TrophyOutlined,
     CheckCircleOutlined,
-    SearchOutlined
+    SearchOutlined,
+    WarningOutlined,
+    SafetyCertificateOutlined,
+    SafetyOutlined
 } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { API_BASE_URL } from '../../constants/api';
@@ -43,6 +46,9 @@ interface Interview {
     overall_feedback: string;
     detailed_answers: any[];
     question_analysis: any[];
+    cheating_detected: boolean;
+    cheating_incidents: any[];
+    security_agent_connected: boolean;
     created_at: string;
 }
 
@@ -53,6 +59,8 @@ interface DashboardData {
         totalCandidates: number;
         averageScore: number;
         completedInterviews: number;
+        cheatingDetectedCount: number;
+        securityAgentConnectedCount: number;
     };
 }
 
@@ -163,6 +171,32 @@ export const AdminDashboard: React.FC = () => {
             ),
         },
         {
+            title: 'Security',
+            key: 'security',
+            render: (record: Interview) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {record.cheating_detected ? (
+                        <Tag color="red" icon={<WarningOutlined />}>
+                            Cheating Detected
+                        </Tag>
+                    ) : (
+                        <Tag color="green" icon={<CheckCircleOutlined />}>
+                            Clean
+                        </Tag>
+                    )}
+                    {record.security_agent_connected ? (
+                        <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: 10 }}>
+                            Agent Connected
+                        </Tag>
+                    ) : (
+                        <Tag color="orange" icon={<WarningOutlined />} style={{ fontSize: 10 }}>
+                            No Agent
+                        </Tag>
+                    )}
+                </div>
+            ),
+        },
+        {
             title: 'Actions',
             key: 'actions',
             render: (record: Interview) => (
@@ -254,6 +288,52 @@ export const AdminDashboard: React.FC = () => {
                         <Statistic
                             title="Completed"
                             value={data.statistics.completedInterviews}
+                            prefix={<CheckCircleOutlined />}
+                            valueStyle={{ color: colors.success.main }}
+                        />
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Security Statistics */}
+            <Row gutter={[16, 16]} style={{ marginBottom: spacing.xl }}>
+                <Col xs={24} sm={12} md={6}>
+                    <Card>
+                        <Statistic
+                            title="Cheating Detected"
+                            value={data.statistics.cheatingDetectedCount || 0}
+                            prefix={<WarningOutlined />}
+                            valueStyle={{ color: colors.error.main }}
+                        />
+                    </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                    <Card>
+                        <Statistic
+                            title="Security Agent Connected"
+                            value={data.statistics.securityAgentConnectedCount || 0}
+                            prefix={<SafetyCertificateOutlined />}
+                            valueStyle={{ color: colors.success.main }}
+                        />
+                    </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                    <Card>
+                        <Statistic
+                            title="Security Coverage"
+                            value={data.statistics.totalInterviews > 0 ? 
+                                Math.round(((data.statistics.securityAgentConnectedCount || 0) / data.statistics.totalInterviews) * 100) : 0}
+                            suffix="%"
+                            prefix={<SafetyOutlined />}
+                            valueStyle={{ color: colors.info.main }}
+                        />
+                    </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                    <Card>
+                        <Statistic
+                            title="Clean Interviews"
+                            value={(data.statistics.totalInterviews || 0) - (data.statistics.cheatingDetectedCount || 0)}
                             prefix={<CheckCircleOutlined />}
                             valueStyle={{ color: colors.success.main }}
                         />

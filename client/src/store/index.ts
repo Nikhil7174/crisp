@@ -10,6 +10,7 @@ import userReducer from './slices/userSlice';
 import sessionReducer from './slices/sessionSlice';
 import interviewReducer from './slices/interviewSlice';
 import authReducer from './slices/authSlice';
+import securityReducer from './slices/securitySlice';
 
 const persistConfig = {
   key: 'root',
@@ -23,6 +24,7 @@ const rootReducer = combineReducers({
   session: sessionReducer,
   interview: interviewReducer,
   auth: authReducer,
+  security: securityReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

@@ -2,17 +2,20 @@ import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openaiService';
 import { DatabaseService } from '../services/databaseService';
 import { CodeExecutionService } from '../services/codeExecutionService';
+import { SecurityService } from '../services/securityService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
 
 export class InterviewController {
   private openaiService: OpenAIService;
   private dbService: DatabaseService;
   private codeExecutionService: CodeExecutionService;
+  private securityService: SecurityService;
 
   constructor() {
     this.openaiService = new OpenAIService();
     this.dbService = DatabaseService.getInstance();
     this.codeExecutionService = new CodeExecutionService();
+    this.securityService = SecurityService.getInstance();
   }
 
   /**
@@ -55,6 +58,9 @@ export class InterviewController {
         }
       }
 
+      // Check security agent connection
+      const securityStatus = await this.securityService.getSecurityAgentStatus();
+
       res.json({
         success: true,
         link: {
@@ -62,6 +68,12 @@ export class InterviewController {
           description: link.description,
           creatorName: link.creator_name,
           expiryDate: link.expiry_date
+        },
+        security: {
+          agentConnected: securityStatus.connected,
+          agentActive: securityStatus.active,
+          error: securityStatus.error,
+          timestamp: securityStatus.timestamp
         }
       });
 
@@ -312,5 +324,40 @@ export class InterviewController {
       !session.answers.some(a => a.questionId === q.id)
     );
     return unansweredQuestions[0] || null;
+  }
+
+  async updateCheatingDetection(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+      const { cheatingDetected, cheatingIncidents, securityAgentConnected } = req.body;
+
+      if (!sessionId) {
+        res.status(400).json({
+          success: false,
+          error: 'Session ID is required'
+        });
+        return;
+      }
+
+      // Update the interview record with cheating detection data
+      await this.dbService.updateCheatingDetection(sessionId, {
+        cheatingDetected: cheatingDetected || false,
+        cheatingIncidents: cheatingIncidents || [],
+        securityAgentConnected: securityAgentConnected || false
+      });
+
+      res.json({
+        success: true,
+        message: 'Cheating detection data updated successfully'
+      });
+
+    } catch (error) {
+      console.error('Update cheating detection error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update cheating detection data',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 }

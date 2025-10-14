@@ -5,6 +5,7 @@ import { RobotOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../../styles';
 import { ChatContainer } from './chat';
 import { InterviewCompletionModal } from './InterviewCompletionModal';
+import { SecurityStatus } from '../security/SecurityStatus';
 // import SessionManager from '../../services/SessionManager'; // No longer needed
 import type { InterviewSession as InterviewSessionType, ChatMessage } from '../../types';
 
@@ -194,7 +195,11 @@ export const InterviewSession: React.FC<InterviewSessionProps> = ({
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {!isInterviewCompleted && (
           <div style={{ textAlign: 'center' }}>
-            <Title level={3}>AI Interview Session</Title>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+              <div></div>
+              <Title level={3} style={{ margin: 0 }}>AI Interview Session</Title>
+              <SecurityStatus />
+            </div>
             <Paragraph>
               {currentSession ?
                 'Answer the questions below based on your resume and experience.' :

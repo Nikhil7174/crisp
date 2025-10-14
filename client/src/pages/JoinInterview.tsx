@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Input, Button, Typography, message, Space, Divider, Alert } from 'antd';
-import { LinkOutlined, ArrowRightOutlined, HomeOutlined } from '@ant-design/icons';
+import { Card, Input, Button, Typography, message, Space, Divider, Alert, Spin, Tooltip } from 'antd';
+import { LinkOutlined, ArrowRightOutlined, HomeOutlined, SafetyCertificateOutlined, WarningOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../hooks/useAuth';
@@ -19,6 +19,8 @@ export const JoinInterview: React.FC = () => {
   const [interviewLink, setInterviewLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [linkInfo, setLinkInfo] = useState<any>(null);
+  const [securityStatus, setSecurityStatus] = useState<any>(null);
+  const [securityLoading, setSecurityLoading] = useState(false);
 
   const validateLink = useCallback(async (token: string) => {
     try {
@@ -27,9 +29,12 @@ export const JoinInterview: React.FC = () => {
       if (response.data.success) {
         // Server returns 'link' not 'linkInfo'
         setLinkInfo({ ...response.data.link, token });
+        // Set security status from response
+        setSecurityStatus(response.data.security);
       } else {
         message.error(response.data.message || 'Invalid interview link');
         setLinkInfo(null);
+        setSecurityStatus(null);
       }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to validate link');
@@ -38,6 +43,22 @@ export const JoinInterview: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const recheckSecurity = useCallback(async () => {
+    if (!linkInfo?.token) return;
+    
+    try {
+      setSecurityLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/interview/link/${linkInfo.token}`);
+      if (response.data.success) {
+        setSecurityStatus(response.data.security);
+      }
+    } catch (error: any) {
+      message.error('Failed to recheck security status');
+    } finally {
+      setSecurityLoading(false);
+    }
+  }, [linkInfo?.token]);
 
   useEffect(() => {
     // Check if there's a token in the URL path or query params
@@ -215,6 +236,61 @@ export const JoinInterview: React.FC = () => {
                 showIcon
               />
 
+              {/* Security Status */}
+              {securityStatus && (
+                <Alert
+                  message={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {securityStatus.agentConnected && securityStatus.agentActive ? (
+                        <>
+                          <CheckCircleOutlined style={{ color: colors.success.main }} />
+                          Security Agent Connected
+                        </>
+                      ) : (
+                        <>
+                          <WarningOutlined style={{ color: colors.error.main }} />
+                          Security Agent Issue
+                        </>
+                      )}
+                    </div>
+                  }
+                  description={
+                    <div>
+                      {securityStatus.agentConnected && securityStatus.agentActive ? (
+                        <div>
+                          <Paragraph style={{ marginBottom: spacing.sm }}>
+                            ✅ Desktop security agent is running and actively monitoring
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            Your interview will be protected against cheating attempts
+                          </Paragraph>
+                        </div>
+                      ) : (
+                        <div>
+                          <Paragraph style={{ marginBottom: spacing.sm }}>
+                            ⚠️ Desktop security agent is not connected or not responding
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: spacing.sm }}>
+                            {securityStatus.error || 'Please ensure the security application is running'}
+                          </Paragraph>
+                          <Button
+                            size="small"
+                            icon={<SafetyCertificateOutlined />}
+                            onClick={recheckSecurity}
+                            loading={securityLoading}
+                            style={{ marginBottom: 0 }}
+                          >
+                            Recheck Security
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  }
+                  type={securityStatus.agentConnected && securityStatus.agentActive ? "success" : "warning"}
+                  showIcon={false}
+                />
+              )}
+
               {!isAuthenticated && (
                 <Alert
                   message="Login Required"
@@ -224,22 +300,34 @@ export const JoinInterview: React.FC = () => {
                 />
               )}
 
-              <Button
-                type="primary"
-                size="large"
-                icon={<ArrowRightOutlined />}
-                onClick={handleJoinInterview}
-                loading={loading}
-                style={{
-                  width: '100%',
-                  height: 48,
-                  borderRadius: 8,
-                  background: `linear-gradient(135deg, ${colors.success.main} 0%, ${colors.primary.main} 100%)`,
-                  border: 'none',
-                }}
+              <Tooltip
+                title={(!securityStatus.agentConnected || !securityStatus.agentActive) 
+                  ? "Security agent must be connected and active to start the interview" 
+                  : undefined
+                }
+                placement="top"
               >
-                {isAuthenticated ? 'Start Interview' : 'Login & Start Interview'}
-              </Button>
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<ArrowRightOutlined />}
+                  onClick={handleJoinInterview}
+                  loading={loading}
+                  disabled={!securityStatus.agentConnected || !securityStatus.agentActive}
+                  style={{
+                    width: '100%',
+                    height: 48,
+                    borderRadius: 8,
+                    background: (!securityStatus.agentConnected || !securityStatus.agentActive) 
+                      ? '#d9d9d9' 
+                      : `linear-gradient(135deg, ${colors.success.main} 0%, ${colors.primary.main} 100%)`,
+                    border: 'none',
+                    cursor: (!securityStatus.agentConnected || !securityStatus.agentActive) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isAuthenticated ? 'Start Interview' : 'Login & Start Interview'}
+                </Button>
+              </Tooltip>
             </>
           )}
 

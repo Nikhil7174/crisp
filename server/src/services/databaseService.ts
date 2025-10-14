@@ -107,6 +107,9 @@ export class DatabaseService {
         detailed_answers TEXT,
         question_analysis TEXT,
         is_mock_interview BOOLEAN DEFAULT 0,
+        cheating_detected BOOLEAN DEFAULT 0,
+        cheating_incidents TEXT,
+        security_agent_connected BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
@@ -117,6 +120,8 @@ export class DatabaseService {
                 console.error('Error creating interviews table:', err);
             } else {
                 console.log('Interviews table created successfully');
+                // Add new columns for cheating detection if they don't exist
+                this.addCheatingDetectionColumns();
             }
         });
 
@@ -179,8 +184,9 @@ export class DatabaseService {
           session_id, user_id, interview_link_id, candidate_name, candidate_email, candidate_phone,
           start_time, end_time, duration, score, total_questions, correct_answers,
           time_spent, strengths, areas_for_improvement, overall_feedback,
-          detailed_answers, question_analysis, is_mock_interview, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          detailed_answers, question_analysis, is_mock_interview, 
+          cheating_detected, cheating_incidents, security_agent_connected, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
             const values = [
@@ -202,7 +208,10 @@ export class DatabaseService {
                 summary.overallFeedback,
                 JSON.stringify(summary.detailedAnswers),
                 JSON.stringify(summary.questionAnalysis),
-                summary.isMockInterview ? 1 : 0
+                summary.isMockInterview ? 1 : 0,
+                summary.cheatingDetected ? 1 : 0,
+                JSON.stringify(summary.cheatingIncidents || []),
+                summary.securityAgentConnected ? 1 : 0
             ];
 
             this.db.run(query, values, function (err) {
@@ -693,6 +702,81 @@ export class DatabaseService {
     }
 
     // clearUserSessions method removed - no longer needed without sessions table
+
+    public async updateCheatingDetection(sessionId: string, data: {
+        cheatingDetected: boolean;
+        cheatingIncidents: any[];
+        securityAgentConnected: boolean;
+    }): Promise<void> {
+        return new Promise((resolve, reject) => {
+            console.log('=== UPDATE CHEATING DETECTION ===');
+            console.log('Session ID:', sessionId);
+            console.log('Cheating detected:', data.cheatingDetected);
+            console.log('Incidents count:', data.cheatingIncidents.length);
+            console.log('Security agent connected:', data.securityAgentConnected);
+
+            const query = `
+                UPDATE interviews 
+                SET cheating_detected = ?, 
+                    cheating_incidents = ?, 
+                    security_agent_connected = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = ?
+            `;
+
+            const values = [
+                data.cheatingDetected ? 1 : 0,
+                JSON.stringify(data.cheatingIncidents),
+                data.securityAgentConnected ? 1 : 0,
+                sessionId
+            ];
+
+            this.db.run(query, values, function (err) {
+                if (err) {
+                    console.error('❌ Error updating cheating detection:', err);
+                    reject(err);
+                } else {
+                    console.log(`✅ Cheating detection updated for session ${sessionId}, changes: ${this.changes}`);
+                    resolve();
+                }
+            });
+        });
+    }
+
+    private addCheatingDetectionColumns(): void {
+        // Add cheating_detected column if it doesn't exist
+        this.db.run(`
+            ALTER TABLE interviews ADD COLUMN cheating_detected BOOLEAN DEFAULT 0
+        `, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding cheating_detected column:', err);
+            } else if (!err) {
+                console.log('Added cheating_detected column to interviews table');
+            }
+        });
+
+        // Add cheating_incidents column if it doesn't exist
+        this.db.run(`
+            ALTER TABLE interviews ADD COLUMN cheating_incidents TEXT
+        `, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding cheating_incidents column:', err);
+            } else if (!err) {
+                console.log('Added cheating_incidents column to interviews table');
+            }
+        });
+
+        // Add security_agent_connected column if it doesn't exist
+        this.db.run(`
+            ALTER TABLE interviews ADD COLUMN security_agent_connected BOOLEAN DEFAULT 0
+        `, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding security_agent_connected column:', err);
+            } else if (!err) {
+                console.log('Added security_agent_connected column to interviews table');
+            }
+        });
+    }
 
     public close(): void {
         this.db.close();

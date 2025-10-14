@@ -16,7 +16,11 @@ import {
 } from 'antd';
 import {
     ArrowLeftOutlined,
-    TrophyOutlined
+    TrophyOutlined,
+    WarningOutlined,
+    SafetyCertificateOutlined,
+    SafetyOutlined,
+    CheckCircleOutlined
 } from '@ant-design/icons';
 import { spacing } from '../styles';
 import { API_BASE_URL } from '../constants/api';
@@ -42,6 +46,9 @@ interface Interview {
     overall_feedback: string;
     detailed_answers: any[];
     question_analysis: any[];
+    cheating_detected: boolean;
+    cheating_incidents: any[];
+    security_agent_connected: boolean;
     created_at: string;
 }
 
@@ -197,6 +204,98 @@ export const InterviewDetails: React.FC = () => {
                                 {Math.round(interview.duration / 1000 / 60)} minutes
                             </Descriptions.Item>
                         </Descriptions>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Security Information */}
+            <Row gutter={[spacing.xl, spacing.xl]} style={{ marginBottom: spacing.xl }}>
+                <Col xs={24}>
+                    <Card title="Security Information" style={{ height: '100%' }}>
+                        <Row gutter={[spacing.lg, spacing.lg]}>
+                            <Col xs={24} md={8}>
+                                <div style={{ textAlign: 'center', padding: spacing.md }}>
+                                    <div style={{ marginBottom: spacing.sm }}>
+                                        {interview.security_agent_connected ? (
+                                            <SafetyCertificateOutlined style={{ fontSize: 32, color: '#52c41a' }} />
+                                        ) : (
+                                            <SafetyOutlined style={{ fontSize: 32, color: '#faad14' }} />
+                                        )}
+                                    </div>
+                                    <Text strong>Security Agent</Text>
+                                    <br />
+                                    <Tag color={interview.security_agent_connected ? 'green' : 'orange'}>
+                                        {interview.security_agent_connected ? 'Connected' : 'Not Connected'}
+                                    </Tag>
+                                </div>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <div style={{ textAlign: 'center', padding: spacing.md }}>
+                                    <div style={{ marginBottom: spacing.sm }}>
+                                        {interview.cheating_detected ? (
+                                            <WarningOutlined style={{ fontSize: 32, color: '#ff4d4f' }} />
+                                        ) : (
+                                            <CheckCircleOutlined style={{ fontSize: 32, color: '#52c41a' }} />
+                                        )}
+                                    </div>
+                                    <Text strong>Cheating Detection</Text>
+                                    <br />
+                                    <Tag color={interview.cheating_detected ? 'red' : 'green'}>
+                                        {interview.cheating_detected ? 'Detected' : 'Clean'}
+                                    </Tag>
+                                </div>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <div style={{ textAlign: 'center', padding: spacing.md }}>
+                                    <div style={{ marginBottom: spacing.sm }}>
+                                        <WarningOutlined style={{ fontSize: 32, color: '#1890ff' }} />
+                                    </div>
+                                    <Text strong>Incidents</Text>
+                                    <br />
+                                    <Tag color="blue">
+                                        {interview.cheating_incidents?.length || 0} Detected
+                                    </Tag>
+                                </div>
+                            </Col>
+                        </Row>
+                        
+                        {/* Show cheating incidents if any */}
+                        {interview.cheating_detected && interview.cheating_incidents && interview.cheating_incidents.length > 0 && (
+                            <div style={{ marginTop: spacing.lg, padding: spacing.md, background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6 }}>
+                                <Text strong style={{ color: '#ff4d4f', marginBottom: spacing.sm, display: 'block' }}>
+                                    Detected Cheating Incidents:
+                                </Text>
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    {interview.cheating_incidents.map((incident: any, index: number) => (
+                                        <div key={index} style={{ 
+                                            padding: spacing.sm, 
+                                            background: '#fff', 
+                                            border: '1px solid #ffccc7', 
+                                            borderRadius: 4 
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <Text strong>{incident.processName}</Text>
+                                                    <br />
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                                        {incident.reason} • PID: {incident.pid}
+                                                    </Text>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <Tag color={incident.killed ? 'red' : 'orange'}>
+                                                        {incident.killed ? 'Terminated' : 'Detected'}
+                                                    </Tag>
+                                                    <br />
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                                        {new Date(incident.timestamp).toLocaleString()}
+                                                    </Text>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </Space>
+                            </div>
+                        )}
                     </Card>
                 </Col>
             </Row>
