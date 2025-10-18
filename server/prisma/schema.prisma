@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./data/interviews.db"
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password_hash String
+  full_name   String
+  user_type   UserType
+  phone       String?
+  company     String?
+  resume_data String?
+  created_at  DateTime @default(now())
+  last_login  DateTime?
+  is_active   Boolean  @default(true)
+
+  // Relations
+  created_interview_links InterviewLink[] @relation("InterviewLinkCreator")
+  interviews             Interview[]     @relation("InterviewUser")
+
+  @@map("users")
+}
+
+model InterviewLink {
+  id           Int      @id @default(autoincrement())
+  created_by   Int
+  link_token   String   @unique
+  title        String
+  description  String?
+  expiry_date  DateTime?
+  max_attempts Int      @default(0)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  creator   User         @relation("InterviewLinkCreator", fields: [created_by], references: [id])
+  interviews Interview[] @relation("InterviewLinkInterviews")
+
+  @@map("interview_links")
+}
+
+model Interview {
+  id                     Int      @id @default(autoincrement())
+  session_id             String   @unique
+  user_id                Int?
+  interview_link_id      Int?
+  candidate_name         String
+  candidate_email        String
+  candidate_phone        String?
+  start_time             DateTime
+  end_time               DateTime?
+  duration               Int?
+  score                  Int?
+  total_questions        Int?
+  correct_answers        Int?
+  time_spent             Int?
+  strengths              String? // JSON string
+  areas_for_improvement  String? // JSON string
+  overall_feedback       String?
+  detailed_answers       String? // JSON string
+  question_analysis      String? // JSON string
+  is_mock_interview      Boolean  @default(false)
+  cheating_detected      Boolean  @default(false)
+  cheating_incidents     String? // JSON string
+  security_agent_connected Boolean @default(false)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  // Relations
+  user           User?          @relation("InterviewUser", fields: [user_id], references: [id])
+  interview_link InterviewLink? @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
+
+  @@map("interviews")
+}
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  password_hash String
+  created_at   DateTime  @default(now())
+  last_login   DateTime?
+
+  @@map("admin_users")
+}
+
+enum UserType {
+  candidate
+  interviewer
+}

@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
-import { DatabaseService } from '../services/databaseService';
+import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
 
 export class AuthController {
-    private dbService: DatabaseService;
+    private dbService: PrismaService;
     private authService: AuthService;
 
     constructor() {
-        this.dbService = DatabaseService.getInstance();
+        this.dbService = PrismaService.getInstance();
         this.authService = AuthService.getInstance();
     }
 
@@ -69,7 +69,7 @@ export class AuthController {
             const passwordHash = await this.authService.hashPassword(password);
 
             // Create user
-            const userId = await this.dbService.createUser({
+            const user = await this.dbService.createUser({
                 email,
                 passwordHash,
                 fullName,
@@ -80,13 +80,10 @@ export class AuthController {
 
             // Generate token
             const token = this.authService.generateToken({
-                userId,
+                userId: user.id,
                 email,
                 userType
             });
-
-            // Get user data (without password)
-            const user = await this.dbService.getUserById(userId);
 
             res.status(201).json({
                 success: true,

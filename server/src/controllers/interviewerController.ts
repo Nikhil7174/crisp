@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
-import { DatabaseService } from '../services/databaseService';
+import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
 
 export class InterviewerController {
-    private dbService: DatabaseService;
+    private dbService: PrismaService;
     private authService: AuthService;
 
     constructor() {
-        this.dbService = DatabaseService.getInstance();
+        this.dbService = PrismaService.getInstance();
         this.authService = AuthService.getInstance();
     }
 
@@ -32,7 +32,7 @@ export class InterviewerController {
             const linkToken = this.authService.generateLinkToken();
 
             // Create interview link
-            const linkId = await this.dbService.createInterviewLink({
+            const link = await this.dbService.createInterviewLink({
                 createdBy: userId,
                 linkToken,
                 title,
@@ -40,9 +40,6 @@ export class InterviewerController {
                 expiryDate,
                 maxAttempts: maxAttempts || 0 // 0 means unlimited
             });
-
-            // Get the created link
-            const link = await this.dbService.getInterviewLinkById(linkId);
 
             res.status(201).json({
                 success: true,
@@ -197,6 +194,11 @@ export class InterviewerController {
 
             // Get updated link
             const updatedLink = await this.dbService.getInterviewLinkById(linkId);
+
+            if (!updatedLink) {
+                res.status(500).json({ error: 'Failed to retrieve updated link' });
+                return;
+            }
 
             res.json({
                 success: true,

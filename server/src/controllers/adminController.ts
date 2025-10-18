@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { DatabaseService } from '../services/databaseService';
+import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
 
 interface AuthRequest extends Request {
@@ -12,11 +12,11 @@ interface AuthRequest extends Request {
 }
 
 export class AdminController {
-    private dbService: DatabaseService;
+    private dbService: PrismaService;
     private authService: AuthService;
 
     constructor() {
-        this.dbService = DatabaseService.getInstance();
+        this.dbService = PrismaService.getInstance();
         this.authService = AuthService.getInstance();
     }
 

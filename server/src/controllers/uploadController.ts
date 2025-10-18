@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
 import { ResumeParserService, DetailedResumeData } from '../services/resumeParserService';
-import { DatabaseService } from '../services/databaseService';
+import { PrismaService } from '../services/prismaService';
 
 export class UploadController {
   private resumeParser: ResumeParserService;
-  private dbService: DatabaseService;
+  private dbService: PrismaService;
   
   constructor() {
     this.resumeParser = new ResumeParserService();
-    this.dbService = DatabaseService.getInstance();
+    this.dbService = PrismaService.getInstance();
   }
   
   async uploadResume(req: Request, res: Response): Promise<void> {

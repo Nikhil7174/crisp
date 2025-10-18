@@ -1,19 +1,19 @@
 import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openaiService';
-import { DatabaseService } from '../services/databaseService';
+import { PrismaService } from '../services/prismaService';
 import { CodeExecutionService } from '../services/codeExecutionService';
 import { SecurityService } from '../services/securityService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
 
 export class InterviewController {
   private openaiService: OpenAIService;
-  private dbService: DatabaseService;
+  private dbService: PrismaService;
   private codeExecutionService: CodeExecutionService;
   private securityService: SecurityService;
 
   constructor() {
     this.openaiService = new OpenAIService();
-    this.dbService = DatabaseService.getInstance();
+    this.dbService = PrismaService.getInstance();
     this.codeExecutionService = new CodeExecutionService();
     this.securityService = SecurityService.getInstance();
   }
@@ -66,7 +66,7 @@ export class InterviewController {
         link: {
           title: link.title,
           description: link.description,
-          creatorName: link.creator_name,
+          creatorName: link.creator.full_name,
           expiryDate: link.expiry_date
         },
         security: {
