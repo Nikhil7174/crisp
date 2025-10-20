@@ -4,11 +4,6 @@ import {
   Button,
   Table,
   Modal,
-  Form,
-  Input,
-  DatePicker,
-  InputNumber,
-  Switch,
   message,
   Typography,
   Space,
@@ -31,7 +26,6 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
-import dayjs from 'dayjs';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../constants/api';
@@ -45,11 +39,8 @@ export const InterviewerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [links, setLinks] = useState<InterviewLink[]>([]);
   const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingLink, setEditingLink] = useState<InterviewLink | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
-  const [form] = Form.useForm();
 
   useEffect(() => {
     fetchLinks();
@@ -78,52 +69,6 @@ export const InterviewerDashboard: React.FC = () => {
     }
   };
 
-  const handleCreateLink = async (values: any) => {
-    try {
-      setLoading(true);
-      const payload = {
-        title: values.title,
-        description: values.description,
-        expiryDate: values.expiryDate ? values.expiryDate.toISOString() : undefined,
-        maxAttempts: values.maxAttempts || 999,
-        isActive: values.isActive ?? true,
-      };
-
-      if (editingLink) {
-        const response = await axios.put(
-          `${API_BASE_URL}/interviewer/links/${editingLink.id}`,
-          payload,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        if (response.data.success) {
-          message.success('Link updated successfully!');
-          fetchLinks();
-        }
-      } else {
-        const response = await axios.post(
-          `${API_BASE_URL}/interviewer/links`,
-          payload,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        if (response.data.success) {
-          message.success('Link created successfully!');
-          fetchLinks();
-        }
-      }
-
-      setModalVisible(false);
-      form.resetFields();
-      setEditingLink(null);
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Failed to save link');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDeleteLink = (link: InterviewLink) => {
     setLinkToDelete(link);
@@ -393,18 +338,14 @@ export const InterviewerDashboard: React.FC = () => {
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
-                  onClick={() => {
-                    setEditingLink(null);
-                    form.resetFields();
-                    setModalVisible(true);
-                  }}
+                  onClick={() => navigate('/interviewer/create-interview')}
                   size="large"
                   style={{
                     background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
                     border: 'none',
                   }}
                 >
-                  Create New Link
+                  Create New Interview
                 </Button>
               </Space>
             </div>
@@ -420,83 +361,6 @@ export const InterviewerDashboard: React.FC = () => {
           />
         </Card>
 
-        {/* Create/Edit Modal */}
-        <Modal
-          title={editingLink ? 'Edit Interview Link' : 'Create Interview Link'}
-          open={modalVisible}
-          onCancel={() => {
-            setModalVisible(false);
-            setEditingLink(null);
-            form.resetFields();
-          }}
-          footer={null}
-          width={600}
-        >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleCreateLink}
-            initialValues={{
-              maxAttempts: 999,
-              isActive: true,
-            }}
-          >
-            <Form.Item
-              name="title"
-              label="Title"
-              rules={[{ required: true, message: 'Please enter a title' }]}
-            >
-              <Input placeholder="e.g., Senior Frontend Developer Interview" />
-            </Form.Item>
-
-            <Form.Item name="description" label="Description">
-              <Input.TextArea
-                rows={3}
-                placeholder="Brief description of the interview (optional)"
-              />
-            </Form.Item>
-
-            <Form.Item name="expiryDate" label="Expiry Date">
-              <DatePicker
-                style={{ width: '100%' }}
-                format="YYYY-MM-DD"
-                disabledDate={(current) => current && current < dayjs().startOf('day')}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="maxAttempts"
-              label="Maximum Attempts"
-              tooltip="Maximum number of candidates who can use this link"
-            >
-              <InputNumber
-                min={1}
-                max={9999}
-                style={{ width: '100%' }}
-                placeholder="999"
-              />
-            </Form.Item>
-
-            <Form.Item name="isActive" label="Active" valuePropName="checked">
-              <Switch />
-            </Form.Item>
-
-            <Form.Item style={{ marginBottom: 0, marginTop: spacing.xl }}>
-              <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-                <Button onClick={() => {
-                  setModalVisible(false);
-                  setEditingLink(null);
-                  form.resetFields();
-                }}>
-                  Cancel
-                </Button>
-                <Button type="primary" htmlType="submit" loading={loading}>
-                  {editingLink ? 'Update' : 'Create'}
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
 
         {/* Delete Confirmation Modal */}
         <Modal

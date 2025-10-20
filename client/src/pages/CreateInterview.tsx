@@ -1,0 +1,419 @@
+import React, { useState } from 'react';
+import {
+  Card,
+  Button,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  message,
+  Typography,
+  Space,
+  Row,
+  Col,
+  Divider,
+  Tag,
+  Tooltip,
+} from 'antd';
+import {
+  ArrowLeftOutlined,
+  MinusCircleOutlined,
+  CheckOutlined,
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { API_BASE_URL } from '../constants/api';
+import { INTERVIEW_ROLES, TECH_STACKS, DEFAULT_TOPICS, type TopicItem } from '../constants/interview';
+import { colors, spacing } from '../styles';
+import axios from 'axios';
+
+const { Title, Text } = Typography;
+
+
+export const CreateInterview: React.FC = () => {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (values: any) => {
+    try {
+      setLoading(true);
+      
+      // Extract topics data
+      const topics = values.topics || DEFAULT_TOPICS;
+      const enabledTopics = topics.filter((topic: TopicItem) => topic.enabled);
+      
+      if (enabledTopics.length === 0) {
+        message.error('Please select at least one topic for the interview');
+        return;
+      }
+
+      // Log additional fields for future backend integration
+      console.log('Interview Metadata:', {
+        jobTitle: values.jobTitle,
+        jobId: values.jobId,
+        role: values.role,
+        yearsOfExperience: values.yearsOfExperience,
+        topics: enabledTopics,
+      });
+
+      // Prepare payload for existing API
+      const roleText = Array.isArray(values.role) ? values.role.join(', ') : values.role;
+      const payload = {
+        title: `${values.jobTitle} - ${roleText} Interview`,
+        description: `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience. Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}`,
+        expiryDate: undefined, // No expiry for now
+        maxAttempts: 999,
+        isActive: true,
+      };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/interviewer/links`,
+        payload,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        message.success('Interview created successfully!');
+        navigate('/interviewer/dashboard');
+      }
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to create interview');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    navigate('/interviewer/dashboard');
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: spacing.xl }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        {/* Header */}
+        <div
+          style={{
+            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+            borderRadius: 16,
+            padding: spacing.xl,
+            marginBottom: spacing.xl,
+            color: 'white',
+          }}
+        >
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Title level={2} style={{ color: 'white', margin: 0 }}>
+                Create a New Interview
+              </Title>
+              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16 }}>
+                Set up interview details and configure question topics
+              </Text>
+            </Col>
+            <Col>
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={handleBack}
+                size="large"
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  border: 'none',
+                }}
+              >
+                Back to Dashboard
+              </Button>
+            </Col>
+          </Row>
+        </div>
+
+        {/* Main Form */}
+        <Card style={{ borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{
+              topics: DEFAULT_TOPICS,
+            }}
+          >
+            <Row gutter={[32, 32]}>
+              {/* Left Section - Basic Details */}
+              <Col xs={24} lg={12}>
+                <Title level={4} style={{ marginBottom: spacing.lg }}>
+                  Interview Details
+                </Title>
+                
+                <Form.Item
+                  name="jobTitle"
+                  label="Job Title"
+                  rules={[{ required: true, message: 'Please enter job title' }]}
+                >
+                  <Input placeholder="e.g., Senior Frontend Developer" size="large" />
+                </Form.Item>
+
+                <Row gutter={16}>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="jobId"
+                      label="Job ID"
+                      rules={[{ required: true, message: 'Please enter job ID' }]}
+                    >
+                      <Input placeholder="e.g., JOB-2024-001" size="large" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="yearsOfExperience"
+                      label="Years of Experience"
+                      rules={[{ required: true, message: 'Please enter years of experience' }]}
+                    >
+                      <InputNumber
+                        placeholder="e.g., 3"
+                        min={0}
+                        max={20}
+                        style={{ width: '100%' }}
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item
+                  name="role"
+                  label="Choose Role"
+                  rules={[{ required: true, message: 'Please select a role' }]}
+                >
+                  <Select
+                    placeholder="Search and select role"
+                    size="large"
+                    showSearch
+                    mode="multiple"
+                    maxTagCount={2}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={INTERVIEW_ROLES}
+                    tagRender={(props) => {
+                      const { label, closable, onClose } = props;
+                      return (
+                        <Tag
+                          color="blue"
+                          closable={closable}
+                          onClose={onClose}
+                          style={{
+                            margin: '2px',
+                            padding: '4px 8px',
+                            borderRadius: '16px',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                            color: 'white',
+                            border: 'none',
+                          }}
+                        >
+                          {label}
+                        </Tag>
+                      );
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+
+              {/* Right Section - Question Topics */}
+              <Col xs={24} lg={12}>
+                <Title level={4} style={{ marginBottom: spacing.lg }}>
+                  Questions to be asked from:
+                </Title>
+
+                {/* Technology Search and Selection */}
+                <div style={{ marginBottom: spacing.lg }}>
+                  <Text strong style={{ display: 'block', marginBottom: spacing.sm }}>
+                    Add Technology:
+                  </Text>
+                  <Select
+                    placeholder="Search and select technology"
+                    showSearch
+                    size="large"
+                    style={{ width: '100%' }}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={TECH_STACKS}
+                    onSelect={(value) => {
+                      const currentTopics = form.getFieldValue('topics') || [];
+                      const techExists = currentTopics.some((topic: any) => topic.name === value);
+                      if (!techExists) {
+                        form.setFieldsValue({
+                          topics: [...currentTopics, { name: value, questionCount: 1, enabled: true }]
+                        });
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Selected Technologies Display */}
+                <div style={{ marginBottom: spacing.lg }}>
+                  <Text strong style={{ display: 'block', marginBottom: spacing.sm }}>
+                    Selected Technologies:
+                  </Text>
+                  <div style={{
+                    minHeight: '120px',
+                    border: '2px dashed #d9d9d9',
+                    borderRadius: '8px',
+                    padding: spacing.md,
+                    background: '#fafafa',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: spacing.sm,
+                    alignItems: 'flex-start',
+                    alignContent: 'flex-start'
+                  }}>
+                    <Form.List name="topics">
+                      {(fields, { remove }) => (
+                        <>
+                          {fields.filter(({ name }) => {
+                            const techName = form.getFieldValue(['topics', name, 'name']);
+                            return techName && techName.trim() !== '';
+                          }).map(({ key, name, ...restField }) => (
+                            <div
+                              key={key}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'white',
+                                color: '#333',
+                                padding: '4px 8px',
+                                borderRadius: '20px',
+                                border: '1px solid #d9d9d9',
+                                minWidth: '160px',
+                                justifyContent: 'space-between',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                gap: '12px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<MinusCircleOutlined />}
+                                  onClick={() => remove(name)}
+                                  style={{
+                                    color: '#ff4d4f',
+                                    padding: '0',
+                                    minWidth: 'auto',
+                                    height: 'auto',
+                                    background: 'transparent',
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                  }}
+                                />
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'name']}
+                                  style={{ margin: 0, flex: 1 }}
+                                >
+                                  <span style={{ 
+                                    fontSize: '14px', 
+                                    fontWeight: 500,
+                                    color: '#333',
+                                    minWidth: '80px',
+                                    textAlign: 'left'
+                                  }}>
+                                    {form.getFieldValue(['topics', name, 'name']) || ''}
+                                  </span>
+                                </Form.Item>
+                              </div>
+                              <Form.Item
+                                {...restField}
+                                name={[name, 'questionCount']}
+                                style={{ margin: 0 }}
+                              >
+                                <Tooltip title="Number of questions for this topic">
+                                  <InputNumber
+                                    min={1}
+                                    max={50}
+                                    size="small"
+                                    bordered={false}
+                                    controls={true}
+                                    style={{ 
+                                      width: '50px',
+                                      textAlign: 'center',
+                                      color: '#333',
+                                      background: '#f5f5f5',
+                                      borderRadius: '12px',
+                                      fontWeight: 'bold',
+                                      fontSize: '12px'
+                                    }}
+                                    parser={(value) => {
+                                      const numericValue = value?.toString().replace(/\D/g, '') || '';
+                                      const num = parseInt(numericValue, 10);
+                                      return isNaN(num) ? 1 : Math.min(Math.max(num, 1), 50);
+                                    }}
+                                    formatter={(value) => value?.toString() || '1'}
+                                  />
+                                </Tooltip>
+                              </Form.Item>
+                            </div>
+                          ))}
+                          {fields.length === 0 && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
+                              height: '60px',
+                              color: '#999',
+                              fontSize: '14px'
+                            }}>
+                              No technologies selected. Use the search above to add some.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </Form.List>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+
+            <Divider />
+
+            {/* Submit Section */}
+            <Row justify="center" style={{ marginTop: spacing.xl }}>
+              <Space size="large">
+                <Button
+                  size="large"
+                  onClick={handleBack}
+                  style={{ minWidth: 120 }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={loading}
+                  size="large"
+                  icon={<CheckOutlined />}
+                  style={{
+                    minWidth: 200,
+                    height: 48,
+                    fontSize: 16,
+                    background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  Generate Interview
+                </Button>
+              </Space>
+            </Row>
+          </Form>
+        </Card>
+      </div>
+    </div>
+  );
+};

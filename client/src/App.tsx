@@ -17,6 +17,7 @@ import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
+import { CreateInterview } from './pages/CreateInterview';
 
 const App: React.FC = () => {
   return (
@@ -57,6 +58,14 @@ const App: React.FC = () => {
                   element={
                     <ProtectedRoute allowedUserTypes={['interviewer']}>
                       <LinkCandidates />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/interviewer/create-interview"
+                  element={
+                    <ProtectedRoute allowedUserTypes={['interviewer']}>
+                      <CreateInterview />
                     </ProtectedRoute>
                   }
                 />
