@@ -23,7 +23,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../constants/api';
-import { INTERVIEW_ROLES, TECH_STACKS, DEFAULT_TOPICS, type TopicItem } from '../constants/interview';
+import { INTERVIEW_ROLES, TECH_STACKS, DEFAULT_TOPICS, MACHINE_CODING_TOPICS, type TopicItem, type MachineQuestionItem } from '../constants/interview';
 import { colors, spacing } from '../styles';
 import axios from 'axios';
 
@@ -43,6 +43,7 @@ export const CreateInterview: React.FC = () => {
       // Extract topics data
       const topics = values.topics || DEFAULT_TOPICS;
       const enabledTopics = topics.filter((topic: TopicItem) => topic.enabled);
+      const machineQuestions: MachineQuestionItem[] = values.machineQuestions || [];
       
       if (enabledTopics.length === 0) {
         message.error('Please select at least one topic for the interview');
@@ -55,14 +56,17 @@ export const CreateInterview: React.FC = () => {
         jobId: values.jobId,
         role: values.role,
         yearsOfExperience: values.yearsOfExperience,
+        maxInterviewQuestions: values.maxInterviewQuestions,
+        maxMachineCodingQuestions: values.maxMachineCodingQuestions,
         topics: enabledTopics,
+        machineQuestions,
       });
 
       // Prepare payload for existing API
       const roleText = Array.isArray(values.role) ? values.role.join(', ') : values.role;
       const payload = {
         title: `${values.jobTitle} - ${roleText} Interview`,
-        description: `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience. Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}`,
+        description: `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience. Max Questions: ${values.maxInterviewQuestions}, Max Machine Coding: ${values.maxMachineCodingQuestions}. Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}${machineQuestions.length ? `. Machine Coding: ${machineQuestions.map((m) => m.topic).join(', ')}` : ''}`,
         expiryDate: undefined, // No expiry for now
         maxAttempts: 999,
         isActive: true,
@@ -138,6 +142,7 @@ export const CreateInterview: React.FC = () => {
             onFinish={handleSubmit}
             initialValues={{
               topics: DEFAULT_TOPICS,
+              machineQuestions: [],
             }}
           >
             <Row gutter={[32, 32]}>
@@ -221,19 +226,49 @@ export const CreateInterview: React.FC = () => {
                     }}
                   />
                 </Form.Item>
+
+                <Row gutter={16}>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="maxInterviewQuestions"
+                      label="Max Interview Questions"
+                      rules={[{ required: true, message: 'Please enter max interview questions' }]}
+                    >
+                      <InputNumber
+                        placeholder="e.g., 10"
+                        min={1}
+                        max={60}
+                        style={{ width: '100%' }}
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="maxMachineCodingQuestions"
+                      label="Max Machine Coding Questions"
+                      rules={[{ required: true, message: 'Please enter max machine coding questions' }]}
+                    >
+                      <InputNumber
+                        placeholder="e.g., 2"
+                        min={0}
+                        max={6}
+                        style={{ width: '100%' }}
+                        size="large"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
               </Col>
 
               {/* Right Section - Question Topics */}
               <Col xs={24} lg={12}>
-                <Title level={4} style={{ marginBottom: spacing.lg }}>
-                  Questions to be asked from:
+                <Title level={4} style={{ marginBottom: spacing.md }}>
+                  Interview Questions Topics:
                 </Title>
 
                 {/* Technology Search and Selection */}
                 <div style={{ marginBottom: spacing.lg }}>
-                  <Text strong style={{ display: 'block', marginBottom: spacing.sm }}>
-                    Add Technology:
-                  </Text>
                   <Select
                     placeholder="Search and select technology"
                     showSearch
@@ -257,9 +292,6 @@ export const CreateInterview: React.FC = () => {
 
                 {/* Selected Technologies Display */}
                 <div style={{ marginBottom: spacing.lg }}>
-                  <Text strong style={{ display: 'block', marginBottom: spacing.sm }}>
-                    Selected Technologies:
-                  </Text>
                   <div style={{
                     minHeight: '120px',
                     border: '2px dashed #d9d9d9',
@@ -373,6 +405,120 @@ export const CreateInterview: React.FC = () => {
                             </div>
                           )}
                         </>
+                      )}
+                    </Form.List>
+                  </div>
+                </div>
+
+                {/* Machine Coding Questions Section */}
+                <Title level={4} style={{ marginBottom: spacing.md }}>
+                  Machine Coding Questions:
+                </Title>
+                <div style={{ marginBottom: spacing.lg }}>
+                  <Select
+                    placeholder="Search and select machine coding topic"
+                    showSearch
+                    size="large"
+                    style={{ width: '100%' }}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={MACHINE_CODING_TOPICS}
+                    onSelect={(value) => {
+                      const current = form.getFieldValue('machineQuestions') || [];
+                      const topicCount = current.filter((q: MachineQuestionItem) => q.topic === value).length;
+                      if (topicCount < 2) {
+                        form.setFieldsValue({
+                          machineQuestions: [...current, { topic: value }],
+                        });
+                      } else {
+                        message.warning('This topic can only be selected twice maximum');
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{
+                    minHeight: '120px',
+                    border: '2px dashed #d9d9d9',
+                    borderRadius: '8px',
+                    padding: spacing.md,
+                    background: '#fafafa',
+                  }}>
+                    <Form.List name="machineQuestions">
+                      {(fields, { remove }) => (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }}>
+                          {fields.map(({ key, name, ...restField }) => {
+                            const currentQuestions = form.getFieldValue('machineQuestions') || [];
+                            const currentTopic = form.getFieldValue(['machineQuestions', name, 'topic']);
+                            const topicCount = currentQuestions.filter((q: MachineQuestionItem) => q.topic === currentTopic).length;
+                            const isDuplicate = currentQuestions.filter((q: MachineQuestionItem, index: number) => 
+                              q.topic === currentTopic && index <= name
+                            ).length > 1;
+                            
+                            return (
+                              <div key={key} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'white',
+                                border: '1px solid #d9d9d9',
+                                borderRadius: 8,
+                                padding: '8px 12px',
+                              }}>
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'topic']}
+                                  style={{ margin: 0, flex: 1 }}
+                                >
+                                  <span style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
+                                    {currentTopic || ''}
+                                    {isDuplicate && (
+                                      <span style={{ 
+                                        marginLeft: 6, 
+                                        background: '#1890ff', 
+                                        color: 'white', 
+                                        borderRadius: '50%', 
+                                        width: 18, 
+                                        height: 18, 
+                                        display: 'inline-flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        fontSize: 9,
+                                        fontWeight: 'bold',
+                                        lineHeight: 1,
+                                        verticalAlign: 'middle'
+                                      }}>
+                                        {topicCount}
+                                      </span>
+                                    )}
+                                  </span>
+                                </Form.Item>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<MinusCircleOutlined />}
+                                  onClick={() => remove(name)}
+                                  style={{ color: '#ff4d4f' }}
+                                />
+                              </div>
+                            );
+                          })}
+                          {fields.length === 0 && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
+                              height: '60px',
+                              color: '#999',
+                              fontSize: '14px',
+                              gridColumn: '1 / -1'
+                            }}>
+                              No machine coding questions added. Use the search above to add some.
+                            </div>
+                          )}
+                        </div>
                       )}
                     </Form.List>
                   </div>

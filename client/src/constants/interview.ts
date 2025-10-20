@@ -5,6 +5,10 @@ export interface TopicItem {
   enabled: boolean;
 }
 
+export interface MachineQuestionItem {
+  topic: string;
+}
+
 // Common roles for interview creation
 export const INTERVIEW_ROLES = [
   { value: 'SDE-1', label: 'Software Development Engineer - 1' },
@@ -237,3 +241,28 @@ export const TECH_STACKS = [
 
 // Default topics for new interviews - empty by default
 export const DEFAULT_TOPICS: TopicItem[] = [];
+
+// Topics available for machine coding questions (each selection is an individual question)
+export const MACHINE_CODING_TOPICS: { value: string; label: string; category?: string }[] = [
+  // Frontend / JS
+  { value: 'React', label: 'React', category: 'Frontend' },
+  { value: 'JavaScript', label: 'JavaScript', category: 'Frontend' },
+  { value: 'TypeScript', label: 'TypeScript', category: 'Frontend' },
+
+  // Core DSA
+  { value: 'Arrays', label: 'Arrays', category: 'DSA' },
+  { value: 'Strings', label: 'Strings', category: 'DSA' },
+  { value: 'Linked List', label: 'Linked List', category: 'DSA' },
+  { value: 'Stack', label: 'Stack', category: 'DSA' },
+  { value: 'Queue', label: 'Queue', category: 'DSA' },
+  { value: 'Binary Tree', label: 'Binary Tree', category: 'DSA' },
+  { value: 'Binary Search Tree', label: 'Binary Search Tree', category: 'DSA' },
+  { value: 'Heap', label: 'Heap', category: 'DSA' },
+  { value: 'Trie', label: 'Trie', category: 'DSA' },
+  { value: 'Graph', label: 'Graph', category: 'DSA' },
+  { value: 'Dynamic Programming', label: 'Dynamic Programming', category: 'DSA' },
+  { value: 'Greedy', label: 'Greedy', category: 'DSA' },
+  { value: 'Backtracking', label: 'Backtracking', category: 'DSA' },
+  { value: 'Sorting', label: 'Sorting', category: 'DSA' },
+  { value: 'Searching', label: 'Searching', category: 'DSA' },
+];
