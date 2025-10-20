@@ -9,7 +9,6 @@ import { theme } from './styles/theme';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Home from './pages/Home';
-import InterviewChat from './pages/InterviewChat';
 // import { Admin } from './pages/Admin'; // Removed - using unified auth system
 import { PublicRoute } from './components/PublicRoute';
 import { Login } from './pages/auth/Login';
@@ -18,8 +17,6 @@ import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
-import { InterviewDetails } from './pages/InterviewDetails';
-import { SessionCleanup } from './components/SessionCleanup';
 
 const App: React.FC = () => {
   return (
@@ -28,7 +25,6 @@ const App: React.FC = () => {
         <ConfigProvider theme={theme}>
           <AntApp>
             <Router>
-              <SessionCleanup />
               <Routes>
                 {/* Public Routes */}
                 {/* Public Routes */}
@@ -64,31 +60,12 @@ const App: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/interviewer/interview/:id"
-                  element={
-                    <ProtectedRoute allowedUserTypes={['interviewer']}>
-                      <InterviewDetails />
-                    </ProtectedRoute>
-                  }
-                />
-
                 {/* Candidate Routes */}
                 <Route
                   path="/candidate/dashboard"
                   element={
                     <ProtectedRoute allowedUserTypes={['candidate']}>
                       <CandidateDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Interview Routes - Protected (Only for link-based interviews) */}
-                <Route
-                  path="/interview/:sessionId"
-                  element={
-                    <ProtectedRoute allowedUserTypes={['candidate']}>
-                      <InterviewChat />
                     </ProtectedRoute>
                   }
                 />

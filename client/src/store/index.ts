@@ -7,24 +7,18 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import uiReducer from './slices/uiSlice';
 import userReducer from './slices/userSlice';
-import sessionReducer from './slices/sessionSlice';
-import interviewReducer from './slices/interviewSlice';
 import authReducer from './slices/authSlice';
-import securityReducer from './slices/securitySlice';
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'interview', 'auth'], // Persist user data, interview data, and auth
+  whitelist: ['user', 'auth'], // Persist user data and auth
 };
 
 const rootReducer = combineReducers({
   ui: uiReducer,
   user: userReducer,
-  session: sessionReducer,
-  interview: interviewReducer,
   auth: authReducer,
-  security: securityReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

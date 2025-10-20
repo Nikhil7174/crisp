@@ -26,6 +26,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../styles';
 import { API_BASE_URL } from '../constants/api';
+import { DownloadModal } from '../components/DownloadModal';
 
 const { Title, Text } = Typography;
 
@@ -51,6 +52,7 @@ export const CandidateDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   
   // Refs for cleanup
   const intervalRef = useRef<number | null>(null);
@@ -157,8 +159,8 @@ export const CandidateDashboard: React.FC = () => {
   }, [logout, navigate]);
 
   const handleJoinInterview = useCallback(() => {
-    navigate('/join');
-  }, [navigate]);
+    setShowDownloadModal(true);
+  }, []);
 
   // Memoized table columns
   const columns = useMemo(() => [
@@ -425,6 +427,11 @@ export const CandidateDashboard: React.FC = () => {
           )}
         </Card>
       </div>
+      
+      <DownloadModal
+        visible={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+      />
     </div>
   );
 };

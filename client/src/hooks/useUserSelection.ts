@@ -3,7 +3,6 @@ import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setActiveUserType } from '../store/slices/uiSlice';
 import { setUserType } from '../store/slices/userSlice';
-import { addToJourney } from '../store/slices/sessionSlice';
 import type { UserType } from '../types';
 
 export const useUserSelection = () => {
@@ -14,7 +13,6 @@ export const useUserSelection = () => {
   const selectUserType = useCallback((type: UserType) => {
     dispatch(setActiveUserType(type));
     dispatch(setUserType(type));
-    dispatch(addToJourney(`selected_${type}`));
     
     // Smooth scroll to next section
     setTimeout(() => {
