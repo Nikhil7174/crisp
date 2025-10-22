@@ -7,6 +7,7 @@ export interface TopicItem {
 
 export interface MachineQuestionItem {
   topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 // Common roles for interview creation

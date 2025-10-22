@@ -17,7 +17,21 @@ export class InterviewerController {
     async createLink(req: Request, res: Response): Promise<void> {
         try {
             const userId = (req as any).user?.userId;
-            const { title, description, expiryDate, maxAttempts } = req.body;
+            const { 
+                title, 
+                description, 
+                expiryDate, 
+                maxAttempts,
+                // Additional metadata fields
+                jobTitle,
+                jobId,
+                role,
+                yearsOfExperience,
+                maxInterviewQuestions,
+                maxMachineCodingQuestions,
+                topics,
+                machineQuestions
+            } = req.body;
 
             // Validation
             if (!title) {
@@ -31,14 +45,23 @@ export class InterviewerController {
             // Generate unique link token
             const linkToken = this.authService.generateLinkToken();
 
-            // Create interview link
+            // Create interview link with all metadata
             const link = await this.dbService.createInterviewLink({
                 createdBy: userId,
                 linkToken,
                 title,
                 description,
                 expiryDate,
-                maxAttempts: maxAttempts || 0 // 0 means unlimited
+                maxAttempts: maxAttempts || 0, // 0 means unlimited
+                // Additional metadata
+                jobTitle,
+                jobId,
+                role: role ? JSON.stringify(role) : undefined,
+                yearsOfExperience,
+                maxInterviewQuestions,
+                maxMachineCodingQuestions,
+                topics: topics ? JSON.stringify(topics) : undefined,
+                machineQuestions: machineQuestions ? JSON.stringify(machineQuestions) : undefined
             });
 
             res.status(201).json({

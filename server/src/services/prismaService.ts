@@ -95,6 +95,15 @@ export class PrismaService {
         description?: string;
         expiryDate?: string;
         maxAttempts?: number;
+        // Additional metadata fields
+        jobTitle?: string;
+        jobId?: string;
+        role?: string;
+        yearsOfExperience?: number;
+        maxInterviewQuestions?: number;
+        maxMachineCodingQuestions?: number;
+        topics?: string;
+        machineQuestions?: string;
     }) {
         return await prisma.interviewLink.create({
             data: {
@@ -104,6 +113,15 @@ export class PrismaService {
                 description: linkData.description,
                 expiry_date: linkData.expiryDate ? new Date(linkData.expiryDate) : null,
                 max_attempts: linkData.maxAttempts || 0,
+                // Additional metadata fields
+                job_title: linkData.jobTitle,
+                job_id: linkData.jobId,
+                role: linkData.role,
+                years_of_experience: linkData.yearsOfExperience,
+                max_interview_questions: linkData.maxInterviewQuestions,
+                max_machine_coding_questions: linkData.maxMachineCodingQuestions,
+                topics: linkData.topics,
+                machine_questions: linkData.machineQuestions,
             },
         });
     }

@@ -39,12 +39,12 @@ export const CreateInterview: React.FC = () => {
   const handleSubmit = async (values: any) => {
     try {
       setLoading(true);
-      
+
       // Extract topics data
       const topics = values.topics || DEFAULT_TOPICS;
       const enabledTopics = topics.filter((topic: TopicItem) => topic.enabled);
       const machineQuestions: MachineQuestionItem[] = values.machineQuestions || [];
-      
+
       if (enabledTopics.length === 0) {
         message.error('Please select at least one topic for the interview');
         return;
@@ -145,13 +145,13 @@ export const CreateInterview: React.FC = () => {
               machineQuestions: [],
             }}
           >
-            <Row gutter={[32, 32]}>
+            <Row gutter={[40, 32]}>
               {/* Left Section - Basic Details */}
               <Col xs={24} lg={12}>
                 <Title level={4} style={{ marginBottom: spacing.lg }}>
                   Interview Details
                 </Title>
-                
+
                 <Form.Item
                   name="jobTitle"
                   label="Job Title"
@@ -348,8 +348,8 @@ export const CreateInterview: React.FC = () => {
                                   name={[name, 'name']}
                                   style={{ margin: 0, flex: 1 }}
                                 >
-                                  <span style={{ 
-                                    fontSize: '14px', 
+                                  <span style={{
+                                    fontSize: '14px',
                                     fontWeight: 500,
                                     color: '#333',
                                     minWidth: '80px',
@@ -371,7 +371,7 @@ export const CreateInterview: React.FC = () => {
                                     size="small"
                                     bordered={false}
                                     controls={true}
-                                    style={{ 
+                                    style={{
                                       width: '50px',
                                       textAlign: 'center',
                                       color: '#333',
@@ -429,7 +429,7 @@ export const CreateInterview: React.FC = () => {
                       const topicCount = current.filter((q: MachineQuestionItem) => q.topic === value).length;
                       if (topicCount < 2) {
                         form.setFieldsValue({
-                          machineQuestions: [...current, { topic: value }],
+                          machineQuestions: [...current, { topic: value, difficulty: 'easy' }],
                         });
                       } else {
                         message.warning('This topic can only be selected twice maximum');
@@ -452,55 +452,96 @@ export const CreateInterview: React.FC = () => {
                             const currentQuestions = form.getFieldValue('machineQuestions') || [];
                             const currentTopic = form.getFieldValue(['machineQuestions', name, 'topic']);
                             const topicCount = currentQuestions.filter((q: MachineQuestionItem) => q.topic === currentTopic).length;
-                            const isDuplicate = currentQuestions.filter((q: MachineQuestionItem, index: number) => 
+                            const isDuplicate = currentQuestions.filter((q: MachineQuestionItem, index: number) =>
                               q.topic === currentTopic && index <= name
                             ).length > 1;
-                            
+
                             return (
                               <div key={key} style={{
                                 display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
+                                flexDirection: 'column',
                                 background: 'white',
                                 border: '1px solid #d9d9d9',
                                 borderRadius: 8,
-                                padding: '8px 12px',
+                                padding: '12px',
+                                gap: '8px',
                               }}>
-                                <Form.Item
-                                  {...restField}
-                                  name={[name, 'topic']}
-                                  style={{ margin: 0, flex: 1 }}
-                                >
-                                  <span style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
-                                    {currentTopic || ''}
-                                    {isDuplicate && (
-                                      <span style={{ 
-                                        marginLeft: 6, 
-                                        background: '#1890ff', 
-                                        color: 'white', 
-                                        borderRadius: '50%', 
-                                        width: 18, 
-                                        height: 18, 
-                                        display: 'inline-flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center', 
-                                        fontSize: 9,
-                                        fontWeight: 'bold',
-                                        lineHeight: 1,
-                                        verticalAlign: 'middle'
-                                      }}>
-                                        {topicCount}
-                                      </span>
-                                    )}
-                                  </span>
-                                </Form.Item>
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<MinusCircleOutlined />}
-                                  onClick={() => remove(name)}
-                                  style={{ color: '#ff4d4f' }}
-                                />
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-around',
+                                  gap: '8px'
+                                }}>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<MinusCircleOutlined />}
+                                    onClick={() => remove(name)}
+                                    style={{ color: '#ff4d4f' }}
+                                  />
+                                  <Form.Item
+                                    {...restField}
+                                    name={[name, 'topic']}
+                                    style={{ margin: 0, flex: 1 }}
+                                  >
+                                    <span style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
+                                      {currentTopic || ''}
+                                      {isDuplicate && (
+                                        <span style={{
+                                          marginLeft: 6,
+                                          background: '#1890ff',
+                                          color: 'white',
+                                          borderRadius: '50%',
+                                          width: 18,
+                                          height: 18,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: 9,
+                                          fontWeight: 'bold',
+                                          lineHeight: 1,
+                                          verticalAlign: 'middle'
+                                        }}>
+                                          {topicCount}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </Form.Item>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Form.Item
+                                      {...restField}
+                                      name={[name, 'difficulty']}
+                                      style={{ margin: 0, flex: 1 }}
+                                    >
+                                      <Select
+                                        size="small"
+                                        style={{ width: '100%', minWidth: '80px' }}
+                                        dropdownStyle={{ minWidth: '92px' }}
+                                        options={[
+                                          { value: 'easy', label: 'Easy' },
+                                          { value: 'medium', label: 'Medium' },
+                                          { value: 'hard', label: 'Hard' },
+                                        ]}
+                                        optionRender={(option) => (
+                                          <div style={{
+                                            backgroundColor: option.value === 'easy' ? '#52c41a' :
+                                              option.value === 'medium' ? '#faad14' : '#ff4d4f',
+                                            color: 'white',
+                                            borderRadius: '12px',
+                                            padding: '2px 8px',
+                                            fontSize: '11px',
+                                            fontWeight: '500',
+                                            display: 'inline-block',
+                                            minWidth: '50px',
+                                            textAlign: 'center'
+                                          }}>
+                                            {option.label}
+                                          </div>
+                                        )}
+                                      />
+                                    </Form.Item>
+                                  </div>
+                                </div>
                               </div>
                             );
                           })}

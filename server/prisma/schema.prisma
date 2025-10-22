@@ -39,6 +39,17 @@ model InterviewLink {
   expiry_date  DateTime?
   max_attempts Int      @default(0)
   is_active    Boolean  @default(true)
+  
+  // New interview metadata fields
+  job_title                String?
+  job_id                   String?
+  role                     String? // JSON string for multiple roles
+  years_of_experience      Int?
+  max_interview_questions  Int?
+  max_machine_coding_questions Int?
+  topics                   String? // JSON string for selected topics
+  machine_questions        String? // JSON string for machine coding questions
+  
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
