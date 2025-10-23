@@ -18,6 +18,7 @@ import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
 import { CreateInterview } from './pages/CreateInterview';
+import './utils/clearStorage'; // Clear old Redux state on startup
 
 const App: React.FC = () => {
   return (

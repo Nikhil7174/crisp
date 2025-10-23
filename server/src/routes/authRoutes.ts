@@ -6,8 +6,12 @@ const router = Router();
 const authController = new AuthController();
 
 // Public routes
-router.post('/register', (req: Request, res: Response) => {
-    authController.register(req, res);
+router.post('/register/candidate', (req: Request, res: Response) => {
+    authController.registerCandidate(req, res);
+});
+
+router.post('/register/interviewer', (req: Request, res: Response) => {
+    authController.registerInterviewer(req, res);
 });
 
 router.post('/login', (req: Request, res: Response) => {

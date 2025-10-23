@@ -160,9 +160,17 @@ export class PrismaService {
                 });
 
                 return {
-                    ...link,
-                    total_attempts: totalAttempts,
-                    completed_interviews: completedInterviews,
+                    id: link.id,
+                    token: link.link_token,
+                    title: link.title,
+                    description: link.description,
+                    expiryDate: link.expiry_date,
+                    maxAttempts: link.max_attempts,
+                    isActive: link.is_active,
+                    createdAt: link.created_at,
+                    updatedAt: link.updated_at,
+                    totalAttempts: totalAttempts,
+                    completedInterviews: completedInterviews,
                 };
             })
         );
@@ -434,45 +442,64 @@ export class PrismaService {
         return result;
     }
 
-    // Admin management methods
-    public async authenticateAdmin(username: string, password: string) {
-        const admin = await prisma.adminUser.findUnique({
-            where: { username },
+    // Interviewer management methods
+    public async createInterviewer(interviewerData: {
+        email: string;
+        passwordHash: string;
+        fullName: string;
+        phone?: string;
+        company?: string;
+    }) {
+        return await prisma.interviewer.create({
+            data: {
+                email: interviewerData.email,
+                password_hash: interviewerData.passwordHash,
+                full_name: interviewerData.fullName,
+                phone: interviewerData.phone,
+                company: interviewerData.company,
+            },
         });
-
-        if (!admin) {
-            return false;
-        }
-
-        const isValid = bcrypt.compareSync(password, admin.password_hash);
-        
-        if (isValid) {
-            // Update last login
-            await prisma.adminUser.update({
-                where: { username },
-                data: { last_login: new Date() },
-            });
-        }
-
-        return isValid;
     }
 
-    public async createDefaultAdmin() {
-        const adminCount = await prisma.adminUser.count();
-        
-        if (adminCount === 0) {
-            const defaultPassword = 'admin123'; // Change this in production!
-            const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
+    public async getInterviewerByEmail(email: string) {
+        return await prisma.interviewer.findUnique({
+            where: { email },
+        });
+    }
 
-            await prisma.adminUser.create({
-                data: {
-                    username: 'admin',
-                    password_hash: hashedPassword,
-                },
-            });
+    public async getInterviewerById(id: number) {
+        return await prisma.interviewer.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                email: true,
+                full_name: true,
+                phone: true,
+                company: true,
+                created_at: true,
+                last_login: true,
+                is_active: true,
+            },
+        });
+    }
 
-            console.log('Default admin user created: username=admin, password=admin123');
-        }
+    public async updateInterviewerLastLogin(interviewerId: number) {
+        return await prisma.interviewer.update({
+            where: { id: interviewerId },
+            data: { last_login: new Date() },
+        });
+    }
+
+    // Interview link methods for question generation
+
+    public async updateInterviewLinkQuestions(linkId: number, questions: any[]) {
+        return await prisma.interviewLink.update({
+            where: { id: linkId },
+            data: {
+                generated_questions: JSON.stringify(questions),
+                questions_approved: true,
+            },
+        });
     }
 
     // Cleanup method

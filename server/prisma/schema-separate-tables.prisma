@@ -1,0 +1,71 @@
+// Recommended separate tables approach
+
+model TheoreticalQuestion {
+  id                Int      @id @default(autoincrement())
+  topic             String   // "JavaScript", "React", "Node.js", etc.
+  question_text     String
+  difficulty        String   // "easy", "medium", "hard"
+  category          String   // "Frontend", "Backend", "DSA", etc.
+  
+  // Long-form answer fields
+  expected_answer   String   // Key concepts and jargon to cover
+  explanation       String   // Detailed explanation with technical concepts
+  key_points        String?  // JSON array of important technical points
+  documentation     String?  // JSON array of relevant documentation links
+  
+  // Metadata
+  companies         String?  // JSON array - ["Google", "Amazon"]
+  tags              String?  // JSON array - ["closures", "async"]
+  success_rate      Float?   // Percentage of candidates who answered correctly
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  
+  @@map("theoretical_questions")
+}
+
+model MachineCodingQuestion {
+  id                Int      @id @default(autoincrement())
+  topic             String   // "Array", "String", "Tree", etc.
+  question_text     String
+  difficulty        String   // "easy", "medium", "hard"
+  category          String   // "DSA", "Algorithm", etc.
+  
+  // Coding-specific fields
+  language          String   // "javascript", "python", "java", etc.
+  problem_statement String
+  constraints       String?  // JSON array
+  examples          String?  // JSON array
+  starter_code      String?
+  test_cases        String   // JSON array with input/output/hidden flag
+  hints             String?  // JSON array
+  solution          String?  // JSON object with multiple language solutions
+  time_complexity   String?
+  space_complexity  String?
+  
+  // Metadata
+  companies         String?  // JSON array - ["Google", "Amazon"]
+  similar_to        String?  // Reference to similar problems
+  tags              String?  // JSON array - ["array", "two-pointer"]
+  success_rate      Float?   // Percentage of candidates who solved it
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  
+  @@map("machine_coding_questions")
+}
+
+// Optional: Union table for easy querying across both types
+model QuestionUnion {
+  id                Int      @id @default(autoincrement())
+  question_type     String   // "theoretical" or "machine_coding"
+  theoretical_id    Int?     // Foreign key to TheoreticalQuestion
+  machine_coding_id Int?     // Foreign key to MachineCodingQuestion
+  topic             String   // Denormalized for easier querying
+  difficulty        String   // Denormalized for easier querying
+  category          String   // Denormalized for easier querying
+  
+  // Ensure only one foreign key is set
+  @@unique([theoretical_id])
+  @@unique([machine_coding_id])
+  @@map("question_union")
+}
+

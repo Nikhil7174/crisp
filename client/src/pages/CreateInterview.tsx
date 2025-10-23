@@ -14,6 +14,7 @@ import {
   Divider,
   Tag,
   Tooltip,
+  DatePicker,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -26,6 +27,7 @@ import { API_BASE_URL } from '../constants/api';
 import { INTERVIEW_ROLES, TECH_STACKS, DEFAULT_TOPICS, MACHINE_CODING_TOPICS, type TopicItem, type MachineQuestionItem } from '../constants/interview';
 import { colors, spacing } from '../styles';
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
@@ -62,14 +64,23 @@ export const CreateInterview: React.FC = () => {
         machineQuestions,
       });
 
-      // Prepare payload for existing API
+      // Prepare payload for API with all interview metadata
       const roleText = Array.isArray(values.role) ? values.role.join(', ') : values.role;
       const payload = {
         title: `${values.jobTitle} - ${roleText} Interview`,
         description: `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience. Max Questions: ${values.maxInterviewQuestions}, Max Machine Coding: ${values.maxMachineCodingQuestions}. Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}${machineQuestions.length ? `. Machine Coding: ${machineQuestions.map((m) => m.topic).join(', ')}` : ''}`,
-        expiryDate: undefined, // No expiry for now
+        expiryDate: values.expiryDate ? values.expiryDate.toISOString() : undefined,
         maxAttempts: 999,
         isActive: true,
+        // Interview metadata for question generation
+        jobTitle: values.jobTitle,
+        jobId: values.jobId,
+        role: Array.isArray(values.role) ? values.role.join(', ') : values.role,
+        yearsOfExperience: values.yearsOfExperience,
+        maxInterviewQuestions: values.maxInterviewQuestions,
+        maxMachineCodingQuestions: values.maxMachineCodingQuestions,
+        topics: JSON.stringify(enabledTopics),
+        machineQuestions: JSON.stringify(machineQuestions),
       };
 
       const response = await axios.post(
@@ -259,6 +270,28 @@ export const CreateInterview: React.FC = () => {
                     </Form.Item>
                   </Col>
                 </Row>
+
+                {/* Expiry Date Field */}
+                <Form.Item
+                  name="expiryDate"
+                  label="Expiry Date (Optional)"
+                >
+                  <DatePicker
+                    placeholder="Select expiry date"
+                    size="large"
+                    style={{ 
+                      width: '100%',
+                      borderRadius: 8,
+                    }}
+                    format="YYYY-MM-DD"
+                    showTime={false}
+                    allowClear
+                    disabledDate={(current) => {
+                      // Disable dates before today
+                      return current && current < dayjs().startOf('day');
+                    }}
+                  />
+                </Form.Item>
               </Col>
 
               {/* Right Section - Question Topics */}

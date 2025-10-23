@@ -12,7 +12,7 @@ import morgan from 'morgan';
 // Import routes
 import interviewRoutes from './routes/interviewRoutes';
 import uploadRoutes from './routes/uploadRoutes';
-import adminRoutes from './routes/adminRoutes';
+import interviewerDashboardRoutes from './routes/interviewerDashboardRoutes';
 import authRoutes from './routes/authRoutes';
 import interviewerRoutes from './routes/interviewerRoutes';
 
@@ -39,7 +39,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/interviewer', interviewerRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/interviewer-dashboard', interviewerDashboardRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

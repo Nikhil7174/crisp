@@ -14,18 +14,26 @@ import {
   Row,
   Col,
   Statistic,
+  Table,
+  Tag,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
   LinkOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
+  QuestionCircleOutlined,
+  EyeOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { API_BASE_URL } from '../../constants/api';
 import type { InterviewLink } from '../../types';
 import { colors, spacing } from '../../styles';
+import { QuestionGenerationModal } from '../../components/admin/QuestionGenerationModal';
+import { ViewQuestionsModal } from '../../components/admin/ViewQuestionsModal';
 
 const { Title, Paragraph } = Typography;
 
@@ -35,6 +43,10 @@ export const InterviewLinks: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLink, setEditingLink] = useState<InterviewLink | null>(null);
   const [form] = Form.useForm();
+  const [questionModalVisible, setQuestionModalVisible] = useState(false);
+  const [selectedLinkForQuestions, setSelectedLinkForQuestions] = useState<InterviewLink | null>(null);
+  const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
+  const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
 
   useEffect(() => {
     fetchLinks();
@@ -103,6 +115,25 @@ export const InterviewLinks: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerateQuestions = (link: InterviewLink) => {
+    setSelectedLinkForQuestions(link);
+    setQuestionModalVisible(true);
+  };
+
+  const handleViewQuestions = (link: InterviewLink) => {
+    setSelectedLinkForViewing(link);
+    setViewQuestionsModalVisible(true);
+  };
+
+  const handleQuestionsApproved = () => {
+    fetchLinks(); // Refresh the links to show updated status
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    message.success('Link copied to clipboard!');
   };
 
 
@@ -191,6 +222,125 @@ export const InterviewLinks: React.FC = () => {
       </Row>
 
 
+      {/* Links Table */}
+      <Card>
+        <Table
+          dataSource={links}
+          loading={loading}
+          rowKey="id"
+          columns={[
+            {
+              title: 'Title',
+              dataIndex: 'title',
+              key: 'title',
+              render: (text, record) => (
+                <div>
+                  <Text strong>{text}</Text>
+                  {record.description && (
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {record.description}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              ),
+            },
+            {
+              title: 'Status',
+              dataIndex: 'isActive',
+              key: 'isActive',
+              render: (isActive) => (
+                <Tag color={isActive ? 'green' : 'red'}>
+                  {isActive ? 'Active' : 'Inactive'}
+                </Tag>
+              ),
+            },
+            {
+              title: 'Attempts',
+              key: 'attempts',
+              render: (_, record) => (
+                <div>
+                  <Text>{record.totalAttempts || 0} total</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {record.completedInterviews || 0} completed
+                  </Text>
+                </div>
+              ),
+            },
+            {
+              title: 'Expiry',
+              dataIndex: 'expiryDate',
+              key: 'expiryDate',
+              render: (date) => (
+                date ? dayjs(date).format('MMM DD, YYYY') : 'No expiry'
+              ),
+            },
+            {
+              title: 'Questions',
+              key: 'questions',
+              render: (_, record) => (
+                <Tag color={record.questionsApproved ? 'green' : 'orange'}>
+                  {record.questionsApproved ? 'Approved' : 'Pending'}
+                </Tag>
+              ),
+            },
+            {
+              title: 'Actions',
+              key: 'actions',
+              render: (_, record) => (
+                <Space>
+                  <Tooltip title="View Questions">
+                    <Button
+                      icon={<EyeOutlined />}
+                      onClick={() => handleViewQuestions(record)}
+                      size="small"
+                    >
+                      View Questions
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="Generate Questions">
+                    <Button
+                      type="primary"
+                      icon={<QuestionCircleOutlined />}
+                      onClick={() => handleGenerateQuestions(record)}
+                      size="small"
+                    >
+                      Generate Questions
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="Copy Link">
+                    <Button
+                      icon={<CopyOutlined />}
+                      onClick={() => copyToClipboard(`${window.location.origin}/join/${record.token}`)}
+                      size="small"
+                    >
+                      Copy
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="View Results">
+                    <Button
+                      icon={<EyeOutlined />}
+                      onClick={() => window.open(`/admin/link-results/${record.id}`, '_blank')}
+                      size="small"
+                    >
+                      Results
+                    </Button>
+                  </Tooltip>
+                </Space>
+              ),
+            },
+          ]}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} links`,
+          }}
+        />
+      </Card>
+
       {/* Create/Edit Modal */}
       <Modal
         title={editingLink ? 'Edit Interview Link' : 'Create Interview Link'}
@@ -270,6 +420,33 @@ export const InterviewLinks: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Question Generation Modal */}
+      {selectedLinkForQuestions && (
+        <QuestionGenerationModal
+          visible={questionModalVisible}
+          onClose={() => {
+            setQuestionModalVisible(false);
+            setSelectedLinkForQuestions(null);
+          }}
+          linkId={selectedLinkForQuestions.id}
+          linkTitle={selectedLinkForQuestions.title}
+          onQuestionsApproved={handleQuestionsApproved}
+        />
+      )}
+
+      {/* View Questions Modal */}
+      {selectedLinkForViewing && (
+        <ViewQuestionsModal
+          visible={viewQuestionsModalVisible}
+          onClose={() => {
+            setViewQuestionsModalVisible(false);
+            setSelectedLinkForViewing(null);
+          }}
+          linkId={selectedLinkForViewing.id}
+          linkTitle={selectedLinkForViewing.title}
+        />
+      )}
     </div>
   );
 };

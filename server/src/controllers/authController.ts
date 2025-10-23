@@ -12,26 +12,17 @@ export class AuthController {
     }
 
     /**
-     * Register a new user (candidate or interviewer)
+     * Register a new candidate
      */
-    async register(req: Request, res: Response): Promise<void> {
+    async registerCandidate(req: Request, res: Response): Promise<void> {
         try {
-            const { email, password, fullName, userType, phone, company } = req.body;
+            const { email, password, fullName, phone, company } = req.body;
 
             // Validation
-            if (!email || !password || !fullName || !userType) {
+            if (!email || !password || !fullName) {
                 res.status(400).json({
                     error: 'Missing required fields',
-                    message: 'Email, password, full name, and user type are required'
-                });
-                return;
-            }
-
-            // Validate user type
-            if (userType !== 'candidate' && userType !== 'interviewer') {
-                res.status(400).json({
-                    error: 'Invalid user type',
-                    message: 'User type must be either "candidate" or "interviewer"'
+                    message: 'Email, password, and full name are required'
                 });
                 return;
             }
@@ -73,7 +64,7 @@ export class AuthController {
                 email,
                 passwordHash,
                 fullName,
-                userType,
+                userType: 'candidate' as any,
                 phone,
                 company
             });
@@ -82,7 +73,7 @@ export class AuthController {
             const token = this.authService.generateToken({
                 userId: user.id,
                 email,
-                userType
+                userType: 'candidate'
             });
 
             res.status(201).json({
@@ -109,7 +100,94 @@ export class AuthController {
     }
 
     /**
-     * Login user
+     * Register a new interviewer
+     */
+    async registerInterviewer(req: Request, res: Response): Promise<void> {
+        try {
+            const { email, password, fullName, phone, company } = req.body;
+
+            // Validation
+            if (!email || !password || !fullName) {
+                res.status(400).json({
+                    error: 'Missing required fields',
+                    message: 'Email, password, and full name are required'
+                });
+                return;
+            }
+
+            // Validate email format
+            if (!this.authService.validateEmail(email)) {
+                res.status(400).json({
+                    error: 'Invalid email',
+                    message: 'Please provide a valid email address'
+                });
+                return;
+            }
+
+            // Validate password strength
+            const passwordValidation = this.authService.validatePassword(password);
+            if (!passwordValidation.valid) {
+                res.status(400).json({
+                    error: 'Weak password',
+                    message: passwordValidation.message
+                });
+                return;
+            }
+
+            // Check if interviewer already exists
+            const existingInterviewer = await this.dbService.getInterviewerByEmail(email);
+            if (existingInterviewer) {
+                res.status(409).json({
+                    error: 'Interviewer already exists',
+                    message: 'An account with this email already exists'
+                });
+                return;
+            }
+
+            // Hash password
+            const passwordHash = await this.authService.hashPassword(password);
+
+            // Create interviewer
+            const interviewer = await this.dbService.createInterviewer({
+                email,
+                passwordHash,
+                fullName,
+                phone,
+                company
+            });
+
+            // Generate token
+            const token = this.authService.generateToken({
+                userId: interviewer.id,
+                email,
+                userType: 'interviewer'
+            });
+
+            res.status(201).json({
+                success: true,
+                message: 'Registration successful',
+                token,
+                user: {
+                    id: interviewer.id,
+                    email: interviewer.email,
+                    fullName: interviewer.full_name,
+                    userType: 'interviewer',
+                    phone: interviewer.phone,
+                    company: interviewer.company
+                }
+            });
+
+        } catch (error) {
+            console.error('Interviewer registration error:', error);
+            res.status(500).json({
+                error: 'Registration failed',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Login user (candidate or interviewer)
      */
     async login(req: Request, res: Response): Promise<void> {
         try {
@@ -124,8 +202,35 @@ export class AuthController {
                 return;
             }
 
-            // Get user by email
-            const user = await this.dbService.getUserByEmail(email);
+            // Try to find user as candidate first
+            let user = await this.dbService.getUserByEmail(email);
+            let userType = 'candidate';
+            let isActive = true;
+
+            if (user) {
+                isActive = user.is_active;
+            } else {
+                // Try to find as interviewer
+                const interviewer = await this.dbService.getInterviewerByEmail(email);
+                if (interviewer) {
+                    user = {
+                        id: interviewer.id,
+                        email: interviewer.email,
+                        password_hash: interviewer.password_hash,
+                        full_name: interviewer.full_name,
+                        user_type: 'interviewer' as any,
+                        phone: interviewer.phone,
+                        company: interviewer.company,
+                        resume_data: null,
+                        created_at: interviewer.created_at,
+                        last_login: interviewer.last_login,
+                        is_active: interviewer.is_active
+                    };
+                    userType = 'interviewer';
+                    isActive = interviewer.is_active;
+                }
+            }
+
             if (!user) {
                 res.status(401).json({
                     error: 'Invalid credentials',
@@ -135,7 +240,7 @@ export class AuthController {
             }
 
             // Check if user is active
-            if (!user.is_active) {
+            if (!isActive) {
                 res.status(403).json({
                     error: 'Account disabled',
                     message: 'Your account has been disabled. Please contact support.'
@@ -154,13 +259,17 @@ export class AuthController {
             }
 
             // Update last login
-            await this.dbService.updateUserLastLogin(user.id);
+            if (userType === 'candidate') {
+                await this.dbService.updateUserLastLogin(user.id);
+            } else {
+                await this.dbService.updateInterviewerLastLogin(user.id);
+            }
 
             // Generate token
             const token = this.authService.generateToken({
                 userId: user.id,
                 email: user.email,
-                userType: user.user_type
+                userType: userType as 'candidate' | 'interviewer'
             });
 
             res.json({
@@ -171,7 +280,7 @@ export class AuthController {
                     id: user.id,
                     email: user.email,
                     fullName: user.full_name,
-                    userType: user.user_type,
+                    userType: userType,
                     phone: user.phone,
                     company: user.company
                 }
@@ -192,6 +301,7 @@ export class AuthController {
     async getCurrentUser(req: Request, res: Response): Promise<void> {
         try {
             const userId = (req as any).user?.userId;
+            const userType = (req as any).user?.userType;
 
             if (!userId) {
                 res.status(401).json({
@@ -201,7 +311,12 @@ export class AuthController {
                 return;
             }
 
-            const user = await this.dbService.getUserById(userId);
+            let user;
+            if (userType === 'interviewer') {
+                user = await this.dbService.getInterviewerById(userId);
+            } else {
+                user = await this.dbService.getUserById(userId);
+            }
 
             if (!user) {
                 res.status(404).json({
@@ -217,7 +332,7 @@ export class AuthController {
                     id: user.id,
                     email: user.email,
                     fullName: user.full_name,
-                    userType: user.user_type,
+                    userType: userType,
                     phone: user.phone,
                     company: user.company,
                     createdAt: user.created_at,

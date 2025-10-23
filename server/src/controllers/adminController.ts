@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
+import { QuestionGenerationService } from '../services/questionGenerationService';
 
 interface AuthRequest extends Request {
     user?: {
@@ -11,85 +12,17 @@ interface AuthRequest extends Request {
     };
 }
 
-export class AdminController {
+export class InterviewerController {
     private dbService: PrismaService;
     private authService: AuthService;
+    private questionGenerationService: QuestionGenerationService;
 
     constructor() {
         this.dbService = PrismaService.getInstance();
         this.authService = AuthService.getInstance();
+        this.questionGenerationService = new QuestionGenerationService();
     }
 
-    async login(req: Request, res: Response): Promise<void> {
-        try {
-            const { email, password } = req.body;
-
-            if (!email || !password) {
-                res.status(400).json({ error: 'Email and password are required' });
-                return;
-            }
-
-            // Get user by email
-            const user = await this.dbService.getUserByEmail(email);
-            if (!user) {
-                res.status(401).json({ error: 'Invalid credentials' });
-                return;
-            }
-
-            // Check if user is active
-            if (!user.is_active) {
-                res.status(403).json({
-                    error: 'Account disabled',
-                    message: 'Your account has been disabled'
-                });
-                return;
-            }
-
-            // Check if user is an interviewer
-            if (user.user_type !== 'interviewer') {
-                res.status(403).json({ error: 'Only interviewers can access the admin panel' });
-                return;
-            }
-
-            // Verify password
-            const isPasswordValid = await this.authService.comparePassword(password, user.password_hash);
-            if (!isPasswordValid) {
-                res.status(401).json({ error: 'Invalid credentials' });
-                return;
-            }
-
-            // Update last login
-            await this.dbService.updateUserLastLogin(user.id);
-
-            // Generate token
-            const token = this.authService.generateToken({
-                userId: user.id,
-                email: user.email,
-                userType: user.user_type
-            });
-
-            res.json({
-                success: true,
-                token,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    userType: user.user_type,
-                    phone: user.phone,
-                    company: user.company
-                },
-                message: 'Login successful'
-            });
-
-        } catch (error) {
-            console.error('Admin login error:', error);
-            res.status(500).json({
-                error: 'Login failed',
-                message: error instanceof Error ? error.message : 'Unknown error'
-            });
-        }
-    }
 
     async getDashboard(req: Request, res: Response): Promise<void> {
         try {
@@ -180,6 +113,164 @@ export class AdminController {
             console.error('Get interview details error:', error);
             res.status(500).json({
                 error: 'Failed to fetch interview details',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    async generateQuestions(req: Request, res: Response): Promise<void> {
+        try {
+            const authReq = req as AuthRequest;
+            const interviewerId = authReq.user?.userId;
+            const { linkId } = req.params;
+
+            if (!interviewerId) {
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+
+            if (!linkId) {
+                res.status(400).json({ error: 'Link ID is required' });
+                return;
+            }
+
+            const linkIdNum = parseInt(linkId);
+            if (isNaN(linkIdNum)) {
+                res.status(400).json({ error: 'Invalid link ID' });
+                return;
+            }
+
+            // Get the interview link
+            const interviewLink = await this.dbService.getInterviewLinkById(linkIdNum);
+            if (!interviewLink) {
+                res.status(404).json({ error: 'Interview link not found' });
+                return;
+            }
+
+            // Verify this link belongs to the interviewer
+            if (interviewLink.created_by !== interviewerId) {
+                res.status(403).json({ error: 'Access denied to this interview link' });
+                return;
+            }
+
+            // Generate questions using the question generation service
+            const questions = await this.questionGenerationService.generateInterviewQuestions(interviewLink);
+
+            res.json({
+                success: true,
+                data: {
+                    questions,
+                    linkId: linkIdNum,
+                    totalQuestions: questions.length
+                },
+                message: 'Questions generated successfully'
+            });
+
+        } catch (error) {
+            console.error('Generate questions error:', error);
+            res.status(500).json({
+                error: 'Failed to generate questions',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    async approveQuestions(req: Request, res: Response): Promise<void> {
+        try {
+            const authReq = req as AuthRequest;
+            const interviewerId = authReq.user?.userId;
+            const { linkId } = req.params;
+            const { questions } = req.body;
+
+            if (!interviewerId) {
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+
+            if (!linkId || !questions) {
+                res.status(400).json({ error: 'Link ID and questions are required' });
+                return;
+            }
+
+            const linkIdNum = parseInt(linkId);
+            if (isNaN(linkIdNum)) {
+                res.status(400).json({ error: 'Invalid link ID' });
+                return;
+            }
+
+            // Verify this link belongs to the interviewer
+            const interviewLink = await this.dbService.getInterviewLinkById(linkIdNum);
+            if (!interviewLink) {
+                res.status(404).json({ error: 'Interview link not found' });
+                return;
+            }
+
+            if (interviewLink.created_by !== interviewerId) {
+                res.status(403).json({ error: 'Access denied to this interview link' });
+                return;
+            }
+
+            // Update the interview link with approved questions
+            await this.dbService.updateInterviewLinkQuestions(linkIdNum, questions);
+
+            res.json({
+                success: true,
+                message: 'Questions approved and saved successfully'
+            });
+
+        } catch (error) {
+            console.error('Approve questions error:', error);
+            res.status(500).json({
+                error: 'Failed to approve questions',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    async getInterviewLinkDetails(req: Request, res: Response): Promise<void> {
+        try {
+            const authReq = req as AuthRequest;
+            const interviewerId = authReq.user?.userId;
+            const { linkId } = req.params;
+
+            if (!interviewerId) {
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+
+            if (!linkId) {
+                res.status(400).json({ error: 'Link ID is required' });
+                return;
+            }
+
+            const linkIdNum = parseInt(linkId);
+            if (isNaN(linkIdNum)) {
+                res.status(400).json({ error: 'Invalid link ID' });
+                return;
+            }
+
+            // Get the interview link
+            const interviewLink = await this.dbService.getInterviewLinkById(linkIdNum);
+            if (!interviewLink) {
+                res.status(404).json({ error: 'Interview link not found' });
+                return;
+            }
+
+            // Verify this link belongs to the interviewer
+            if (interviewLink.created_by !== interviewerId) {
+                res.status(403).json({ error: 'Access denied to this interview link' });
+                return;
+            }
+
+            res.json({
+                success: true,
+                data: interviewLink
+            });
+
+        } catch (error) {
+            console.error('Get interview link details error:', error);
+            res.status(500).json({
+                error: 'Failed to get interview link details',
                 message: error instanceof Error ? error.message : 'Unknown error'
             });
         }

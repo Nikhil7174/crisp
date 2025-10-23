@@ -21,7 +21,8 @@ export const useAuth = () => {
         dispatch(setLoading(true));
         dispatch(setError(null));
 
-        const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
+        const endpoint = data.userType === 'interviewer' ? '/auth/register/interviewer' : '/auth/register/candidate';
+        const response = await axios.post(`${API_BASE_URL}${endpoint}`, data);
 
         if (response.data.success) {
           dispatch(

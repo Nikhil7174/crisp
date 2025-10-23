@@ -3,6 +3,7 @@ import { OpenAIService } from '../services/openaiService';
 import { PrismaService } from '../services/prismaService';
 import { CodeExecutionService } from '../services/codeExecutionService';
 import { SecurityService } from '../services/securityService';
+import { QuestionGenerationService } from '../services/questionGenerationService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
 
 export class InterviewController {
@@ -10,12 +11,14 @@ export class InterviewController {
   private dbService: PrismaService;
   private codeExecutionService: CodeExecutionService;
   private securityService: SecurityService;
+  private questionGenerationService: QuestionGenerationService;
 
   constructor() {
     this.openaiService = new OpenAIService();
     this.dbService = PrismaService.getInstance();
     this.codeExecutionService = new CodeExecutionService();
     this.securityService = SecurityService.getInstance();
+    this.questionGenerationService = new QuestionGenerationService();
   }
 
   /**
@@ -134,16 +137,37 @@ export class InterviewController {
         }
       }
 
-      // Generate 6 questions: 2 Easy + 2 Medium + 2 Hard
-      const questions = await this.openaiService.generateInterviewQuestions(candidateData);
+      // Generate questions using the new question generation service
+      const questions = await this.questionGenerationService.generateInterviewQuestions(link);
 
       // Create interview session
       const sessionId = this.generateSessionId();
+      
+      // Map GeneratedQuestion to InterviewQuestion format
+      const mappedQuestions: InterviewQuestion[] = questions.map(q => ({
+        id: q.id,
+        question: q.question,
+        type: q.type === 'theoretical' ? 'technical' : 'coding',
+        difficulty: q.difficulty,
+        timeLimit: q.timeLimit,
+        expectedAnswer: q.expectedAnswer,
+        explanation: q.explanation,
+        keyPoints: q.keyPoints,
+        documentation: q.documentation,
+        language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
+          ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
+          : undefined,
+        initialCode: q.starterCode,
+        expectedOutput: q.testCases?.[0]?.expectedOutput,
+        testCases: q.testCases,
+        instructions: q.problemStatement
+      }));
+      
       const session: InterviewSession = {
         id: sessionId,
         candidateId: candidateData.email || candidateData.name || 'unknown',
         status: 'in_progress',
-        questions,
+        questions: mappedQuestions,
         answers: [],
         startTime: new Date()
       };
@@ -155,22 +179,7 @@ export class InterviewController {
         success: true,
         sessionId,
         interviewLinkId,
-        questions: questions.map(q => ({
-          id: q.id,
-          question: q.question,
-          type: q.type,
-          difficulty: q.difficulty,
-          timeLimit: q.timeLimit,
-          // MCQ fields
-          options: q.options,
-          correctAnswerId: q.correctAnswerId,
-          // Coding fields
-          language: q.language,
-          initialCode: q.initialCode,
-          expectedOutput: q.expectedOutput,
-          testCases: q.testCases,
-          instructions: q.instructions
-        })),
+        questions: mappedQuestions,
         message: 'Interview session started successfully'
       };
 

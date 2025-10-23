@@ -27,7 +27,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
 
         const decoded = authService.verifyToken(token) as any;
 
-        // Ensure this is a user token (not admin)
+        // Ensure this is a user token (candidate or interviewer)
         if (decoded.type !== 'user') {
             res.status(403).json({ error: 'Invalid token type' });
             return;

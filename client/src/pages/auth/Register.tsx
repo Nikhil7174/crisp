@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, message, Typography, Divider, Radio, Space } from 'antd';
+import { Form, Input, Button, Card, Typography, Divider, Radio, Space, Alert, App } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import { useAuth } from '../../hooks/useAuth';
+import { useAppDispatch } from '../../store';
+import { setError } from '../../store/slices/authSlice';
 
 const { Title, Text } = Typography;
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, loading, isAuthenticated, user } = useAuth();
+  const dispatch = useAppDispatch();
+  const { register, loading, isAuthenticated, user, error } = useAuth();
   const [form] = Form.useForm();
+  const { message } = App.useApp();
   
   // Get user type context from navigation state
   const userTypeContext = (location.state as any)?.userType;
@@ -20,6 +24,11 @@ export const Register: React.FC = () => {
   // Set default user type based on context
   const defaultUserType = userTypeContext || 'candidate';
   const [userType, setUserType] = useState<'candidate' | 'interviewer'>(defaultUserType);
+
+  // Clear any existing errors when component mounts
+  useEffect(() => {
+    dispatch(setError(null));
+  }, [dispatch]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -42,7 +51,15 @@ export const Register: React.FC = () => {
       message.success('Registration successful!');
       // Navigation will be handled by the useEffect above
     } catch (error: any) {
-      message.error(error.message || 'Registration failed');
+      // Error is already handled by useAuth hook and displayed via Redux state
+      console.error('Registration error:', error);
+    }
+  };
+
+  // Clear error when user starts typing
+  const handleInputChange = () => {
+    if (error) {
+      dispatch(setError(null));
     }
   };
 
@@ -81,6 +98,16 @@ export const Register: React.FC = () => {
           autoComplete="off"
           initialValues={{ userType: defaultUserType }}
         >
+          {error && (
+            <Alert
+              message="Registration Failed"
+              description={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: spacing.lg }}
+            />
+          )}
+          
           <Form.Item
             name="userType"
             label="I am a"
@@ -109,6 +136,7 @@ export const Register: React.FC = () => {
               prefix={<UserOutlined />}
               placeholder="Full Name"
               style={{ borderRadius: 8 }}
+              onChange={handleInputChange}
             />
           </Form.Item>
 
@@ -123,6 +151,7 @@ export const Register: React.FC = () => {
               prefix={<MailOutlined />}
               placeholder="Email"
               style={{ borderRadius: 8 }}
+              onChange={handleInputChange}
             />
           </Form.Item>
 
@@ -142,6 +171,7 @@ export const Register: React.FC = () => {
               prefix={<LockOutlined />}
               placeholder="Password"
               style={{ borderRadius: 8 }}
+              onChange={handleInputChange}
             />
           </Form.Item>
 

@@ -40,5 +40,20 @@ router.get('/links/:id/candidates', (req: Request, res: Response) => {
     interviewerController.getCandidatesByLink(req, res);
 });
 
+// Get interview link details with questions
+router.get('/interview-link/:linkId', authMiddleware, (req: Request, res: Response) => {
+    interviewerController.getInterviewLinkDetails(req, res);
+});
+
+// Generate questions for an interview link
+router.post('/generate-questions/:linkId', (req: Request, res: Response) => {
+    interviewerController.generateQuestions(req, res);
+});
+
+// Approve questions for an interview link
+router.post('/approve-questions/:linkId', (req: Request, res: Response) => {
+    interviewerController.approveQuestions(req, res);
+});
+
 export default router;
 

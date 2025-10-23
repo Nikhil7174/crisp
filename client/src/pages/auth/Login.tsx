@@ -1,21 +1,29 @@
 import React, { useEffect } from 'react';
-import { Form, Input, Button, Card, message, Typography, Divider } from 'antd';
+import { Form, Input, Button, Card, message, Typography, Divider, Alert } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import { useAuth } from '../../hooks/useAuth';
+import { useAppDispatch } from '../../store';
+import { setError } from '../../store/slices/authSlice';
 
 const { Title, Text } = Typography;
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, loading, isAuthenticated, user } = useAuth();
+  const dispatch = useAppDispatch();
+  const { login, loading, isAuthenticated, user, error } = useAuth();
   const [form] = Form.useForm();
 
   // Get user type context from navigation state
   const userTypeContext = (location.state as any)?.userType;
   const returnTo = (location.state as any)?.returnTo;
+
+  // Clear any existing errors when component mounts
+  useEffect(() => {
+    dispatch(setError(null));
+  }, [dispatch]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -32,7 +40,15 @@ export const Login: React.FC = () => {
       message.success('Login successful!');
       // Navigation will be handled by the useEffect above
     } catch (error: any) {
-      message.error(error.message || 'Login failed');
+      // Error is already handled by useAuth hook and displayed via Redux state
+      console.error('Login error:', error);
+    }
+  };
+
+  // Clear error when user starts typing
+  const handleInputChange = () => {
+    if (error) {
+      dispatch(setError(null));
     }
   };
 
@@ -76,6 +92,16 @@ export const Login: React.FC = () => {
           size="large"
           autoComplete="off"
         >
+          {error && (
+            <Alert
+              message="Login Failed"
+              description={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: spacing.lg }}
+            />
+          )}
+          
           <Form.Item
             name="email"
             rules={[
@@ -87,6 +113,7 @@ export const Login: React.FC = () => {
               prefix={<UserOutlined />}
               placeholder="Email"
               style={{ borderRadius: 8 }}
+              onChange={handleInputChange}
             />
           </Form.Item>
 
@@ -98,6 +125,7 @@ export const Login: React.FC = () => {
               prefix={<LockOutlined />}
               placeholder="Password"
               style={{ borderRadius: 8 }}
+              onChange={handleInputChange}
             />
           </Form.Item>
 

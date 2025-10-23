@@ -13,6 +13,7 @@ import {
   Col,
   Statistic,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   PlusOutlined,
   CopyOutlined,
@@ -24,6 +25,7 @@ import {
   ReloadOutlined,
   CloseCircleOutlined,
   LogoutOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../hooks/useAuth';
@@ -31,6 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../constants/api';
 import type { InterviewLink } from '../types';
 import { colors, spacing } from '../styles';
+import { ViewQuestionsModal } from '../components/admin/ViewQuestionsModal';
 
 const { Title, Text } = Typography;
 
@@ -41,6 +44,8 @@ export const InterviewerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
+  const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
+  const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
 
   useEffect(() => {
     fetchLinks();
@@ -118,6 +123,11 @@ export const InterviewerDashboard: React.FC = () => {
   const handleCopyLink = (url: string) => {
     navigator.clipboard.writeText(url);
     message.success('Link copied to clipboard!');
+  };
+
+  const handleViewQuestions = (link: InterviewLink) => {
+    setSelectedLinkForViewing(link);
+    setViewQuestionsModalVisible(true);
   };
 
   const handleLogout = async () => {
@@ -205,6 +215,13 @@ export const InterviewerDashboard: React.FC = () => {
         
         return (
           <Space>
+            <Tooltip title="View Questions">
+              <Button
+                icon={<QuestionCircleOutlined />}
+                onClick={() => handleViewQuestions(record)}
+                size="small"
+              />
+            </Tooltip>
             <Tooltip title={isActive ? "Copy Link" : "Link is inactive or expired"}>
               <Button
                 icon={<CopyOutlined />}
@@ -235,11 +252,11 @@ export const InterviewerDashboard: React.FC = () => {
     },
   ];
 
-  const activeLinks = links.filter((link) => {
+  const activeLinks = (links || []).filter((link) => {
     const isExpired = link.expiryDate && dayjs(link.expiryDate).isBefore(dayjs());
     return link.isActive && !isExpired;
   });
-  const totalAttempts = links.reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
+  const totalAttempts = (links || []).reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: spacing.xl }}>
@@ -384,6 +401,19 @@ export const InterviewerDashboard: React.FC = () => {
             This action cannot be undone and will remove all associated data.
           </p>
         </Modal>
+
+        {/* View Questions Modal */}
+        {selectedLinkForViewing && (
+          <ViewQuestionsModal
+            visible={viewQuestionsModalVisible}
+            onClose={() => {
+              setViewQuestionsModalVisible(false);
+              setSelectedLinkForViewing(null);
+            }}
+            linkId={selectedLinkForViewing.id}
+            linkTitle={selectedLinkForViewing.title}
+          />
+        )}
       </div>
     </div>
   );
