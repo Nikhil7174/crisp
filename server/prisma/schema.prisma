@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./data/interviews.db"
+  url      = "file:./prisma/data/interviews.db"
 }
 
 model User {
@@ -42,7 +42,7 @@ model InterviewLink {
   // New interview metadata fields
   job_title                String?
   job_id                   String?
-  role                     String? // JSON string for multiple roles
+  role                     String? // Single role selection
   years_of_experience      Int?
   max_interview_questions  Int?
   max_machine_coding_questions Int?
@@ -71,30 +71,83 @@ model Interview {
   candidate_name         String
   candidate_email        String
   candidate_phone        String?
-  start_time             DateTime
-  end_time               DateTime?
-  duration               Int?
-  score                  Int?
-  total_questions        Int?
-  correct_answers        Int?
-  time_spent             Int?
-  strengths              String? // JSON string
-  areas_for_improvement  String? // JSON string
-  overall_feedback       String?
-  detailed_answers       String? // JSON string
-  question_analysis      String? // JSON string
-  is_mock_interview      Boolean  @default(false)
-  cheating_detected      Boolean  @default(false)
-  cheating_incidents     String? // JSON string
+  start_time               DateTime
+  end_time                DateTime?
+  duration                Int?
+  score                   Int?
+  total_questions         Int?
+  correct_answers          Int?
+  time_spent              Int?
+  strengths               String? // JSON string
+  areas_for_improvement   String? // JSON string
+  overall_feedback        String?
+  detailed_answers        String? // JSON string
+  question_analysis       String? // JSON string
+  is_mock_interview       Boolean  @default(false)
+  cheating_detected       Boolean  @default(false)
+  cheating_incidents      String? // JSON string
   security_agent_connected Boolean @default(false)
-  created_at             DateTime @default(now())
-  updated_at             DateTime @updatedAt
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
 
   // Relations
   user           User?          @relation("InterviewUser", fields: [user_id], references: [id])
   interview_link InterviewLink? @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
+  questions      InterviewQuestion[]
+  evaluations    Evaluation[]
+  code_snapshots CodeSnapshot[]
 
   @@map("interviews")
+}
+
+model InterviewQuestion {
+  id                Int      @id @default(autoincrement())
+  interview_id      Int
+  question_text     String
+  expected_answer   String
+  key_points        String   // JSON array
+  candidate_answer  String?
+  order             Int
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relations
+  interview   Interview   @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+  evaluation  Evaluation?
+
+  @@map("interview_questions")
+}
+
+model Evaluation {
+  id                 Int      @id @default(autoincrement())
+  interview_id       Int
+  question_id        Int      @unique
+  candidate_answer   String
+  key_points_covered String   // JSON array
+  score              Float
+  feedback           String
+  needs_follow_up    Boolean  @default(false)
+  follow_up_question String?
+  created_at         DateTime @default(now())
+
+  // Relations
+  interview Interview        @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+  question  InterviewQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@map("evaluations")
+}
+
+model CodeSnapshot {
+  id          Int      @id @default(autoincrement())
+  interview_id Int
+  code        String
+  timestamp   DateTime @default(now())
+  analysis    String?  // JSON object with analysis data
+
+  // Relations
+  interview Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("code_snapshots")
 }
 
 model Interviewer {

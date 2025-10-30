@@ -102,8 +102,8 @@ export class PrismaService {
         yearsOfExperience?: number;
         maxInterviewQuestions?: number;
         maxMachineCodingQuestions?: number;
-        topics?: string;
-        machineQuestions?: string;
+        topics?: string | any[];
+        machineQuestions?: string | any[];
     }) {
         return await prisma.interviewLink.create({
             data: {
@@ -120,8 +120,8 @@ export class PrismaService {
                 years_of_experience: linkData.yearsOfExperience,
                 max_interview_questions: linkData.maxInterviewQuestions,
                 max_machine_coding_questions: linkData.maxMachineCodingQuestions,
-                topics: linkData.topics,
-                machine_questions: linkData.machineQuestions,
+                topics: Array.isArray(linkData.topics) ? JSON.stringify(linkData.topics) : linkData.topics,
+                machine_questions: Array.isArray(linkData.machineQuestions) ? JSON.stringify(linkData.machineQuestions) : linkData.machineQuestions,
             },
         });
     }
@@ -159,6 +159,10 @@ export class PrismaService {
                     },
                 });
 
+                // Construct the interview link URL
+                const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+                const url = `${baseUrl}/join?token=${link.link_token}`;
+
                 return {
                     id: link.id,
                     token: link.link_token,
@@ -171,6 +175,7 @@ export class PrismaService {
                     updatedAt: link.updated_at,
                     totalAttempts: totalAttempts,
                     completedInterviews: completedInterviews,
+                    url: url,
                 };
             })
         );

@@ -143,43 +143,69 @@ export class InterviewController {
       // Create interview session
       const sessionId = this.generateSessionId();
       
-      // Map GeneratedQuestion to InterviewQuestion format
-      const mappedQuestions: InterviewQuestion[] = questions.map(q => ({
+      // Separate theoretical and coding questions
+      const theoreticalQuestions = questions.filter(q => q.type === 'theoretical');
+      const codingQuestions = questions.filter(q => q.type === 'machine_coding');
+      
+      console.log(`📊 Separated: ${theoreticalQuestions.length} theoretical, ${codingQuestions.length} coding questions`);
+      
+      // Map theoretical questions
+      const mappedTheoretical: InterviewQuestion[] = theoreticalQuestions.map(q => ({
         id: q.id,
         question: q.question,
-        type: q.type === 'theoretical' ? 'technical' : 'coding',
+        type: 'technical',
         difficulty: q.difficulty,
         timeLimit: q.timeLimit,
+        expectedAnswer: q.expectedAnswer,
+        explanation: q.explanation,
+        keyPoints: q.keyPoints,
+        documentation: q.documentation
+      }));
+      
+      // Map coding questions (with all coding-specific fields)
+      const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => ({
+        id: q.id,
+        question: q.question,
+        type: 'coding',
+        difficulty: q.difficulty,
+        timeLimit: q.timeLimit || 1800, // Default 30 minutes for coding
         expectedAnswer: q.expectedAnswer,
         explanation: q.explanation,
         keyPoints: q.keyPoints,
         documentation: q.documentation,
         language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
           ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
-          : undefined,
+          : 'javascript',
         initialCode: q.starterCode,
         expectedOutput: q.testCases?.[0]?.expectedOutput,
         testCases: q.testCases,
         instructions: q.problemStatement
       }));
       
+      // Combine for database storage (keeping all questions together in DB)
+      const allQuestions = [...mappedTheoretical, ...mappedCoding];
+      
       const session: InterviewSession = {
         id: sessionId,
         candidateId: candidateData.email || candidateData.name || 'unknown',
         status: 'in_progress',
-        questions: mappedQuestions,
+        questions: allQuestions,
         answers: [],
         startTime: new Date()
       };
 
       // Session saving removed - no longer needed without sessions table
 
-      // In startInterview - just return questions
+      // Return with proper separation for security agent app
       const responseData = {
         success: true,
         sessionId,
         interviewLinkId,
-        questions: mappedQuestions,
+        theoreticalQuestions: mappedTheoretical,
+        codingQuestions: mappedCoding,
+        maxTheoreticalQuestions: link.max_interview_questions || 10,
+        // Also include combined for backward compatibility
+        questions: allQuestions,
         message: 'Interview session started successfully'
       };
 

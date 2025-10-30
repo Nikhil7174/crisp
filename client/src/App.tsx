@@ -8,6 +8,7 @@ import { store, persistor } from './store';
 import { theme } from './styles/theme';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AuthInitializer } from './components/AuthInitializer';
 import Home from './pages/Home';
 // import { Admin } from './pages/Admin'; // Removed - using unified auth system
 import { PublicRoute } from './components/PublicRoute';
@@ -26,6 +27,7 @@ const App: React.FC = () => {
       <PersistGate loading={null} persistor={persistor}>
         <ConfigProvider theme={theme}>
           <AntApp>
+            <AuthInitializer />
             <Router>
               <Routes>
                 {/* Public Routes */}

@@ -92,3 +92,5 @@ SELECT
 FROM question_bank 
 WHERE question_type = 'machine_coding';
 
+
+

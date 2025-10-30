@@ -47,6 +47,24 @@ export const CreateInterview: React.FC = () => {
       const enabledTopics = topics.filter((topic: TopicItem) => topic.enabled);
       const machineQuestions: MachineQuestionItem[] = values.machineQuestions || [];
 
+      // DEBUG: Log all form values and topic details
+      console.log('=== DEBUG: Form Submission ===');
+      console.log('All form values:', values);
+      console.log('All topics (raw):', topics);
+      console.log('Topic details:', topics.map((t: TopicItem) => ({
+        name: t.name,
+        questionCount: t.questionCount,
+        enabled: t.enabled,
+        type: typeof t.questionCount
+      })));
+      console.log('Enabled topics (filtered):', enabledTopics);
+      console.log('Enabled topics details:', enabledTopics.map((t: TopicItem) => ({
+        name: t.name,
+        questionCount: t.questionCount,
+        enabled: t.enabled,
+        type: typeof t.questionCount
+      })));
+
       if (enabledTopics.length === 0) {
         message.error('Please select at least one topic for the interview');
         return;
@@ -82,6 +100,9 @@ export const CreateInterview: React.FC = () => {
         topics: JSON.stringify(enabledTopics),
         machineQuestions: JSON.stringify(machineQuestions),
       };
+
+      console.log('Final payload being sent:', payload);
+      console.log('Topics in payload (parsed):', JSON.parse(payload.topics));
 
       const response = await axios.post(
         `${API_BASE_URL}/interviewer/links`,
@@ -207,34 +228,10 @@ export const CreateInterview: React.FC = () => {
                     placeholder="Search and select role"
                     size="large"
                     showSearch
-                    mode="multiple"
-                    maxTagCount={2}
                     filterOption={(input, option) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     options={INTERVIEW_ROLES}
-                    tagRender={(props) => {
-                      const { label, closable, onClose } = props;
-                      return (
-                        <Tag
-                          color="blue"
-                          closable={closable}
-                          onClose={onClose}
-                          style={{
-                            margin: '2px',
-                            padding: '4px 8px',
-                            borderRadius: '16px',
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                            color: 'white',
-                            border: 'none',
-                          }}
-                        >
-                          {label}
-                        </Tag>
-                      );
-                    }}
                   />
                 </Form.Item>
 
@@ -396,6 +393,7 @@ export const CreateInterview: React.FC = () => {
                                 {...restField}
                                 name={[name, 'questionCount']}
                                 style={{ margin: 0 }}
+                                initialValue={1}
                               >
                                 <Tooltip title="Number of questions for this topic">
                                   <InputNumber
@@ -404,6 +402,7 @@ export const CreateInterview: React.FC = () => {
                                     size="small"
                                     bordered={false}
                                     controls={true}
+                                    value={form.getFieldValue(['topics', name, 'questionCount']) || 1}
                                     style={{
                                       width: '50px',
                                       textAlign: 'center',
@@ -413,12 +412,14 @@ export const CreateInterview: React.FC = () => {
                                       fontWeight: 'bold',
                                       fontSize: '12px'
                                     }}
-                                    parser={(value) => {
-                                      const numericValue = value?.toString().replace(/\D/g, '') || '';
-                                      const num = parseInt(numericValue, 10);
-                                      return isNaN(num) ? 1 : Math.min(Math.max(num, 1), 50);
+                                    onChange={(value) => {
+                                      // Ensure value is properly set in form
+                                      const newTopics = form.getFieldValue('topics');
+                                      if (newTopics && newTopics[name]) {
+                                        newTopics[name].questionCount = value || 1;
+                                        form.setFieldValue('topics', newTopics);
+                                      }
                                     }}
-                                    formatter={(value) => value?.toString() || '1'}
                                   />
                                 </Tooltip>
                               </Form.Item>

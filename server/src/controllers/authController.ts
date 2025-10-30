@@ -46,9 +46,19 @@ export class AuthController {
                 return;
             }
 
-            // Check if user already exists
+            // Check if user already exists in users table
             const existingUser = await this.dbService.getUserByEmail(email);
             if (existingUser) {
+                res.status(409).json({
+                    error: 'User already exists',
+                    message: 'An account with this email already exists'
+                });
+                return;
+            }
+
+            // Check if email exists in interviewers table
+            const existingInterviewer = await this.dbService.getInterviewerByEmail(email);
+            if (existingInterviewer) {
                 res.status(409).json({
                     error: 'User already exists',
                     message: 'An account with this email already exists'
@@ -134,11 +144,21 @@ export class AuthController {
                 return;
             }
 
-            // Check if interviewer already exists
+            // Check if interviewer already exists in interviewers table
             const existingInterviewer = await this.dbService.getInterviewerByEmail(email);
             if (existingInterviewer) {
                 res.status(409).json({
                     error: 'Interviewer already exists',
+                    message: 'An account with this email already exists'
+                });
+                return;
+            }
+
+            // Check if email exists in users table
+            const existingUser = await this.dbService.getUserByEmail(email);
+            if (existingUser) {
+                res.status(409).json({
+                    error: 'User already exists',
                     message: 'An account with this email already exists'
                 });
                 return;
@@ -202,17 +222,19 @@ export class AuthController {
                 return;
             }
 
-            // Try to find user as candidate first
+            // Try to find user in users table first (candidates and interviewers)
             let user = await this.dbService.getUserByEmail(email);
             let userType = 'candidate';
             let isActive = true;
 
             if (user) {
+                userType = user.user_type;
                 isActive = user.is_active;
             } else {
-                // Try to find as interviewer
+                // Try to find as interviewer in interviewers table (legacy support)
                 const interviewer = await this.dbService.getInterviewerByEmail(email);
                 if (interviewer) {
+                    // Convert interviewer to user format for consistency
                     user = {
                         id: interviewer.id,
                         email: interviewer.email,

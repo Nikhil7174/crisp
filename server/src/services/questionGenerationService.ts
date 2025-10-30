@@ -62,10 +62,20 @@ export class QuestionGenerationService {
       console.log('🎯 Generating interview questions...');
       
       // Parse interview metadata
-      const topics = JSON.parse(interviewLink.topics || '[]');
+      let topics = JSON.parse(interviewLink.topics || '[]');
       const machineQuestions = JSON.parse(interviewLink.machine_questions || '[]');
       const totalQuestions = interviewLink.max_interview_questions || 10;
       const maxMachineCoding = interviewLink.max_machine_coding_questions || 2;
+      
+      // Fallback: If no topics are configured, use default topics
+      if (!topics || topics.length === 0) {
+        console.log('⚠️ No topics configured, using default topics');
+        topics = [
+          { name: 'JavaScript', questionCount: 1, enabled: true },
+          { name: 'React', questionCount: 1, enabled: true },
+          { name: 'Node.js', questionCount: 1, enabled: true }
+        ];
+      }
       
       console.log(`📊 Interview config: ${totalQuestions} total, ${maxMachineCoding} machine coding`);
       console.log(`📋 Topics: ${topics.map((t: TopicItem) => t.name).join(', ')}`);
@@ -89,23 +99,35 @@ export class QuestionGenerationService {
 
   /**
    * Select questions from database and generate theoretical questions
+   * Returns questions with proper separation between theoretical and coding
    */
   private async selectQuestions(params: QuestionGenerationParams): Promise<GeneratedQuestion[]> {
     const { topics, totalQuestions, machineQuestions, maxMachineCoding } = params;
     
     const selectedQuestions: GeneratedQuestion[] = [];
     
-    // 1. Get machine coding questions from database
-    const machineCodingQuestions = await this.getMachineCodingQuestions(machineQuestions, maxMachineCoding);
+    // Calculate exact number of questions requested by interviewer
+    const requestedMachineCoding = machineQuestions.length;
+    const requestedTheoretical = topics.reduce((sum, topic) => sum + (topic.enabled ? topic.questionCount : 0), 0);
+    const totalRequested = requestedMachineCoding + requestedTheoretical;
+    
+    
+    // 1. Get theoretical questions FIRST (respect exact count, but cap at total limit)
+    const theoreticalCount = Math.min(requestedTheoretical, totalQuestions);
+    const theoreticalQuestions = await this.getTheoreticalQuestionsByCountWithLimit(topics, theoreticalCount);
+    
+    // 2. Get machine coding questions (respect exact count, but cap at max limit)
+    const machineCodingCount = Math.min(requestedMachineCoding, maxMachineCoding);
+    const machineCodingQuestions = await this.getMachineCodingQuestions(machineQuestions, machineCodingCount);
+    
+    // 3. Combine in proper order: theoretical first, then coding
+    // DO NOT shuffle - keep them separated for proper interview flow
+    selectedQuestions.push(...theoreticalQuestions);
     selectedQuestions.push(...machineCodingQuestions);
     
-    // 2. Calculate remaining questions for theoretical topics
-    const remainingQuestions = totalQuestions - selectedQuestions.length;
-    const theoreticalQuestions = await this.getTheoreticalQuestions(topics, remainingQuestions);
-    selectedQuestions.push(...theoreticalQuestions);
+    console.log(`✅ Selected ${theoreticalQuestions.length} theoretical and ${machineCodingQuestions.length} coding questions`);
     
-    // 3. Shuffle and return
-    return this.shuffleArray(selectedQuestions);
+    return selectedQuestions;
   }
 
   /**
@@ -126,6 +148,81 @@ export class QuestionGenerationService {
     });
 
     return questions.map(q => this.transformDatabaseQuestion(q));
+  }
+
+  /**
+   * Get theoretical questions based on individual topic questionCount with total limit
+   */
+  private async getTheoreticalQuestionsByCountWithLimit(topics: TopicItem[], totalLimit: number): Promise<GeneratedQuestion[]> {
+    const questions: GeneratedQuestion[] = [];
+    
+    for (const topic of topics) {
+      if (!topic.enabled || topic.questionCount <= 0) {
+        continue;
+      }
+      
+      // Check if we've reached the total limit
+      if (questions.length >= totalLimit) {
+        break;
+      }
+      
+      const topicCount = Math.min(topic.questionCount, totalLimit - questions.length);
+      console.log(`📋 Getting ${topicCount} questions for ${topic.name}`);
+      
+      // Check if we have enough questions in database for this topic
+      console.log(`🔍 Checking if we have enough questions for ${topic.name}...`);
+      const hasEnoughInDB = await this.hasEnoughQuestionsInDB(topic.name, topicCount);
+      console.log(`🔍 Result: hasEnoughInDB = ${hasEnoughInDB} for ${topic.name}`);
+      
+      if (hasEnoughInDB) {
+        // Use database questions
+        console.log(`📚 Using database questions for ${topic.name}`);
+        const dbQuestions = await this.getQuestionsFromDB(topic.name, topicCount);
+        questions.push(...dbQuestions);
+      } else {
+        // Use AI generation as fallback
+        console.log(`🤖 Using AI generation for ${topic.name} (insufficient DB questions)`);
+        const aiQuestions = await this.generateTheoreticalQuestionsForTopic(topic.name, topicCount);
+        questions.push(...aiQuestions);
+      }
+    }
+
+    return questions;
+  }
+
+  /**
+   * Get theoretical questions based on individual topic questionCount
+   */
+  private async getTheoreticalQuestionsByCount(topics: TopicItem[]): Promise<GeneratedQuestion[]> {
+    const questions: GeneratedQuestion[] = [];
+    
+    for (const topic of topics) {
+      if (!topic.enabled || topic.questionCount <= 0) {
+        continue;
+      }
+      
+      const topicCount = topic.questionCount;
+      console.log(`📋 Getting ${topicCount} questions for ${topic.name}`);
+      
+      // Check if we have enough questions in database for this topic
+      console.log(`🔍 Checking if we have enough questions for ${topic.name}...`);
+      const hasEnoughInDB = await this.hasEnoughQuestionsInDB(topic.name, topicCount);
+      console.log(`🔍 Result: hasEnoughInDB = ${hasEnoughInDB} for ${topic.name}`);
+      
+      if (hasEnoughInDB) {
+        // Use database questions
+        console.log(`📚 Using database questions for ${topic.name}`);
+        const dbQuestions = await this.getQuestionsFromDB(topic.name, topicCount);
+        questions.push(...dbQuestions);
+      } else {
+        // Use AI generation as fallback
+        console.log(`🤖 Using AI generation for ${topic.name} (insufficient DB questions)`);
+        const aiQuestions = await this.generateTheoreticalQuestionsForTopic(topic.name, topicCount);
+        questions.push(...aiQuestions);
+      }
+    }
+
+    return questions;
   }
 
   /**
@@ -286,12 +383,23 @@ export class QuestionGenerationService {
    * Check if we have enough questions in the database for a topic
    */
   private async hasEnoughQuestionsInDB(topic: string, requiredCount: number): Promise<boolean> {
-    const count = await prisma.theoreticalQuestion.count({
+    // Get all questions for the topic
+    const questions = await prisma.theoreticalQuestion.findMany({
       where: {
         topic: topic
+      },
+      select: {
+        question_text: true
       }
     });
-    return count >= requiredCount;
+    
+    // Count unique questions by text
+    const uniqueQuestions = new Set(questions.map(q => q.question_text));
+    const uniqueCount = uniqueQuestions.size;
+    
+    console.log(`📊 Topic ${topic}: ${questions.length} total questions, ${uniqueCount} unique questions, need ${requiredCount}`);
+    
+    return uniqueCount >= requiredCount;
   }
 
   /**
@@ -306,32 +414,56 @@ export class QuestionGenerationService {
       whereClause.difficulty = difficulty;
     }
 
+    // Get more questions than needed to account for duplicates
     const questions = await prisma.theoreticalQuestion.findMany({
       where: whereClause,
-      take: count,
+      take: count * 3, // Get 3x more to account for duplicates
       orderBy: {
         id: 'asc' // For consistent ordering
       }
     });
 
-    return questions.map(q => this.transformDatabaseQuestion(q));
+    // Deduplicate by question text
+    const uniqueQuestions = new Map<string, any>();
+    for (const question of questions) {
+      if (!uniqueQuestions.has(question.question_text)) {
+        uniqueQuestions.set(question.question_text, question);
+      }
+    }
+
+    // Take only the requested count
+    const deduplicatedQuestions = Array.from(uniqueQuestions.values()).slice(0, count);
+    
+    console.log(`📚 Retrieved ${questions.length} questions, deduplicated to ${deduplicatedQuestions.length} unique questions for ${topic}`);
+
+    return deduplicatedQuestions.map(q => this.transformDatabaseQuestion(q));
   }
 
   /**
    * Transform database question to GeneratedQuestion format
    */
   private transformDatabaseQuestion(dbQuestion: any): GeneratedQuestion {
+    // Determine if this is a machine coding question based on the table structure
+    const isMachineCoding = dbQuestion.problem_statement || dbQuestion.starter_code || dbQuestion.test_cases;
+    
     return {
       id: `db_${dbQuestion.id}`,
-      question: dbQuestion.question_text,
-      type: 'theoretical', // Always theoretical for this table
+      question: dbQuestion.question_text || dbQuestion.problem_statement,
+      type: isMachineCoding ? 'machine_coding' : 'theoretical',
       difficulty: dbQuestion.difficulty as 'easy' | 'medium' | 'hard',
       timeLimit: this.getTimeLimitForDifficulty(dbQuestion.difficulty),
       topic: dbQuestion.topic,
       expectedAnswer: dbQuestion.expected_answer,
       explanation: dbQuestion.explanation,
       keyPoints: dbQuestion.key_points ? JSON.parse(dbQuestion.key_points) : [],
-      documentation: dbQuestion.documentation ? JSON.parse(dbQuestion.documentation) : []
+      documentation: dbQuestion.documentation ? JSON.parse(dbQuestion.documentation) : [],
+      // Machine coding specific fields
+      language: dbQuestion.language,
+      problemStatement: dbQuestion.problem_statement,
+      starterCode: dbQuestion.starter_code,
+      testCases: dbQuestion.test_cases ? JSON.parse(dbQuestion.test_cases) : [],
+      constraints: dbQuestion.constraints ? JSON.parse(dbQuestion.constraints) : [],
+      hints: dbQuestion.hints ? JSON.parse(dbQuestion.hints) : []
     };
   }
 

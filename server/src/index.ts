@@ -15,6 +15,7 @@ import uploadRoutes from './routes/uploadRoutes';
 import interviewerDashboardRoutes from './routes/interviewerDashboardRoutes';
 import authRoutes from './routes/authRoutes';
 import interviewerRoutes from './routes/interviewerRoutes';
+import llmRoutes from './routes/llmRoutes';
 
 // Import database initialization
 import { initializeDatabase } from './lib/databaseInit';
@@ -40,6 +41,7 @@ app.use('/api/interviewer', interviewerRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/interviewer-dashboard', interviewerDashboardRoutes);
+app.use('/api/llm', llmRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -316,10 +316,33 @@ export class InterviewerController {
                 machineQuestions
             });
 
+            // Auto-generate questions for the interview link
+            try {
+                console.log('🎯 Auto-generating questions for interview link ID:', link.id);
+                const questions = await this.questionGenerationService.generateInterviewQuestions(link);
+                
+                // Save the generated questions to the database
+                await this.dbService.updateInterviewLinkQuestions(link.id, questions);
+                
+                console.log(`✅ Auto-generated and saved ${questions.length} questions for interview link ${link.id}`);
+            } catch (questionError) {
+                console.error('❌ Error auto-generating questions:', questionError);
+                // Don't fail the interview link creation if question generation fails
+                // The user can still generate questions manually later
+            }
+
+            // Construct the interview link URL
+            const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+            const linkUrl = `${baseUrl}/join?token=${link.link_token}`;
+
             res.status(201).json({
                 success: true,
-                data: link,
-                message: 'Interview link created successfully'
+                data: {
+                    ...link,
+                    url: linkUrl,
+                    token: link.link_token
+                },
+                message: 'Interview link created successfully with auto-generated questions'
             });
 
         } catch (error) {
