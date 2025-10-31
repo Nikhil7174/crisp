@@ -513,7 +513,7 @@ SCORING GUIDELINES:
 - If they provide ANY technical content related to the question → "answer" (even if incomplete)
 - If they explicitly ask for help → "hint_request"  
 - If they ask about the question itself → "clarification_request"
-- When in doubt, default to "answer" (candidates usually try to answer first)
+- When in doubt, default to "clarification_request"
 
 Respond with:
 {
@@ -538,7 +538,16 @@ IMPORTANT: Return ONLY valid JSON, no other text.`
         throw new Error('No response from LLM')
       }
 
-      return JSON.parse(content) as IntentDetection
+      const parsed = JSON.parse(content) as IntentDetection
+      
+      // Validate intent value - ensure it's one of the 3 valid options
+      const validIntents = ['answer', 'hint_request', 'clarification_request'] as const
+      if (!parsed.intent || !validIntents.includes(parsed.intent as any)) {
+        console.warn('Invalid intent value received:', parsed.intent, '- defaulting to "clarification_request"')
+        return { intent: 'clarification_request', confidence: parsed.confidence || 0.5 }
+      }
+
+      return parsed
     } catch (error) {
       console.error('Error detecting intent:', error)
       // Default to answer if detection fails
