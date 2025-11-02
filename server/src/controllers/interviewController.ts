@@ -177,6 +177,7 @@ export class InterviewController {
           ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
           : 'javascript',
         initialCode: q.starterCode,
+        starterCodes: q.starterCodes, // Include multi-language starter codes
         expectedOutput: q.testCases?.[0]?.expectedOutput,
         testCases: q.testCases,
         instructions: q.problemStatement

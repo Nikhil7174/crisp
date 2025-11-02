@@ -138,6 +138,7 @@ export interface InterviewQuestion {
   // Coding fields (for coding questions)
   language?: 'javascript' | 'typescript' | 'python' | 'java' | 'cpp';
   initialCode?: string;
+  starterCodes?: Record<string, string>; // Multi-language starter codes: { javascript: "...", python: "...", java: "...", cpp: "..." }
   expectedOutput?: string;
   testCases?: Array<{
     input: string;

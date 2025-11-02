@@ -89,25 +89,32 @@ export class UploadController {
         return;
       }
       
+      // Handle case where resumeData might be null or missing personalInfo
+      const safeResumeData = resumeData || {};
+      const safePersonalInfo = safeResumeData.personalInfo || {};
+      
       // Update the resume data with collected information
       const completeResumeData = {
-        ...resumeData,
+        ...safeResumeData,
         name,
         email,
         phone
       };
       
       const completeDetailedResumeData = {
-        ...resumeData,
+        ...safeResumeData,
         name,
         email,
         phone,
         personalInfo: {
-          ...resumeData.personalInfo,
+          ...safePersonalInfo,
           name,
           email,
           phone
-        }
+        },
+        // Ensure other required fields exist
+        experience: safeResumeData.experience || { internships: [], projects: [], awards: [] },
+        technicalSkills: safeResumeData.technicalSkills || { languages: [], frameworks: [], tools: [], databases: [], other: [] }
       };
       
       // Save resume data to user profile if user is authenticated

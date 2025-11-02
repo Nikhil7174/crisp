@@ -12,7 +12,6 @@ import {
   Row,
   Col,
   Divider,
-  Tag,
   Tooltip,
   DatePicker,
 } from 'antd';
@@ -65,8 +64,13 @@ export const CreateInterview: React.FC = () => {
         type: typeof t.questionCount
       })));
 
-      if (enabledTopics.length === 0) {
-        message.error('Please select at least one topic for the interview');
+      // Validate: At least one theoretical question OR at least one machine coding question is required
+      const hasTheoreticalQuestions = enabledTopics.length > 0;
+      const hasMachineCodingQuestions = machineQuestions && machineQuestions.length > 0;
+      
+      if (!hasTheoreticalQuestions && !hasMachineCodingQuestions) {
+        message.error('Please select at least one theoretical question topic OR add at least one machine coding question');
+        setLoading(false); // Clear loading state before returning
         return;
       }
 
@@ -84,9 +88,25 @@ export const CreateInterview: React.FC = () => {
 
       // Prepare payload for API with all interview metadata
       const roleText = Array.isArray(values.role) ? values.role.join(', ') : values.role;
+      
+      // Build description with proper handling of empty topics
+      const topicsDescription = enabledTopics.length > 0 
+        ? `Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}`
+        : '';
+      const machineCodingDescription = machineQuestions.length > 0
+        ? `Machine Coding: ${machineQuestions.map((m) => m.topic).join(', ')}`
+        : '';
+      
+      const descriptionParts = [
+        `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience.`,
+        `Max Questions: ${values.maxInterviewQuestions}, Max Machine Coding: ${values.maxMachineCodingQuestions}.`,
+        topicsDescription,
+        machineCodingDescription
+      ].filter(part => part.length > 0); // Remove empty parts
+      
       const payload = {
         title: `${values.jobTitle} - ${roleText} Interview`,
-        description: `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience. Max Questions: ${values.maxInterviewQuestions}, Max Machine Coding: ${values.maxMachineCodingQuestions}. Topics: ${enabledTopics.map((t: TopicItem) => `${t.name} (${t.questionCount} questions)`).join(', ')}${machineQuestions.length ? `. Machine Coding: ${machineQuestions.map((m) => m.topic).join(', ')}` : ''}`,
+        description: descriptionParts.join(' '),
         expiryDate: values.expiryDate ? values.expiryDate.toISOString() : undefined,
         maxAttempts: 999,
         isActive: true,
@@ -102,7 +122,11 @@ export const CreateInterview: React.FC = () => {
       };
 
       console.log('Final payload being sent:', payload);
-      console.log('Topics in payload (parsed):', JSON.parse(payload.topics));
+      try {
+        console.log('Topics in payload (parsed):', JSON.parse(payload.topics));
+      } catch (e) {
+        console.log('Topics in payload (raw):', payload.topics);
+      }
 
       const response = await axios.post(
         `${API_BASE_URL}/interviewer/links`,

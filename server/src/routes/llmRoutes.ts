@@ -88,7 +88,8 @@ router.post('/analyze-code', async (req, res) => {
     console.error('Error analyzing code:', error)
     res.status(500).json({
       success: false,
-      error: 'Failed to analyze code'
+      error: 'Failed to analyze code',
+      details: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 })

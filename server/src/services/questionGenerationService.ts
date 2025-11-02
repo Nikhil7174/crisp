@@ -38,6 +38,7 @@ export interface GeneratedQuestion {
   language?: string;
   problemStatement?: string;
   starterCode?: string;
+  starterCodes?: Record<string, string>; // Multiple language starter codes: { javascript: "...", python: "...", java: "...", cpp: "..." }
   testCases?: Array<{
     input: string;
     expectedOutput: string;
@@ -67,18 +68,30 @@ export class QuestionGenerationService {
       const totalQuestions = interviewLink.max_interview_questions || 10;
       const maxMachineCoding = interviewLink.max_machine_coding_questions || 2;
       
-      // Fallback: If no topics are configured, use default topics
-      if (!topics || topics.length === 0) {
-        console.log('⚠️ No topics configured, using default topics');
+      // Fallback: If no topics are configured AND no machine coding questions, use default topics
+      // If there are machine coding questions, it's okay to have no theoretical topics
+      if ((!topics || topics.length === 0) && (!machineQuestions || machineQuestions.length === 0)) {
+        console.log('⚠️ No topics and no machine coding questions configured, using default topics');
         topics = [
           { name: 'JavaScript', questionCount: 1, enabled: true },
           { name: 'React', questionCount: 1, enabled: true },
           { name: 'Node.js', questionCount: 1, enabled: true }
         ];
+      } else if (!topics || topics.length === 0) {
+        console.log('ℹ️ No theoretical topics configured, but machine coding questions present - continuing without theoretical questions');
       }
       
       console.log(`📊 Interview config: ${totalQuestions} total, ${maxMachineCoding} machine coding`);
-      console.log(`📋 Topics: ${topics.map((t: TopicItem) => t.name).join(', ')}`);
+      if (topics && topics.length > 0) {
+        console.log(`📋 Topics: ${topics.map((t: TopicItem) => t.name).join(', ')}`);
+      } else {
+        console.log('📋 Topics: None (machine coding only)');
+      }
+      if (machineQuestions && machineQuestions.length > 0) {
+        console.log(`💻 Machine Coding: ${machineQuestions.map((m: any) => m.topic).join(', ')}`);
+      } else {
+        console.log('💻 Machine Coding: None');
+      }
       
       // Generate questions
       const questions = await this.selectQuestions({
@@ -461,6 +474,10 @@ export class QuestionGenerationService {
       language: dbQuestion.language,
       problemStatement: dbQuestion.problem_statement,
       starterCode: dbQuestion.starter_code,
+      // Extract starter codes for multiple languages
+      starterCodes: dbQuestion.starter_codes ? JSON.parse(dbQuestion.starter_codes) : 
+                    dbQuestion.starter_code ? { [dbQuestion.language || 'javascript']: dbQuestion.starter_code } : 
+                    undefined,
       testCases: dbQuestion.test_cases ? JSON.parse(dbQuestion.test_cases) : [],
       constraints: dbQuestion.constraints ? JSON.parse(dbQuestion.constraints) : [],
       hints: dbQuestion.hints ? JSON.parse(dbQuestion.hints) : []

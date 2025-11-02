@@ -98,12 +98,20 @@ async function seedMachineCodingQuestions() {
           problem_statement: question.description,
           constraints: JSON.stringify(question.constraints),
           examples: JSON.stringify(question.examples),
-          starter_code: question.code_snippets.javascript || question.code_snippets.python || '',
+          // Store starter code for default language (javascript)
+          starter_code: question.code_snippets.javascript || question.code_snippets.python3 || question.code_snippets.python || '',
+          // Store starter codes for all languages as JSON (prioritize python3 over python)
+          starter_codes: JSON.stringify({
+            javascript: question.code_snippets.javascript || '',
+            python: question.code_snippets.python3 || question.code_snippets.python || '', // Use python3 if available, fallback to python
+            java: question.code_snippets.java || '',
+            cpp: question.code_snippets.cpp || ''
+          }),
           test_cases: JSON.stringify(testCases),
           hints: JSON.stringify(question.hints),
           solution: JSON.stringify({
             javascript: question.code_snippets.javascript,
-            python: question.code_snippets.python,
+            python: question.code_snippets.python3 || question.code_snippets.python,
             java: question.code_snippets.java,
             cpp: question.code_snippets.cpp
           }),

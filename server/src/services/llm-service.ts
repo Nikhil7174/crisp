@@ -318,9 +318,23 @@ Respond in JSON format with these exact fields:
         throw new Error('No response from LLM')
       }
 
-      return JSON.parse(content) as CodeAnalysis
+      // Extract JSON from markdown code blocks if present
+      let jsonContent = content.trim()
+      const jsonMatch = jsonContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim()
+      }
+
+      console.log('[analyzeCode] Raw LLM response:', content.substring(0, 200))
+      console.log('[analyzeCode] Extracted JSON:', jsonContent.substring(0, 200))
+
+      return JSON.parse(jsonContent) as CodeAnalysis
     } catch (error) {
       console.error('Error analyzing code:', error)
+      if (error instanceof Error) {
+        console.error('Error details:', error.message)
+        console.error('Error stack:', error.stack)
+      }
       throw error
     }
   }

@@ -204,7 +204,8 @@ model MachineCodingQuestion {
   problem_statement String
   constraints       String?  // JSON array
   examples          String?  // JSON array
-  starter_code      String?
+  starter_code      String?  // Default starter code for backward compatibility
+  starter_codes     String?  // JSON object with starter codes for multiple languages: { "javascript": "...", "python": "...", "java": "...", "cpp": "..." }
   test_cases        String   // JSON array with input/output/hidden flag
   hints             String?  // JSON array
   solution          String?  // JSON object with multiple language solutions
