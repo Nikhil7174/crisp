@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,182 +8,159 @@ datasource db {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
+  id            Int         @id @default(autoincrement())
+  email         String      @unique
   password_hash String
-  full_name   String
-  user_type   UserType
-  phone       String?
-  company     String?
-  resume_data String?
-  created_at  DateTime @default(now())
-  last_login  DateTime?
-  is_active   Boolean  @default(true)
-
-  // Relations
-  interviews             Interview[]     @relation("InterviewUser")
+  full_name     String
+  user_type     UserType
+  phone         String?
+  company       String?
+  resume_data   String?
+  created_at    DateTime    @default(now())
+  last_login    DateTime?
+  is_active     Boolean     @default(true)
+  interviews    Interview[] @relation("InterviewUser")
 
   @@map("users")
 }
 
 model InterviewLink {
-  id           Int      @id @default(autoincrement())
-  created_by   Int
-  link_token   String   @unique
-  title        String
-  description  String?
-  expiry_date  DateTime?
-  max_attempts Int      @default(0)
-  is_active    Boolean  @default(true)
-  
-  // New interview metadata fields
-  job_title                String?
-  job_id                   String?
-  role                     String? // Single role selection
-  years_of_experience      Int?
-  max_interview_questions  Int?
+  id                           Int         @id @default(autoincrement())
+  created_by                   Int
+  link_token                   String      @unique
+  title                        String
+  description                  String?
+  expiry_date                  DateTime?
+  max_attempts                 Int         @default(0)
+  is_active                    Boolean     @default(true)
+  job_title                    String?
+  job_id                       String?
+  role                         String?
+  years_of_experience          Int?
+  max_interview_questions      Int?
   max_machine_coding_questions Int?
-  topics                   String? // JSON string for selected topics
-  machine_questions        String? // JSON string for machine coding questions
-  
-  // Question generation fields
-  generated_questions      String? // JSON string for generated questions
-  questions_approved       Boolean @default(false)
-  
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-
-  // Relations
-  creator   Interviewer  @relation("InterviewLinkCreator", fields: [created_by], references: [id])
-  interviews Interview[] @relation("InterviewLinkInterviews")
+  topics                       String?
+  machine_questions            String?
+  generated_questions          String?
+  questions_approved           Boolean     @default(false)
+  created_at                   DateTime    @default(now())
+  updated_at                   DateTime    @updatedAt
+  creator                      Interviewer @relation("InterviewLinkCreator", fields: [created_by], references: [id])
+  interviews                   Interview[] @relation("InterviewLinkInterviews")
 
   @@map("interview_links")
 }
 
 model Interview {
-  id                     Int      @id @default(autoincrement())
-  session_id             String   @unique
-  user_id                Int?
-  interview_link_id      Int?
-  candidate_name         String
-  candidate_email        String
-  candidate_phone        String?
+  id                       Int                 @id @default(autoincrement())
+  session_id               String              @unique
+  user_id                  Int?
+  interview_link_id        Int?
+  candidate_name           String
+  candidate_email          String
+  candidate_phone          String?
   start_time               DateTime
-  end_time                DateTime?
-  duration                Int?
-  score                   Int?
-  total_questions         Int?
+  end_time                 DateTime?
+  duration                 Int?
+  score                    Int?
+  total_questions          Int?
   correct_answers          Int?
-  time_spent              Int?
-  strengths               String? // JSON string
-  areas_for_improvement   String? // JSON string
-  overall_feedback        String?
-  detailed_answers        String? // JSON string
-  question_analysis       String? // JSON string
-  is_mock_interview       Boolean  @default(false)
-  cheating_detected       Boolean  @default(false)
-  cheating_incidents      String? // JSON string
-  security_agent_connected Boolean @default(false)
-  created_at              DateTime @default(now())
-  updated_at              DateTime @updatedAt
-
-  // Relations
-  user           User?          @relation("InterviewUser", fields: [user_id], references: [id])
-  interview_link InterviewLink? @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
-  questions      InterviewQuestion[]
-  evaluations    Evaluation[]
-  code_snapshots CodeSnapshot[]
+  time_spent               Int?
+  strengths                String?
+  areas_for_improvement    String?
+  overall_feedback         String?
+  detailed_answers         String?
+  question_analysis        String?
+  is_mock_interview        Boolean             @default(false)
+  cheating_detected        Boolean             @default(false)
+  cheating_incidents       String?
+  security_agent_connected Boolean             @default(false)
+  created_at               DateTime            @default(now())
+  updated_at               DateTime            @updatedAt
+  code_snapshots           CodeSnapshot[]
+  evaluations              Evaluation[]
+  questions                InterviewQuestion[]
+  interview_link           InterviewLink?      @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
+  user                     User?               @relation("InterviewUser", fields: [user_id], references: [id])
 
   @@map("interviews")
 }
 
 model InterviewQuestion {
-  id                Int      @id @default(autoincrement())
-  interview_id      Int
-  question_text     String
-  expected_answer   String
-  key_points        String   // JSON array
-  candidate_answer  String?
-  order             Int
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  // Relations
-  interview   Interview   @relation(fields: [interview_id], references: [id], onDelete: Cascade)
-  evaluation  Evaluation?
+  id               Int         @id @default(autoincrement())
+  interview_id     Int
+  question_text    String
+  expected_answer  String
+  key_points       String
+  candidate_answer String?
+  order            Int
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+  evaluation       Evaluation?
+  interview        Interview   @relation(fields: [interview_id], references: [id], onDelete: Cascade)
 
   @@map("interview_questions")
 }
 
 model Evaluation {
-  id                 Int      @id @default(autoincrement())
+  id                 Int               @id @default(autoincrement())
   interview_id       Int
-  question_id        Int      @unique
+  question_id        Int               @unique
   candidate_answer   String
-  key_points_covered String   // JSON array
+  key_points_covered String
   score              Float
   feedback           String
-  needs_follow_up    Boolean  @default(false)
+  needs_follow_up    Boolean           @default(false)
   follow_up_question String?
-  created_at         DateTime @default(now())
-
-  // Relations
-  interview Interview        @relation(fields: [interview_id], references: [id], onDelete: Cascade)
-  question  InterviewQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  created_at         DateTime          @default(now())
+  question           InterviewQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  interview          Interview         @relation(fields: [interview_id], references: [id], onDelete: Cascade)
 
   @@map("evaluations")
 }
 
 model CodeSnapshot {
-  id          Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   interview_id Int
-  code        String
-  timestamp   DateTime @default(now())
-  analysis    String?  // JSON object with analysis data
-
-  // Relations
-  interview Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+  code         String
+  timestamp    DateTime  @default(now())
+  analysis     String?
+  interview    Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
 
   @@map("code_snapshots")
 }
 
 model Interviewer {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  password_hash String
-  full_name    String
-  phone        String?
-  company      String?
-  created_at   DateTime  @default(now())
-  last_login   DateTime?
-  is_active    Boolean   @default(true)
-
-  // Relations
+  id                      Int             @id @default(autoincrement())
+  email                   String          @unique
+  password_hash           String
+  full_name               String
+  phone                   String?
+  company                 String?
+  created_at              DateTime        @default(now())
+  last_login              DateTime?
+  is_active               Boolean         @default(true)
   created_interview_links InterviewLink[] @relation("InterviewLinkCreator")
 
   @@map("interviewers")
 }
 
 model TheoreticalQuestion {
-  id                Int      @id @default(autoincrement())
-  topic             String   // "JavaScript", "React", "Node.js", etc.
-  question_text     String
-  difficulty        String   // "easy", "medium", "hard"
-  category          String   // "Frontend", "Backend", "DSA", etc.
-  
-  // Long-form answer fields
-  expected_answer   String   // Key concepts and jargon to cover
-  explanation       String   // Detailed explanation with technical concepts
-  key_points        String?  // JSON array of important technical points
-  documentation     String?  // JSON array of relevant documentation links
-  
-  // Metadata
-  companies         String?  // JSON array - ["Google", "Amazon"]
-  tags              String?  // JSON array - ["closures", "async"]
-  success_rate      Float?   // Percentage of candidates who answered correctly
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-  
+  id              Int      @id @default(autoincrement())
+  topic           String
+  question_text   String
+  difficulty      String
+  category        String
+  expected_answer String
+  explanation     String
+  key_points      String?
+  documentation   String?
+  companies       String?
+  tags            String?
+  success_rate    Float?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
   @@index([topic, difficulty])
   @@index([category])
   @@map("theoretical_questions")
@@ -194,32 +168,28 @@ model TheoreticalQuestion {
 
 model MachineCodingQuestion {
   id                Int      @id @default(autoincrement())
-  topic             String   // "Array", "String", "Tree", etc.
+  topic             String
   question_text     String
-  difficulty        String   // "easy", "medium", "hard"
-  category          String   // "DSA", "Algorithm", etc.
-  
-  // Coding-specific fields
-  language          String   // "javascript", "python", "java", etc.
+  difficulty        String
+  category          String
+  language          String
   problem_statement String
-  constraints       String?  // JSON array
-  examples          String?  // JSON array
-  starter_code      String?  // Default starter code for backward compatibility
-  starter_codes     String?  // JSON object with starter codes for multiple languages: { "javascript": "...", "python": "...", "java": "...", "cpp": "..." }
-  test_cases        String   // JSON array with input/output/hidden flag
-  hints             String?  // JSON array
-  solution          String?  // JSON object with multiple language solutions
+  constraints       String?
+  examples          String?
+  starter_code      String?
+  test_cases        String
+  hints             String?
+  solution          String?
   time_complexity   String?
   space_complexity  String?
-  
-  // Metadata
-  companies         String?  // JSON array - ["Google", "Amazon"]
-  similar_to        String?  // Reference to similar problems
-  tags              String?  // JSON array - ["array", "two-pointer"]
-  success_rate      Float?   // Percentage of candidates who solved it
+  companies         String?
+  similar_to        String?
+  tags              String?
+  success_rate      Float?
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
-  
+  starter_codes     String?
+
   @@index([topic, difficulty])
   @@index([category])
   @@index([language])
@@ -230,5 +200,3 @@ enum UserType {
   candidate
   interviewer
 }
-
-

@@ -49,6 +49,11 @@ interface GeneratedQuestion {
   }>;
   constraints?: string[];
   hints?: string[];
+  examples?: Array<{
+    input?: string;
+    output?: string;
+    explanation?: string;
+  }> | string;
 }
 
 interface QuestionGenerationModalProps {
@@ -242,6 +247,37 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
               <li key={index}>{constraint}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {question.examples && (
+        <div style={{ marginBottom: spacing.sm }}>
+          <Text strong>Examples:</Text>
+          {Array.isArray(question.examples) ? (
+            question.examples.map((example, index) => (
+              <div key={`${question.id}-example-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px' }}>
+                {example.input && <Text code>Input: {example.input}</Text>}
+                {example.input && example.output && <br />}
+                {example.output && <Text code>Output: {example.output}</Text>}
+                {example.explanation && (
+                  <>
+                    <br />
+                    <Text>Explanation: {example.explanation}</Text>
+                  </>
+                )}
+              </div>
+            ))
+          ) : (
+            <pre style={{ 
+              background: colors.background.secondary, 
+              padding: spacing.sm, 
+              borderRadius: 4,
+              marginTop: spacing.xs,
+              fontSize: '12px',
+              overflow: 'auto'
+            }}>
+              {question.examples}
+            </pre>
+          )}
         </div>
       )}
       {question.starterCode && (

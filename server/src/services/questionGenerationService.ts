@@ -11,6 +11,7 @@ export interface TopicItem {
 
 export interface MachineQuestionItem {
   topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 export interface QuestionGenerationParams {
@@ -45,6 +46,11 @@ export interface GeneratedQuestion {
     isHidden: boolean;
   }>;
   constraints?: string[];
+  examples?: Array<{
+    input?: string;
+    output?: string;
+    explanation?: string;
+  }> | string;
   hints?: string[];
 }
 
@@ -145,22 +151,43 @@ export class QuestionGenerationService {
 
   /**
    * Get machine coding questions from database
+   * Fetches exactly one question for each topic+difficulty combination
    */
   private async getMachineCodingQuestions(machineQuestions: MachineQuestionItem[], maxCount: number): Promise<GeneratedQuestion[]> {
     if (machineQuestions.length === 0 || maxCount === 0) {
       return [];
     }
 
-    const topics = machineQuestions.map(mq => mq.topic);
-    const questions = await prisma.machineCodingQuestion.findMany({
-      where: {
-        topic: { in: topics },
-        solution: { not: null } // Only questions with solutions
-      },
-      take: maxCount
-    });
+    const selectedQuestions: GeneratedQuestion[] = [];
+    
+    // Limit the number of questions to maxCount
+    const questionsToFetch = machineQuestions.slice(0, maxCount);
+    
+    // Fetch one question for each topic+difficulty combination
+    for (const mq of questionsToFetch) {
+      console.log(`🔍 Fetching machine coding question: ${mq.topic} (${mq.difficulty})`);
+      
+      const question = await prisma.machineCodingQuestion.findFirst({
+        where: {
+          topic: mq.topic,
+          difficulty: mq.difficulty,
+          solution: { not: null } // Only questions with solutions
+        },
+        orderBy: {
+          id: 'asc' // Consistent ordering
+        }
+      });
 
-    return questions.map(q => this.transformDatabaseQuestion(q));
+      if (question) {
+        selectedQuestions.push(this.transformDatabaseQuestion(question));
+        console.log(`✅ Found: ${question.question_text.substring(0, 50)}...`);
+      } else {
+        console.warn(`⚠️ No ${mq.difficulty} ${mq.topic} question found in database`);
+      }
+    }
+
+    console.log(`📊 Selected ${selectedQuestions.length} machine coding questions`);
+    return selectedQuestions;
   }
 
   /**
@@ -453,35 +480,181 @@ export class QuestionGenerationService {
   }
 
   /**
+   * Trim examples and constraints sections from problem statement
+   * Removes everything from "Example" or "Constraints:" onwards
+   * Handles patterns like "Example 1:", "Example 2:", "Constraints:", etc.
+   */
+  private trimExamplesAndConstraints(text: string | null | undefined): string {
+    if (!text) return '';
+    
+    // Patterns to match:
+    // - "Example 1:", "Example 2:", "Example 3:", etc. (with or without number)
+    // - "Constraints:" or "Constraints"
+    // These can appear at the start of a line or after newline
+    const examplePattern = /(?:^|\n)\s*Example\s+\d+\s*:?\s*/i;
+    const exampleSimplePattern = /(?:^|\n)\s*Example\s*:?\s*/i;
+    const constraintsPattern = /(?:^|\n)\s*Constraints\s*:?\s*/i;
+    
+    let cleaned = text;
+    
+    // Find the earliest occurrence of any pattern
+    const exampleMatch = cleaned.search(examplePattern);
+    const exampleSimpleMatch = cleaned.search(exampleSimplePattern);
+    const constraintsMatch = cleaned.search(constraintsPattern);
+    
+    // Find the minimum index (earliest occurrence)
+    let minIndex = cleaned.length;
+    if (exampleMatch !== -1) {
+      minIndex = Math.min(minIndex, exampleMatch);
+    }
+    if (exampleSimpleMatch !== -1) {
+      minIndex = Math.min(minIndex, exampleSimpleMatch);
+    }
+    if (constraintsMatch !== -1) {
+      minIndex = Math.min(minIndex, constraintsMatch);
+    }
+    
+    // Trim from the earliest occurrence
+    if (minIndex < cleaned.length) {
+      cleaned = cleaned.substring(0, minIndex).trim();
+    }
+    
+    return cleaned;
+  }
+
+  /**
    * Transform database question to GeneratedQuestion format
    */
   private transformDatabaseQuestion(dbQuestion: any): GeneratedQuestion {
     // Determine if this is a machine coding question based on the table structure
     const isMachineCoding = dbQuestion.problem_statement || dbQuestion.starter_code || dbQuestion.test_cases;
     
+    // Clean problem statement to remove examples and constraints (they're in separate columns)
+    const rawProblemStatement = dbQuestion.problem_statement || '';
+    const cleanedProblemStatement = this.trimExamplesAndConstraints(rawProblemStatement);
+    const rawQuestionText = dbQuestion.question_text || '';
+    const cleanedQuestionText = this.trimExamplesAndConstraints(rawQuestionText);
+    
     return {
       id: `db_${dbQuestion.id}`,
-      question: dbQuestion.question_text || dbQuestion.problem_statement,
+      question: cleanedQuestionText || cleanedProblemStatement,
       type: isMachineCoding ? 'machine_coding' : 'theoretical',
       difficulty: dbQuestion.difficulty as 'easy' | 'medium' | 'hard',
       timeLimit: this.getTimeLimitForDifficulty(dbQuestion.difficulty),
       topic: dbQuestion.topic,
       expectedAnswer: dbQuestion.expected_answer,
       explanation: dbQuestion.explanation,
-      keyPoints: dbQuestion.key_points ? JSON.parse(dbQuestion.key_points) : [],
-      documentation: dbQuestion.documentation ? JSON.parse(dbQuestion.documentation) : [],
+      keyPoints: dbQuestion.key_points ? this.safeJsonParse(dbQuestion.key_points, []) : [],
+      documentation: dbQuestion.documentation ? this.safeJsonParse(dbQuestion.documentation, []) : [],
       // Machine coding specific fields
       language: dbQuestion.language,
-      problemStatement: dbQuestion.problem_statement,
+      problemStatement: cleanedProblemStatement,
       starterCode: dbQuestion.starter_code,
       // Extract starter codes for multiple languages
-      starterCodes: dbQuestion.starter_codes ? JSON.parse(dbQuestion.starter_codes) : 
+      starterCodes: dbQuestion.starter_codes ? this.safeJsonParse(dbQuestion.starter_codes, undefined) : 
                     dbQuestion.starter_code ? { [dbQuestion.language || 'javascript']: dbQuestion.starter_code } : 
                     undefined,
-      testCases: dbQuestion.test_cases ? JSON.parse(dbQuestion.test_cases) : [],
-      constraints: dbQuestion.constraints ? JSON.parse(dbQuestion.constraints) : [],
-      hints: dbQuestion.hints ? JSON.parse(dbQuestion.hints) : []
+      testCases: dbQuestion.test_cases ? this.safeJsonParse(dbQuestion.test_cases, []) : [],
+      constraints: dbQuestion.constraints ? this.safeJsonParse(dbQuestion.constraints, []) : [],
+      examples: dbQuestion.examples ? this.transformExamples(dbQuestion.examples) : undefined,
+      hints: dbQuestion.hints ? this.safeJsonParse(dbQuestion.hints, []) : []
     };
+  }
+
+  /**
+   * Safely parse JSON with fallback value
+   */
+  private safeJsonParse<T>(jsonString: string, fallback: T): T {
+    try {
+      if (!jsonString || jsonString.trim() === '') {
+        return fallback;
+      }
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.warn(`⚠️ Failed to parse JSON: ${jsonString.substring(0, 50)}...`, error);
+      return fallback;
+    }
+  }
+
+  /**
+   * Transform examples from database format to display format
+   * Handles both LeetCode format (with example_text) and already formatted format
+   */
+  private transformExamples(examplesJson: string): Array<{ input?: string; output?: string; explanation?: string }> | undefined {
+    try {
+      if (!examplesJson || examplesJson.trim() === '') {
+        return undefined;
+      }
+
+      const parsed = JSON.parse(examplesJson);
+      
+      // If it's not an array, return undefined
+      if (!Array.isArray(parsed)) {
+        return undefined;
+      }
+
+      // Transform each example
+      return parsed.map((example: any) => {
+        // If already in the expected format (has input/output/explanation directly)
+        if (example.input !== undefined || example.output !== undefined || example.explanation !== undefined) {
+          return {
+            input: example.input,
+            output: example.output,
+            explanation: example.explanation
+          };
+        }
+
+        // If in LeetCode format (has example_text with newlines)
+        if (example.example_text) {
+          return this.parseExampleText(example.example_text);
+        }
+
+        // If it's a string, try to parse it
+        if (typeof example === 'string') {
+          return this.parseExampleText(example);
+        }
+
+        // Unknown format, return empty
+        return {};
+      }).filter((ex: any) => ex.input || ex.output || ex.explanation); // Filter out empty examples
+    } catch (error) {
+      console.warn(`⚠️ Failed to transform examples: ${examplesJson.substring(0, 100)}...`, error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Parse example_text from LeetCode format into structured format
+   * Example: "Input: s = \"aab\"\nOutput: 1\nExplanation: ..."
+   */
+  private parseExampleText(exampleText: string): { input?: string; output?: string; explanation?: string } {
+    if (!exampleText) {
+      return {};
+    }
+
+    const lines = exampleText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const result: { input?: string; output?: string; explanation?: string } = {};
+
+    for (const line of lines) {
+      // Match "Input: ..." or "Input:..." (with or without space after colon)
+      if (line.match(/^Input\s*:/i)) {
+        result.input = line.replace(/^Input\s*:\s*/i, '').trim();
+      }
+      // Match "Output: ..." or "Output:..." (with or without space after colon)
+      else if (line.match(/^Output\s*:/i)) {
+        result.output = line.replace(/^Output\s*:\s*/i, '').trim();
+      }
+      // Match "Explanation: ..." or "Explanation:..." (with or without space after colon)
+      else if (line.match(/^Explanation\s*:/i)) {
+        result.explanation = line.replace(/^Explanation\s*:\s*/i, '').trim();
+      }
+      // If we already have an explanation and this line doesn't match a label, append to explanation
+      else if (result.explanation !== undefined) {
+        result.explanation += ' ' + line;
+      }
+    }
+
+    return result;
   }
 
   /**

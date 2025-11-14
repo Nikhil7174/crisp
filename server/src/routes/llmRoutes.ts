@@ -69,7 +69,7 @@ router.post('/generate-followup', async (req, res) => {
 // Analyze code progress
 router.post('/analyze-code', async (req, res) => {
   try {
-    const { code, problem, language } = req.body
+    const { code, previousCode, problem, language } = req.body
 
     if (!code || !problem) {
       return res.status(400).json({ 
@@ -78,7 +78,7 @@ router.post('/analyze-code', async (req, res) => {
       })
     }
 
-    const analysis = await llmService.analyzeCode(code, problem, language || 'javascript')
+    const analysis = await llmService.analyzeCode(code, problem, language || 'javascript', previousCode || '')
     
     res.json({
       success: true,
@@ -311,7 +311,7 @@ router.post('/evaluate-followup', async (req, res) => {
 // Evaluate coding approach explanation
 router.post('/evaluate-coding-approach', async (req, res) => {
   try {
-    const { explanation, problem } = req.body
+    const { explanation, problem, starterCode = '', currentCode = '' } = req.body
 
     if (!explanation || !problem) {
       return res.status(400).json({ 
@@ -320,7 +320,7 @@ router.post('/evaluate-coding-approach', async (req, res) => {
       })
     }
 
-    const evaluation = await llmService.evaluateCodingApproach(explanation, problem)
+    const evaluation = await llmService.evaluateCodingApproach(explanation, problem, starterCode, currentCode)
     
     res.json({
       success: true,
@@ -331,6 +331,187 @@ router.post('/evaluate-coding-approach', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to evaluate coding approach',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Generate coding clarification
+router.post('/generate-coding-clarification', async (req, res) => {
+  try {
+    const { problem, clarificationRequest, clarificationCount = 0, currentCode = '' } = req.body
+
+    if (!problem || !clarificationRequest) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem and clarification request are required' 
+      })
+    }
+
+    const clarification = await llmService.generateCodingClarification(
+      problem, 
+      clarificationRequest, 
+      clarificationCount,
+      currentCode
+    )
+    
+    res.json({
+      success: true,
+      clarification
+    })
+  } catch (error) {
+    console.error('Error generating coding clarification:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate coding clarification',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Generate monitoring hint (for automatic 60s checks)
+router.post('/generate-monitoring-hint', async (req, res) => {
+  try {
+    const { problem, hintLevel = 1, currentCode = '', previousCode = null, hasCodeChanged = false, codeAnalysis = null } = req.body
+
+    if (!problem) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem is required' 
+      })
+    }
+
+    if (hintLevel < 1 || hintLevel > 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Hint level must be 1 or 2' 
+      })
+    }
+
+    const hint = await llmService.generateMonitoringHint(
+      problem, 
+      hintLevel as 1 | 2, 
+      currentCode,
+      previousCode,
+      hasCodeChanged,
+      codeAnalysis
+    )
+    
+    res.json({
+      success: true,
+      hint
+    })
+  } catch (error) {
+    console.error('Error generating monitoring hint:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate monitoring hint',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Generate coding hint (for manual requests)
+router.post('/generate-coding-hint', async (req, res) => {
+  try {
+    const { problem, hintLevel = 1, currentCode = '', previousCode = null, hasCodeChanged = false, codeAnalysis = null } = req.body
+
+    if (!problem) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem is required' 
+      })
+    }
+
+    if (hintLevel < 1 || hintLevel > 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Hint level must be 1 or 2' 
+      })
+    }
+
+    const hint = await llmService.generateCodingHint(
+      problem, 
+      hintLevel as 1 | 2, 
+      currentCode,
+      previousCode,
+      hasCodeChanged,
+      codeAnalysis
+    )
+    
+    res.json({
+      success: true,
+      hint
+    })
+  } catch (error) {
+    console.error('Error generating coding hint:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate coding hint',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Monitor coding progress
+router.post('/monitor-coding-progress', async (req, res) => {
+  try {
+    const { problem, currentCode, previousCode = '' } = req.body
+
+    if (!problem || !currentCode) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem and current code are required' 
+      })
+    }
+
+    const progress = await llmService.monitorCodingProgress(
+      problem, 
+      currentCode, 
+      previousCode
+    )
+    
+    res.json({
+      success: true,
+      progress
+    })
+  } catch (error) {
+    console.error('Error monitoring coding progress:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to monitor coding progress',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Generate final coding feedback
+router.post('/generate-final-coding-feedback', async (req, res) => {
+  try {
+    const { problem, submittedCode, testResults = [] } = req.body
+
+    if (!problem || !submittedCode) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem and submitted code are required' 
+      })
+    }
+
+    const feedback = await llmService.generateFinalCodingFeedback(
+      problem, 
+      submittedCode, 
+      testResults
+    )
+    
+    res.json({
+      success: true,
+      feedback
+    })
+  } catch (error) {
+    console.error('Error generating final coding feedback:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate final coding feedback',
       details: error instanceof Error ? error.message : 'Unknown error'
     })
   }

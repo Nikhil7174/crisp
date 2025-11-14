@@ -163,25 +163,39 @@ export class InterviewController {
       }));
       
       // Map coding questions (with all coding-specific fields)
-      const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => ({
-        id: q.id,
-        question: q.question,
-        type: 'coding',
-        difficulty: q.difficulty,
-        timeLimit: q.timeLimit || 1800, // Default 30 minutes for coding
-        expectedAnswer: q.expectedAnswer,
-        explanation: q.explanation,
-        keyPoints: q.keyPoints,
-        documentation: q.documentation,
-        language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
-          ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
-          : 'javascript',
-        initialCode: q.starterCode,
-        starterCodes: q.starterCodes, // Include multi-language starter codes
-        expectedOutput: q.testCases?.[0]?.expectedOutput,
-        testCases: q.testCases,
-        instructions: q.problemStatement
-      }));
+      const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => {
+        // Set time limit based on difficulty
+        let timeLimit = 1800; // Default 30 minutes
+        if (q.difficulty === 'easy') {
+          timeLimit = 900; // 15 minutes
+        } else if (q.difficulty === 'medium') {
+          timeLimit = 1500; // 25 minutes
+        } else if (q.difficulty === 'hard') {
+          timeLimit = 1800; // 30 minutes
+        }
+        
+        return {
+          id: q.id,
+          question: q.question,
+          type: 'coding',
+          difficulty: q.difficulty,
+          timeLimit: q.timeLimit || timeLimit,
+          expectedAnswer: q.expectedAnswer,
+          explanation: q.explanation,
+          keyPoints: q.keyPoints,
+          documentation: q.documentation,
+          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
+            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
+            : 'javascript',
+          initialCode: q.starterCode,
+          starterCodes: q.starterCodes, // Include multi-language starter codes
+          expectedOutput: q.testCases?.[0]?.expectedOutput,
+          testCases: q.testCases,
+          instructions: q.problemStatement,
+          constraints: q.constraints,
+          examples: q.examples
+        };
+      });
       
       // Combine for database storage (keeping all questions together in DB)
       const allQuestions = [...mappedTheoretical, ...mappedCoding];
