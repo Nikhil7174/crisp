@@ -88,21 +88,22 @@ export const LinkCandidates: React.FC = () => {
       console.log('API Response:', data);
 
       if (data.success) {
+        const candidateList = Array.isArray(data.candidates) ? data.candidates : [];
         setLinkInfo(data.link);
-        setCandidates(data.candidates);
+        setCandidates(candidateList);
 
         // Calculate statistics
-        const completedInterviews = data.candidates.filter((c: Candidate) => c.end_time).length;
+        const completedInterviews = candidateList.filter((c: Candidate) => c.end_time).length;
         const averageScore =
-          data.candidates.length > 0
+          candidateList.length > 0
             ? Math.round(
-                data.candidates.reduce((sum: number, c: Candidate) => sum + (c.score || 0), 0) /
-                  data.candidates.length
+                candidateList.reduce((sum: number, c: Candidate) => sum + (c.score || 0), 0) /
+                  candidateList.length
               )
             : 0;
 
         setStatistics({
-          totalCandidates: data.candidates.length,
+          totalCandidates: candidateList.length,
           averageScore,
           completedInterviews,
         });
@@ -119,10 +120,11 @@ export const LinkCandidates: React.FC = () => {
 
   const handleViewDetails = (candidate: Candidate) => {
     console.log('Navigating to interview details for candidate:', candidate);
+    console.log('Link ID:', linkId);
     console.log('Interview ID:', candidate.id);
-    console.log('Navigation URL:', `/interviewer/interview/${candidate.id}`);
-    // Navigate to interview details page
-    navigate(`/interviewer/interview/${candidate.id}`);
+    console.log('Navigation URL:', `/interviewer/link/${linkId}/candidates/candidate/${candidate.id}`);
+    // Navigate to interview details page (nested under the link's candidates)
+    navigate(`/interviewer/link/${linkId}/candidates/candidate/${candidate.id}`);
   };
 
   const columns = [

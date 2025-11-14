@@ -40,6 +40,11 @@ router.get('/links/:id/candidates', (req: Request, res: Response) => {
     interviewerController.getCandidatesByLink(req, res);
 });
 
+// Get interview details
+router.get('/interview/:id', (req: Request, res: Response) => {
+    interviewerController.getInterviewDetails(req, res);
+});
+
 // Get interview link details with questions
 router.get('/interview-link/:linkId', authMiddleware, (req: Request, res: Response) => {
     interviewerController.getInterviewLinkDetails(req, res);

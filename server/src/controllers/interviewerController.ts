@@ -550,9 +550,16 @@ export class InterviewerController {
 
             const candidates = await this.dbService.getCandidatesByInterviewLink(linkId);
 
+            // Format link info for frontend
+            const linkInfo = {
+                title: existingLink.title,
+                description: existingLink.description,
+            };
+
             res.json({
                 success: true,
-                data: candidates
+                candidates: candidates,
+                link: linkInfo
             });
 
         } catch (error) {

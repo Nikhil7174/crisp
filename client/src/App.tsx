@@ -19,6 +19,7 @@ import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
 import { CreateInterview } from './pages/CreateInterview';
+import { InterviewDetails } from './pages/InterviewDetails';
 import './utils/clearStorage'; // Clear old Redux state on startup
 
 const App: React.FC = () => {
@@ -61,6 +62,14 @@ const App: React.FC = () => {
                   element={
                     <ProtectedRoute allowedUserTypes={['interviewer']}>
                       <LinkCandidates />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/interviewer/link/:linkId/candidates/candidate/:id"
+                  element={
+                    <ProtectedRoute allowedUserTypes={['interviewer']}>
+                      <InterviewDetails />
                     </ProtectedRoute>
                   }
                 />
