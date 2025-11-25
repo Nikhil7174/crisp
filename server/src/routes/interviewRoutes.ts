@@ -39,4 +39,16 @@ router.put('/:sessionId/cheating-detection', authMiddleware, (req: Request, res:
     interviewController.updateCheatingDetection(req, res);
 });
 
+// Final evaluation endpoint - optional authentication (same pattern as save-results)
+router.post('/final-evaluation', (req: Request, res: Response, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        authMiddleware(req, res, () => {
+            interviewController.saveFinalEvaluation(req, res);
+        });
+    } else {
+        interviewController.saveFinalEvaluation(req, res);
+    }
+});
+
 export default router;

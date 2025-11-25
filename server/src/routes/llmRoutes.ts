@@ -411,10 +411,10 @@ router.post('/generate-monitoring-hint', async (req, res) => {
   }
 })
 
-// Generate coding hint (for manual requests)
-router.post('/generate-coding-hint', async (req, res) => {
+// Generate coding approach hint (for approach phase - manual or auto)
+router.post('/generate-coding-approach-hint', async (req, res) => {
   try {
-    const { problem, hintLevel = 1, currentCode = '', previousCode = null, hasCodeChanged = false, codeAnalysis = null } = req.body
+    const { problem, hintLevel = 1 } = req.body
 
     if (!problem) {
       return res.status(400).json({ 
@@ -430,13 +430,9 @@ router.post('/generate-coding-hint', async (req, res) => {
       })
     }
 
-    const hint = await llmService.generateCodingHint(
+    const hint = await llmService.generateCodingApproachHint(
       problem, 
-      hintLevel as 1 | 2, 
-      currentCode,
-      previousCode,
-      hasCodeChanged,
-      codeAnalysis
+      hintLevel as 1 | 2
     )
     
     res.json({
@@ -444,10 +440,10 @@ router.post('/generate-coding-hint', async (req, res) => {
       hint
     })
   } catch (error) {
-    console.error('Error generating coding hint:', error)
+    console.error('Error generating coding approach hint:', error)
     res.status(500).json({
       success: false,
-      error: 'Failed to generate coding hint',
+      error: 'Failed to generate coding approach hint',
       details: error instanceof Error ? error.message : 'Unknown error'
     })
   }

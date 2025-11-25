@@ -979,104 +979,68 @@ Respond with just the message (no preamble).`
     return fallbackHints[hintLevel]
   }
 
-  // Generate escalating hints for coding problems with context (for manual requests)
-  async generateCodingHint(
+  // Generate hints for coding approach phase (before any code is written)
+  async generateCodingApproachHint(
     problem: any, 
-    hintLevel: 1 | 2, 
-    currentCode: string, 
-    previousCode?: string | null,
-    hasCodeChanged?: boolean,
-    codeAnalysis?: any | null
+    hintLevel: 1 | 2
   ): Promise<string> {
     try {
-      const hasPreviousCode = previousCode && previousCode.trim().length > 0
-      const codeComparison = hasPreviousCode ? 
-        `\n\nCode from 1 minute ago (or starter code):\n\`\`\`\n${previousCode}\n\`\`\`` : 
-        ''
-      
-      // Include code analysis if available
-      const analysisContext = codeAnalysis ? 
-        `\n\nCode Analysis:
-- Progress: ${codeAnalysis.progress}%
-- Approach: ${codeAnalysis.approach}
-- Code Quality: ${codeAnalysis.codeQuality}
-- Issues found: ${codeAnalysis.issues?.length > 0 ? codeAnalysis.issues.join('; ') : 'None detected'}
-` : ''
-      
       const systemPrompt = hintLevel === 1 ? 
-        `You are an AI interviewer providing the FIRST hint for a coding problem during code monitoring.
+        `You are an AI interviewer providing the FIRST hint during the APPROACH PHASE (before any code is written).
 
 Problem: ${problem.title}
 Description: ${problem.description}
 Constraints: ${problem.constraints?.join(', ') || 'See problem description'}
 
-Current code: ${currentCode || 'No code yet'}${codeComparison}${analysisContext}
+IMPORTANT: The candidate has NOT written any code yet. Focus on:
+- Problem-solving approach and strategy
+- Data structures that might be useful
+- Algorithmic techniques to consider
+- Key insights about the problem
 
-IMPORTANT INSTRUCTIONS - ADAPT BASED ON CODE STATE:
-1. **If code is mostly complete (progress > 80%)**: Give encouraging feedback like "Your solution looks good! Just check edge cases" or "You're almost there - review your boundary conditions"
-2. **If code has good progress (50-80%)**: Point out what's missing or what needs to be fixed next
-3. **If code has issues (progress < 50%)**: Analyze what's WRONG with their current approach
-4. **If approach is correct but incomplete**: Tell them what's NEXT to implement
-5. **If no code or minimal code**: Suggest what data structure might be useful
-6. Be specific and helpful - point out actual issues in their code if any
-7. Keep it brief (1-2 sentences)
-8. Don't give away the complete solution
-9. **CRITICAL**: If code looks complete/correct, acknowledge it positively rather than giving generic hints
+DO NOT mention code, implementation, or "you haven't added code yet"
+DO NOT reference starter code or function signatures
+Focus purely on the problem-solving approach
 
-HINT LEVEL 1: Focus on:
-- Encouragement if code is good (progress > 80%)
-- What's wrong with current approach (if code exists and has issues)
-- What's the next step (if approach is correct but incomplete)
-- Data structure suggestion (if no meaningful code yet)
-- Examples: 
-  * Good code: "Your solution looks solid! Double-check edge cases like empty inputs"
-  * Issues: "Your loop condition is incorrect - you're checking X when you should check Y"
-  * Incomplete: "You're on the right track, now you need to handle the edge case where..."
-  * No code: "Try using a hashmap to track..." or "Consider a two-pointer approach"
+HINT LEVEL 1: Suggest data structures or high-level approach
+Examples: "Consider separating the digits into odd and even groups" or "Think about using a stack to track..."
+
+Keep it brief (1-2 sentences)
+Don't give away the complete solution
 
 Respond with just the hint text (no preamble).`
       :
-        `You are an AI interviewer providing the SECOND hint for a coding problem during code monitoring.
+        `You are an AI interviewer providing the SECOND hint during the APPROACH PHASE (before any code is written).
 
 Problem: ${problem.title}
 Description: ${problem.description}
 Constraints: ${problem.constraints?.join(', ') || 'See problem description'}
 
-Current code: ${currentCode || 'No code yet'}${codeComparison}${analysisContext}
+IMPORTANT: The candidate has NOT written any code yet. Focus on:
+- Problem-solving approach and strategy
+- Data structures that might be useful
+- Algorithmic techniques to consider
+- Key insights about the problem
 
-IMPORTANT INSTRUCTIONS - ADAPT BASED ON CODE STATE:
-1. **If code is mostly complete (progress > 80%)**: Give encouraging feedback like "Your solution looks good! Just verify your logic handles all test cases" or "Great progress! Make sure to test with the provided examples"
-2. **If code has good progress (50-80%)**: Point out specific issues or what's missing
-3. **If code has issues (progress < 50%)**: Analyze what's WRONG with their current approach
-4. **If approach is correct but incomplete**: Tell them what's NEXT to implement
-5. **If no code or minimal code**: Suggest what algorithm/technique might be useful
-6. Be specific and helpful - point out actual issues in their code if any
-7. Keep it brief (1-2 sentences)
-8. Don't give away the complete solution
-9. **CRITICAL**: If code looks complete/correct, acknowledge it positively rather than giving generic hints
+DO NOT mention code, implementation, or "you haven't added code yet"
+DO NOT reference starter code or function signatures
+Focus purely on the problem-solving approach
 
 HINT LEVEL 2: Focus on:
-- Encouragement if code is good (progress > 80%)
-- What's wrong with current approach (if code exists and has issues)
-- What's the next step (if approach is correct but incomplete)
-- Algorithm/technique suggestion (if no meaningful code yet)
-- Examples:
-  * Good code: "Your implementation looks correct! Test it with the provided examples to ensure it works"
-  * Issues: "You're missing the base case for your recursion" or "The time complexity can be improved by using binary search instead"
-  * Incomplete: "Consider dynamic programming - think about overlapping subproblems"
-  * No code: "Try a sliding window technique"
+- More specific algorithmic techniques
+- Time/space complexity considerations
+- Edge cases to think about
+- Examples: "Consider dynamic programming - think about overlapping subproblems" or "A two-pointer approach might help optimize the solution"
+
+Keep it brief (1-2 sentences)
+Don't give away the complete solution
 
 Respond with just the hint text (no preamble).`
 
-      const userPrompt = hasCodeChanged ? 
-        `The candidate has been working on this code. They seem stuck. Provide a helpful hint based on their current code and what they had before.` :
-        `The candidate hasn't made significant code changes. Provide a hint to help them get started.`
-
       const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
+        model: this.config.model || 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'system', content: systemPrompt }
         ],
         temperature: 0.7,
         max_tokens: 200
@@ -1086,7 +1050,7 @@ Respond with just the hint text (no preamble).`
         'Think about what data structure would help you solve this efficiently.' :
         'Consider what algorithm or technique is commonly used for this type of problem.')
     } catch (error) {
-      console.error('Error generating coding hint:', error)
+      console.error('Error generating coding approach hint:', error)
       return hintLevel === 1 ? 
         'Think about what data structure would help you solve this efficiently.' :
         'Consider what algorithm or technique is commonly used for this type of problem.'

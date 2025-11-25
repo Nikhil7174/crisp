@@ -80,6 +80,7 @@ model Interview {
   code_snapshots           CodeSnapshot[]
   evaluations              Evaluation[]
   questions                InterviewQuestion[]
+  final_evaluation         FinalEvaluation?
   interview_link           InterviewLink?      @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
   user                     User?               @relation("InterviewUser", fields: [user_id], references: [id])
 
@@ -194,6 +195,34 @@ model MachineCodingQuestion {
   @@index([category])
   @@index([language])
   @@map("machine_coding_questions")
+}
+
+model FinalEvaluation {
+  id                          Int       @id @default(autoincrement())
+  interview_id                Int       @unique
+  session_id                  String
+  candidate_id                String
+  interview_link_id           Int?
+  start_time                  DateTime
+  end_time                    DateTime
+  duration                    Int       // milliseconds
+  full_conversation_history   String    // JSON string of ConversationMessage[]
+  theoretical_section         String    // JSON string of theoretical section data
+  coding_section              String    // JSON string of coding section data
+  total_score                 Float
+  strengths                   String    // JSON string of string[]
+  areas_for_improvement       String    // JSON string of string[]
+  overall_feedback            String
+  hint_request_count          Int       @default(0)
+  clarification_request_count Int       @default(0)
+  follow_up_count             Int       @default(0)
+  average_time_per_question   Float?
+  average_time_per_coding_problem Float?
+  created_at                  DateTime  @default(now())
+  updated_at                  DateTime  @updatedAt
+  interview                   Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("final_evaluations")
 }
 
 enum UserType {

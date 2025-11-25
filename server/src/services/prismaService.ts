@@ -507,6 +507,135 @@ export class PrismaService {
         });
     }
 
+    // Final Evaluation methods
+    public async saveFinalEvaluation(payload: {
+        sessionId: string;
+        candidateId: string;
+        interviewLinkId?: number;
+        startTime: string;
+        endTime: string;
+        duration: number;
+        fullConversationHistory: any[];
+        theoreticalSection: any;
+        codingSection: any;
+        totalScore: number;
+        strengths: string[];
+        areasForImprovement: string[];
+        overallFeedback: string;
+        hintRequestCount: number;
+        clarificationRequestCount: number;
+        followUpCount: number;
+        averageTimePerQuestion: number;
+        averageTimePerCodingProblem: number;
+    }) {
+        console.log('=== PRISMA SAVE FINAL EVALUATION DEBUG ===');
+        console.log('Session ID:', payload.sessionId);
+        console.log('Candidate ID:', payload.candidateId);
+        console.log('Interview Link ID:', payload.interviewLinkId);
+
+        // Find the interview by session_id
+        const interview = await prisma.interview.findUnique({
+            where: { session_id: payload.sessionId },
+        });
+
+        if (!interview) {
+            console.error('❌ Interview not found for session ID:', payload.sessionId);
+            console.error('❌ Searching for similar session IDs...');
+            const similarInterviews = await prisma.interview.findMany({
+                where: { 
+                    session_id: { contains: payload.sessionId.substring(0, 20) }
+                },
+                select: { id: true, session_id: true, candidate_name: true, created_at: true },
+                take: 5
+            });
+            console.error('❌ Similar interviews found:', similarInterviews);
+            throw new Error(`Interview not found for session ID: ${payload.sessionId}`);
+        }
+        
+        console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
+
+        const data = {
+            interview_id: interview.id,
+            session_id: payload.sessionId,
+            candidate_id: payload.candidateId,
+            interview_link_id: payload.interviewLinkId || null,
+            start_time: new Date(payload.startTime),
+            end_time: new Date(payload.endTime),
+            duration: payload.duration,
+            full_conversation_history: JSON.stringify(payload.fullConversationHistory),
+            theoretical_section: JSON.stringify(payload.theoreticalSection),
+            coding_section: JSON.stringify(payload.codingSection),
+            total_score: payload.totalScore,
+            strengths: JSON.stringify(payload.strengths),
+            areas_for_improvement: JSON.stringify(payload.areasForImprovement),
+            overall_feedback: payload.overallFeedback,
+            hint_request_count: payload.hintRequestCount,
+            clarification_request_count: payload.clarificationRequestCount,
+            follow_up_count: payload.followUpCount,
+            average_time_per_question: payload.averageTimePerQuestion,
+            average_time_per_coding_problem: payload.averageTimePerCodingProblem,
+        };
+
+        try {
+            const result = await prisma.finalEvaluation.upsert({
+                where: { interview_id: interview.id },
+                update: data,
+                create: data,
+            });
+
+            console.log(`✅ Final evaluation saved for interview ${interview.id}`);
+            console.log(`✅ Final evaluation ID: ${result.id}`);
+            console.log(`✅ Full conversation history saved: ${payload.fullConversationHistory.length} messages`);
+            console.log(`✅ Theoretical conversations: ${payload.theoreticalSection?.conversations?.length || 0}`);
+            console.log(`✅ Coding conversations: ${payload.codingSection?.conversations?.length || 0}`);
+            console.log('=== END PRISMA SAVE FINAL EVALUATION DEBUG ===');
+            return result;
+        } catch (dbError: any) {
+            console.error('❌ Database error saving final evaluation:');
+            console.error('❌ Error code:', dbError.code);
+            console.error('❌ Error message:', dbError.message);
+            console.error('❌ Error meta:', JSON.stringify(dbError.meta, null, 2));
+            throw dbError;
+        }
+    }
+
+    public async getFinalEvaluationBySessionId(sessionId: string) {
+        const interview = await prisma.interview.findUnique({
+            where: { session_id: sessionId },
+            include: { final_evaluation: true },
+        });
+
+        if (!interview || !interview.final_evaluation) {
+            return null;
+        }
+
+        // Parse JSON fields
+        return {
+            id: interview.final_evaluation.id,
+            interviewId: interview.final_evaluation.interview_id,
+            sessionId: interview.final_evaluation.session_id,
+            candidateId: interview.final_evaluation.candidate_id,
+            interviewLinkId: interview.final_evaluation.interview_link_id,
+            startTime: interview.final_evaluation.start_time,
+            endTime: interview.final_evaluation.end_time,
+            duration: interview.final_evaluation.duration,
+            fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
+            theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
+            codingSection: JSON.parse(interview.final_evaluation.coding_section),
+            totalScore: interview.final_evaluation.total_score,
+            strengths: JSON.parse(interview.final_evaluation.strengths),
+            areasForImprovement: JSON.parse(interview.final_evaluation.areas_for_improvement),
+            overallFeedback: interview.final_evaluation.overall_feedback,
+            hintRequestCount: interview.final_evaluation.hint_request_count,
+            clarificationRequestCount: interview.final_evaluation.clarification_request_count,
+            followUpCount: interview.final_evaluation.follow_up_count,
+            averageTimePerQuestion: interview.final_evaluation.average_time_per_question,
+            averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
+            createdAt: interview.final_evaluation.created_at,
+            updatedAt: interview.final_evaluation.updated_at,
+        };
+    }
+
     // Cleanup method
     public async disconnect() {
         await prisma.$disconnect();

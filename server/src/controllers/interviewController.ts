@@ -4,7 +4,7 @@ import { PrismaService } from '../services/prismaService';
 import { CodeExecutionService } from '../services/codeExecutionService';
 import { SecurityService } from '../services/securityService';
 import { QuestionGenerationService } from '../services/questionGenerationService';
-import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults } from '../models/types';
+import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults, FinalEvaluationPayload } from '../models/types';
 
 export class InterviewController {
   private openaiService: OpenAIService;
@@ -406,6 +406,109 @@ export class InterviewController {
       res.status(500).json({
         success: false,
         error: 'Failed to update cheating detection data',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Save final evaluation data (conversation history and structured evaluation)
+   */
+  async saveFinalEvaluation(req: Request, res: Response): Promise<void> {
+    try {
+      const payload: FinalEvaluationPayload = req.body;
+      const userId = (req as any).user?.userId; // Optional, only if authenticated
+
+      console.log('=== SAVE FINAL EVALUATION DEBUG ===');
+      console.log('Request received at:', new Date().toISOString());
+      console.log('User ID:', userId);
+      console.log('Session ID:', payload.sessionId);
+      console.log('Candidate ID:', payload.candidateId);
+      console.log('Interview Link ID:', payload.interviewLinkId);
+      console.log('Total Score:', payload.totalScore);
+      console.log('Start Time:', payload.startTime);
+      console.log('End Time:', payload.endTime);
+      console.log('Duration:', payload.duration, 'ms');
+      console.log('Full Conversation History Length:', payload.fullConversationHistory?.length || 0);
+      console.log('Theoretical Section - Questions:', payload.theoreticalSection?.totalQuestions || 0);
+      console.log('Theoretical Section - Conversations:', payload.theoreticalSection?.conversations?.length || 0);
+      console.log('Coding Section - Problems:', payload.codingSection?.totalProblems || 0);
+      console.log('Coding Section - Conversations:', payload.codingSection?.conversations?.length || 0);
+      console.log('Hint Request Count:', payload.hintRequestCount || 0);
+      console.log('Clarification Request Count:', payload.clarificationRequestCount || 0);
+      console.log('Follow Up Count:', payload.followUpCount || 0);
+      console.log('=== END SAVE FINAL EVALUATION DEBUG ===');
+
+      // Validate required fields
+      if (!payload.sessionId) {
+        res.status(400).json({ 
+          success: false,
+          error: 'Session ID is required' 
+        });
+        return;
+      }
+
+      if (!payload.candidateId) {
+        res.status(400).json({ 
+          success: false,
+          error: 'Candidate ID is required' 
+        });
+        return;
+      }
+
+      if (!payload.startTime || !payload.endTime) {
+        res.status(400).json({ 
+          success: false,
+          error: 'Start time and end time are required' 
+        });
+        return;
+      }
+
+      // Save to database
+      try {
+        await this.dbService.saveFinalEvaluation({
+          sessionId: payload.sessionId,
+          candidateId: payload.candidateId,
+          interviewLinkId: payload.interviewLinkId,
+          startTime: payload.startTime,
+          endTime: payload.endTime,
+          duration: payload.duration,
+          fullConversationHistory: payload.fullConversationHistory,
+          theoreticalSection: payload.theoreticalSection,
+          codingSection: payload.codingSection,
+          totalScore: payload.totalScore,
+          strengths: payload.strengths,
+          areasForImprovement: payload.areasForImprovement,
+          overallFeedback: payload.overallFeedback,
+          hintRequestCount: payload.hintRequestCount,
+          clarificationRequestCount: payload.clarificationRequestCount,
+          followUpCount: payload.followUpCount,
+          averageTimePerQuestion: payload.averageTimePerQuestion,
+          averageTimePerCodingProblem: payload.averageTimePerCodingProblem,
+        });
+
+        console.log('✅ Final evaluation saved to database successfully');
+      } catch (dbError) {
+        console.error('❌ Error saving final evaluation to database:', dbError);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to save final evaluation',
+          message: dbError instanceof Error ? dbError.message : 'Unknown database error'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'Final evaluation saved successfully',
+        sessionId: payload.sessionId
+      });
+
+    } catch (error) {
+      console.error('Save final evaluation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save final evaluation',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
