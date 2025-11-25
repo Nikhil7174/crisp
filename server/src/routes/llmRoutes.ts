@@ -310,17 +310,17 @@ router.post('/evaluate-followup', async (req, res) => {
 
 // Evaluate coding approach explanation
 router.post('/evaluate-coding-approach', async (req, res) => {
-  try {
-    const { explanation, problem, starterCode = '', currentCode = '' } = req.body
+    try {
+      const { explanation, problem, starterCode = '', currentCode = '', isFirstApproach = false } = req.body
 
-    if (!explanation || !problem) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Explanation and problem are required' 
-      })
-    }
+      if (!explanation || !problem) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Explanation and problem are required' 
+        })
+      }
 
-    const evaluation = await llmService.evaluateCodingApproach(explanation, problem, starterCode, currentCode)
+      const evaluation = await llmService.evaluateCodingApproach(explanation, problem, starterCode, currentCode, isFirstApproach)
     
     res.json({
       success: true,

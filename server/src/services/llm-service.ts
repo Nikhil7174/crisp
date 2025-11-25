@@ -115,7 +115,17 @@ export class LLMService extends EventEmitter {
     })
     
     try {
-      const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
+      const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
+
+IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
+- This is a verbal interview - the candidate is speaking, not typing
+- The candidate's answer comes from speech-to-text (STT) transcription
+- STT transcription can have spelling errors, especially for technical jargon
+- Examples: "componentDidMount" might be transcribed as "cmponent debt mount", "useEffect" as "use effect", "useState" as "use state"
+- DO NOT penalize for spelling errors that look similar to technical terms
+- Focus on understanding the MEANING and CONCEPTS, not exact spelling
+- If a misspelled word sounds similar to a technical term, assume the candidate meant the correct term
+- Only flag actual grammatical errors in sentence structure, not STT transcription errors
 
 QUESTION: ${question.question}
 EXPECTED ANSWER: ${question.expectedAnswer}
@@ -421,7 +431,17 @@ Respond naturally and professionally. Keep responses concise but helpful.`
     })
     
     try {
-      const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a technical interview. This is a follow-up question based on the original question.
+      const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
+
+IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
+- This is a verbal interview - the candidate is speaking, not typing
+- The candidate's answer comes from speech-to-text (STT) transcription
+- STT transcription can have spelling errors, especially for technical jargon
+- Examples: "componentDidMount" might be transcribed as "cmponent debt mount", "useEffect" as "use effect", "useState" as "use state"
+- DO NOT penalize for spelling errors that look similar to technical terms
+- Focus on understanding the MEANING and CONCEPTS, not exact spelling
+- If a misspelled word sounds similar to a technical term, assume the candidate meant the correct term
+- Only flag actual grammatical errors in sentence structure, not STT transcription errors
 
 ORIGINAL QUESTION: ${originalQuestion.question}
 ORIGINAL CANDIDATE ANSWER: ${originalCandidateAnswer}
@@ -692,7 +712,7 @@ Respond with just the clarified question.`
   }
 
   // Evaluate coding approach explanation with scoring
-  async evaluateCodingApproach(explanation: string, problem: any, starterCode: string = '', currentCode: string = ''): Promise<{
+  async evaluateCodingApproach(explanation: string, problem: any, starterCode: string = '', currentCode: string = '', isFirstApproach: boolean = false): Promise<{
     isApproach: boolean
     score?: number
     isCorrect?: boolean
@@ -704,7 +724,17 @@ Respond with just the clarified question.`
       const starterContext = starterCode ? `\n\nStarter code provided to candidate:\n\`\`\`\n${starterCode}\n\`\`\`` : ''
       const codeContext = currentCode ? `\n\nCurrent code written by candidate:\n\`\`\`\n${currentCode}\n\`\`\`` : ''
       
-      const systemPrompt = `You are an AI interviewer evaluating a candidate's approach to a coding problem.
+      const systemPrompt = `You are an AI interviewer evaluating a candidate's approach to a coding problem in a VOICE INTERVIEW.
+
+IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
+- This is a verbal interview - the candidate is speaking, not typing
+- The candidate's explanation comes from speech-to-text (STT) transcription
+- STT transcription can have spelling errors, especially for technical jargon
+- Examples: "componentDidMount" might be transcribed as "cmponent debt mount", "useEffect" as "use effect", "useState" as "use state", "binary search" as "binary search" or "binary research"
+- DO NOT penalize for spelling errors that look similar to technical terms
+- Focus on understanding the MEANING and CONCEPTS, not exact spelling
+- If a misspelled word sounds similar to a technical term, assume the candidate meant the correct term
+- Only flag actual grammatical errors in sentence structure, not STT transcription errors
 
 Problem: ${problem.title}
 Description: ${problem.description}
@@ -724,6 +754,9 @@ Analyze their statement and determine:
 SCORING RULES FOR APPROACH:
 - Score > 70 OR uses correct algo AND data structure: Give positive feedback "You're on the right track! Go ahead and implement it."
 - Score <= 70: Provide constructive feedback about what's wrong or missing. Be specific: "That's an interesting approach, but you might want to consider [specific issue] or [missing element]." DO NOT ask them to rethink - just point out what needs attention.
+
+IMPORTANT - IMPLEMENTATION PROMPT:
+${isFirstApproach ? '- This is the FIRST time the candidate is explaining their approach. Your feedback MUST end with a prompt to start implementing, such as "Please start implementing your solution." or "Go ahead and start coding."' : '- This is NOT the first approach explanation. Do NOT include a prompt to start implementing in your feedback - just provide the evaluation feedback.'}
 
 If it's a clarification request:
 - Provide a brief, helpful answer to their question without leaking the solution
