@@ -40,6 +40,15 @@ interface Interview {
   correct_answers: number;
   time_spent: number;
   created_at: string;
+  finalEvaluation?: {
+    totalScore: number;
+    duration: number;
+    llmEvaluation?: {
+      overall: {
+        score: number;
+      };
+    } | null;
+  } | null;
 }
 
 interface LinkInfo {
@@ -136,13 +145,31 @@ export const LinkCandidates: React.FC = () => {
     },
     {
       title: 'Score',
-      dataIndex: 'score',
       key: 'score',
       width: 100,
-      render: (score: number) => (
-        <Tag color={score >= 70 ? 'green' : score >= 50 ? 'orange' : 'red'}>{score}%</Tag>
-      ),
-      sorter: (a: Interview, b: Interview) => a.score - b.score,
+      render: (record: Interview) => {
+        // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
+        const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? record.finalEvaluation?.totalScore 
+          ?? record.score 
+          ?? 0;
+        return (
+          <Tag color={overallScore >= 70 ? 'green' : overallScore >= 50 ? 'orange' : 'red'}>
+            {Math.round(overallScore)}%
+          </Tag>
+        );
+      },
+      sorter: (a: Interview, b: Interview) => {
+        const scoreA = a.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? a.finalEvaluation?.totalScore 
+          ?? a.score 
+          ?? 0;
+        const scoreB = b.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? b.finalEvaluation?.totalScore 
+          ?? b.score 
+          ?? 0;
+        return scoreA - scoreB;
+      },
     },
     {
       title: 'Questions',

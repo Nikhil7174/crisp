@@ -48,6 +48,15 @@ interface Candidate {
   detailed_answers: any[];
   question_analysis: any[];
   created_at: string;
+  finalEvaluation?: {
+    totalScore: number;
+    duration: number;
+    llmEvaluation?: {
+      overall: {
+        score: number;
+      };
+    } | null;
+  } | null;
 }
 
 interface LinkInfo {
@@ -154,16 +163,22 @@ export const LinkCandidates: React.FC = () => {
     },
     {
       title: 'Score',
-      dataIndex: 'score',
       key: 'score',
-      render: (score: number) => (
-        <Tag
-          icon={<TrophyOutlined />}
-          color={score >= 70 ? 'green' : score >= 50 ? 'orange' : 'red'}
-        >
-          {score}%
-        </Tag>
-      ),
+      render: (_: any, record: Candidate) => {
+        // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
+        const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? record.finalEvaluation?.totalScore 
+          ?? record.score 
+          ?? 0;
+        return (
+          <Tag
+            icon={<TrophyOutlined />}
+            color={overallScore >= 70 ? 'green' : overallScore >= 50 ? 'orange' : 'red'}
+          >
+            {Math.round(overallScore)}%
+          </Tag>
+        );
+      },
     },
     {
       title: 'Duration',
@@ -211,7 +226,7 @@ export const LinkCandidates: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: spacing.xl, background: '#f5f5f5', minHeight: '100vh' }}>
+    <div style={{ padding: spacing.xl, background: '#fafafa', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ marginBottom: spacing.xl }}>
         <Button

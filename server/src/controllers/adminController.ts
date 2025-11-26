@@ -41,7 +41,14 @@ export class InterviewerController {
             const totalInterviews = interviews.length;
             const totalCandidates = new Set(interviews.map(i => i.candidate_email)).size;
             const averageScore = totalInterviews > 0
-                ? Math.round(interviews.reduce((sum, i) => sum + (i.score || 0), 0) / totalInterviews)
+                ? Math.round(interviews.reduce((sum, i) => {
+                    // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
+                    const score = (i as any).finalEvaluation?.llmEvaluation?.overall?.score 
+                        || (i as any).finalEvaluation?.totalScore 
+                        || i.score 
+                        || 0;
+                    return sum + score;
+                }, 0) / totalInterviews)
                 : 0;
             const completedInterviews = interviews.filter(i => i.end_time).length;
             

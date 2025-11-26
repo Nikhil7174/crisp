@@ -513,4 +513,69 @@ router.post('/generate-final-coding-feedback', async (req, res) => {
   }
 })
 
+// Generate comprehensive evaluation from conversation history
+router.post('/generate-comprehensive-evaluation', async (req, res) => {
+  try {
+    const { conversationHistory, interviewId } = req.body
+
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Conversation history array is required' 
+      })
+    }
+
+    if (conversationHistory.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Conversation history cannot be empty' 
+      })
+    }
+
+    // Check if LLM evaluation already exists
+    if (interviewId) {
+      const { PrismaService } = await import('../services/prismaService')
+      const dbService = PrismaService.getInstance()
+      const interview = await dbService.getInterviewById(interviewId)
+      
+      if (interview?.finalEvaluation && (interview.finalEvaluation as any).llmEvaluation) {
+        console.log('✅ Returning cached LLM evaluation for interview', interviewId)
+        return res.json({
+          success: true,
+          evaluation: (interview.finalEvaluation as any).llmEvaluation,
+          cached: true
+        })
+      }
+    }
+
+    const evaluation = await llmService.generateComprehensiveEvaluation(conversationHistory)
+    
+    // Store the evaluation in database if interviewId is provided
+    if (interviewId) {
+      try {
+        const { PrismaService } = await import('../services/prismaService')
+        const dbService = PrismaService.getInstance()
+        await dbService.updateLLMEvaluation(interviewId, evaluation)
+        console.log('✅ LLM evaluation stored in database for interview', interviewId)
+      } catch (dbError) {
+        console.error('⚠️ Failed to store LLM evaluation in database:', dbError)
+        // Don't fail the request if database save fails
+      }
+    }
+    
+    res.json({
+      success: true,
+      evaluation,
+      cached: false
+    })
+  } catch (error) {
+    console.error('Error generating comprehensive evaluation:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate comprehensive evaluation',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
 export default router

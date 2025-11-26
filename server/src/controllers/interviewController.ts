@@ -465,8 +465,9 @@ export class InterviewController {
       }
 
       // Save to database
+      let interviewId: number | null = null;
       try {
-        await this.dbService.saveFinalEvaluation({
+        const savedEvaluation = await this.dbService.saveFinalEvaluation({
           sessionId: payload.sessionId,
           candidateId: payload.candidateId,
           interviewLinkId: payload.interviewLinkId,
@@ -487,7 +488,10 @@ export class InterviewController {
           averageTimePerCodingProblem: payload.averageTimePerCodingProblem,
         });
 
+        // Get interview ID from the saved evaluation (it has interview_id field)
+        interviewId = (savedEvaluation as any).interview_id;
         console.log('✅ Final evaluation saved to database successfully');
+        console.log('✅ Interview ID:', interviewId);
       } catch (dbError) {
         console.error('❌ Error saving final evaluation to database:', dbError);
         res.status(500).json({
@@ -496,6 +500,44 @@ export class InterviewController {
           message: dbError instanceof Error ? dbError.message : 'Unknown database error'
         });
         return;
+      }
+
+      // Automatically generate LLM evaluation after saving (non-blocking)
+      if (
+        interviewId &&
+        payload.fullConversationHistory &&
+        payload.fullConversationHistory.length > 0
+      ) {
+        // Generate LLM evaluation asynchronously (don't block the response)
+        // Using Promise to avoid blocking the response
+        (async () => {
+          try {
+            console.log('🤖 Starting automatic LLM evaluation generation for interview', interviewId);
+            const { createLLMService } = await import('../services/llm-service');
+            const llmService = createLLMService({
+              apiKey: process.env.OPENAI_API_KEY || '',
+              model: 'gpt-4o-mini',
+              temperature: 0.3,
+              maxTokens: 2000,
+            });
+
+            const llmEvaluation = await llmService.generateComprehensiveEvaluation(
+              payload.fullConversationHistory
+            );
+
+            await this.dbService.updateLLMEvaluation(interviewId!, llmEvaluation);
+            console.log('✅ LLM evaluation generated and stored automatically for interview', interviewId);
+          } catch (llmError) {
+            console.error('⚠️ Failed to generate LLM evaluation automatically:', llmError);
+            console.error('⚠️ Error details:', llmError instanceof Error ? llmError.message : String(llmError));
+            // Don't fail the request - LLM evaluation can be generated later via the API
+          }
+        })();
+      } else {
+        console.log('⚠️ Skipping LLM evaluation generation:', {
+          hasInterviewId: !!interviewId,
+          hasConversationHistory: !!(payload.fullConversationHistory && payload.fullConversationHistory.length > 0),
+        });
       }
 
       res.json({

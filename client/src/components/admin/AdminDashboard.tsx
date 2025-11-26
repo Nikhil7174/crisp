@@ -50,6 +50,15 @@ interface Interview {
     cheating_incidents: any[];
     security_agent_connected: boolean;
     created_at: string;
+    finalEvaluation?: {
+        totalScore: number;
+        duration: number;
+        llmEvaluation?: {
+            overall: {
+                score: number;
+            };
+        } | null;
+    } | null;
 }
 
 interface DashboardData {
@@ -138,14 +147,31 @@ export const AdminDashboard: React.FC = () => {
         },
         {
             title: 'Score',
-            dataIndex: 'score',
             key: 'score',
-            render: (score: number) => (
-                <Tag color={score >= 70 ? 'green' : score >= 50 ? 'orange' : 'red'}>
-                    {score}%
-                </Tag>
-            ),
-            sorter: (a: Interview, b: Interview) => a.score - b.score,
+            render: (record: Interview) => {
+                // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
+                const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score 
+                    ?? record.finalEvaluation?.totalScore 
+                    ?? record.score 
+                    ?? 0;
+                
+                return (
+                    <Tag color={overallScore >= 70 ? 'green' : overallScore >= 50 ? 'orange' : 'red'}>
+                        {Math.round(overallScore)}%
+                    </Tag>
+                );
+            },
+            sorter: (a: Interview, b: Interview) => {
+                const scoreA = a.finalEvaluation?.llmEvaluation?.overall?.score 
+                    ?? a.finalEvaluation?.totalScore 
+                    ?? a.score 
+                    ?? 0;
+                const scoreB = b.finalEvaluation?.llmEvaluation?.overall?.score 
+                    ?? b.finalEvaluation?.totalScore 
+                    ?? b.score 
+                    ?? 0;
+                return scoreA - scoreB;
+            },
         },
         {
             title: 'Questions',
@@ -156,11 +182,23 @@ export const AdminDashboard: React.FC = () => {
         },
         {
             title: 'Duration',
-            dataIndex: 'duration',
             key: 'duration',
-            render: (duration: number) => (
-                <Text>{Math.round(duration / 1000 / 60)} min</Text>
-            ),
+            render: (record: Interview) => {
+                // Use duration from finalEvaluation if available, otherwise calculate from start/end time, fallback to duration field
+                let durationMs = 0;
+                if (record.finalEvaluation?.duration) {
+                    durationMs = record.finalEvaluation.duration;
+                } else if (record.start_time && record.end_time) {
+                    const start = new Date(record.start_time).getTime();
+                    const end = new Date(record.end_time).getTime();
+                    durationMs = end - start;
+                } else if (record.duration) {
+                    durationMs = record.duration;
+                }
+                
+                const durationMinutes = Math.round(durationMs / 1000 / 60);
+                return <Text>{durationMinutes > 0 ? `${durationMinutes} min` : '-'}</Text>;
+            },
         },
         {
             title: 'Date',
@@ -235,7 +273,7 @@ export const AdminDashboard: React.FC = () => {
     }
 
     return (
-        <div style={{ padding: spacing.xl, background: '#f5f5f5', minHeight: '100vh' }}>
+        <div style={{ padding: spacing.xl, background: '#fafafa', minHeight: '100vh' }}>
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',

@@ -218,6 +218,7 @@ model FinalEvaluation {
   follow_up_count             Int       @default(0)
   average_time_per_question   Float?
   average_time_per_coding_problem Float?
+  llm_evaluation              String?  // JSON string of LLM comprehensive evaluation
   created_at                  DateTime  @default(now())
   updated_at                  DateTime  @updatedAt
   interview                   Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)

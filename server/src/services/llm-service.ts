@@ -1235,6 +1235,193 @@ Respond with JSON:
     }
   }
 
+  /**
+   * Generate comprehensive evaluation from conversation history
+   * Analyzes theoretical and coding sections separately and provides overall feedback
+   */
+  async generateComprehensiveEvaluation(conversationHistory: any[]): Promise<{
+    theoreticalSection: {
+      score: number
+      feedback: string
+      strengths: string[]
+      areasForImprovement: string[]
+    }
+    codingSection: {
+      score: number
+      feedback: string
+      strengths: string[]
+      areasForImprovement: string[]
+    }
+    overall: {
+      score: number
+      feedback: string
+      strengths: string[]
+      areasForImprovement: string[]
+    }
+  }> {
+    try {
+      // Count hints, clarifications, and analyze conversation patterns
+      const hintCount = conversationHistory.filter(
+        msg => msg.metadata?.type === 'hint'
+      ).length
+      const clarificationCount = conversationHistory.filter(
+        msg => msg.metadata?.type === 'clarification'
+      ).length
+      const followUpCount = conversationHistory.filter(
+        msg => msg.metadata?.type === 'followup'
+      ).length
+
+      // Separate theoretical and coding messages
+      const theoreticalMessages = conversationHistory.filter(
+        msg => msg.metadata?.section === 'theoretical'
+      )
+      const codingMessages = conversationHistory.filter(
+        msg => msg.metadata?.section === 'coding'
+      )
+
+      // Build conversation summary
+      const conversationSummary = conversationHistory
+        .map((msg, idx) => {
+          const role = msg.role === 'user' ? 'Candidate' : msg.role === 'assistant' ? 'AI Interviewer' : 'System'
+          const section = msg.metadata?.section || 'general'
+          const type = msg.metadata?.type || 'message'
+          const content = msg.content.substring(0, 200) // Limit content length
+          return `[${idx + 1}] ${role} (${section}, ${type}): ${content}`
+        })
+        .join('\n')
+
+      const systemPrompt = `You are an expert technical interviewer analyzing a complete interview conversation history. Your task is to provide comprehensive evaluation scores and feedback for:
+
+1. THEORETICAL SECTION: Evaluate how well the candidate answered theoretical questions
+   - Consider: answer quality, depth of understanding, key points covered
+   - Penalize: excessive hints/clarifications, incomplete answers, incorrect information
+   - Score range: 0-100
+
+2. CODING SECTION: Evaluate coding problem-solving performance
+   - Consider: code quality, problem-solving approach, time/space complexity understanding
+   - Penalize: excessive hints, poor code quality, inability to solve problems
+   - Score range: 0-100
+
+3. OVERALL: Provide combined assessment
+   - Weight: 60% theoretical, 40% coding (or adjust based on section presence)
+   - Consider overall interview performance, communication, problem-solving skills
+   - Score range: 0-100
+
+METRICS TO CONSIDER:
+- Hint requests: ${hintCount} (more hints = lower score)
+- Clarification requests: ${clarificationCount} (more clarifications = lower score)
+- Follow-up questions: ${followUpCount} (indicates initial answers were incomplete)
+- Answer quality and completeness
+- Technical depth and accuracy
+- Problem-solving approach
+- Communication clarity
+
+Return ONLY valid JSON in this exact format:
+{
+  "theoreticalSection": {
+    "score": <number 0-100>,
+    "feedback": "<detailed feedback string>",
+    "strengths": ["<strength1>", "<strength2>", ...],
+    "areasForImprovement": ["<area1>", "<area2>", ...]
+  },
+  "codingSection": {
+    "score": <number 0-100>,
+    "feedback": "<detailed feedback string>",
+    "strengths": ["<strength1>", "<strength2>", ...],
+    "areasForImprovement": ["<area1>", "<area2>", ...]
+  },
+  "overall": {
+    "score": <number 0-100>,
+    "feedback": "<comprehensive feedback string>",
+    "strengths": ["<strength1>", "<strength2>", ...],
+    "areasForImprovement": ["<area1>", "<area2>", ...]
+  }
+}
+
+SCORING GUIDELINES:
+- 90-100: Excellent performance, minimal/no hints needed, comprehensive answers
+- 80-89: Good performance, few hints, solid understanding
+- 70-79: Acceptable performance, some hints/clarifications, basic understanding
+- 60-69: Below average, multiple hints needed, gaps in knowledge
+- Below 60: Poor performance, excessive hints, significant knowledge gaps
+
+Be specific, constructive, and professional in all feedback.`
+
+      const userPrompt = `Analyze this interview conversation history and provide comprehensive evaluation:
+
+CONVERSATION HISTORY:
+${conversationSummary}
+
+STATISTICS:
+- Total messages: ${conversationHistory.length}
+- Theoretical messages: ${theoreticalMessages.length}
+- Coding messages: ${codingMessages.length}
+- Hint requests: ${hintCount}
+- Clarification requests: ${clarificationCount}
+- Follow-up questions: ${followUpCount}
+
+Provide detailed evaluation for theoretical section, coding section, and overall performance.`
+
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      })
+
+      const content = response.choices[0]?.message?.content
+      if (!content) {
+        throw new Error('No response from LLM')
+      }
+
+      // Parse JSON response
+      let evaluation
+      try {
+        // Try to extract JSON from markdown code blocks if present
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
+        const jsonContent = jsonMatch ? jsonMatch[1] : content
+        evaluation = JSON.parse(jsonContent)
+      } catch (parseError) {
+        console.error('Failed to parse LLM response as JSON:', content)
+        throw new Error('Invalid JSON response from LLM')
+      }
+
+      // Validate structure
+      if (!evaluation.theoreticalSection || !evaluation.codingSection || !evaluation.overall) {
+        throw new Error('Invalid evaluation structure from LLM')
+      }
+
+      return evaluation
+
+    } catch (error) {
+      console.error('Error generating comprehensive evaluation:', error)
+      // Return fallback evaluation
+      return {
+        theoreticalSection: {
+          score: 0,
+          feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
+          strengths: [],
+          areasForImprovement: ['Evaluation could not be generated']
+        },
+        codingSection: {
+          score: 0,
+          feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
+          strengths: [],
+          areasForImprovement: ['Evaluation could not be generated']
+        },
+        overall: {
+          score: 0,
+          feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
+          strengths: [],
+          areasForImprovement: ['Evaluation could not be generated']
+        }
+      }
+    }
+  }
+
 }
 
 export function createLLMService(config: LLMConfig): LLMService {

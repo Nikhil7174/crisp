@@ -234,18 +234,51 @@ export class PrismaService {
                         email: true,
                     },
                 },
+                final_evaluation: true,
             },
             orderBy: { created_at: 'desc' },
         });
 
-        // Parse JSON fields
-        return interviews.map(interview => ({
-            ...interview,
-            strengths: interview.strengths ? JSON.parse(interview.strengths) : [],
-            areasForImprovement: interview.areas_for_improvement ? JSON.parse(interview.areas_for_improvement) : [],
-            detailed_answers: interview.detailed_answers ? JSON.parse(interview.detailed_answers) : [],
-            question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
-        }));
+        // Parse JSON fields and include finalEvaluation
+        return interviews.map(interview => {
+            const finalEvaluation = interview.final_evaluation
+                ? {
+                    id: interview.final_evaluation.id,
+                    sessionId: interview.final_evaluation.session_id,
+                    candidateId: interview.final_evaluation.candidate_id,
+                    interviewLinkId: interview.final_evaluation.interview_link_id,
+                    startTime: interview.final_evaluation.start_time,
+                    endTime: interview.final_evaluation.end_time,
+                    duration: interview.final_evaluation.duration,
+                    totalScore: interview.final_evaluation.total_score,
+                    strengths: JSON.parse(interview.final_evaluation.strengths),
+                    areasForImprovement: JSON.parse(interview.final_evaluation.areas_for_improvement),
+                    overallFeedback: interview.final_evaluation.overall_feedback,
+                    hintRequestCount: interview.final_evaluation.hint_request_count,
+                    clarificationRequestCount: interview.final_evaluation.clarification_request_count,
+                    followUpCount: interview.final_evaluation.follow_up_count,
+                    averageTimePerQuestion: interview.final_evaluation.average_time_per_question,
+                    averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
+                    fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
+                    theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
+                    codingSection: JSON.parse(interview.final_evaluation.coding_section),
+                    llmEvaluation: interview.final_evaluation.llm_evaluation 
+                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
+                        : null,
+                    createdAt: interview.final_evaluation.created_at,
+                    updatedAt: interview.final_evaluation.updated_at,
+                }
+                : null;
+
+            return {
+                ...interview,
+                strengths: interview.strengths ? JSON.parse(interview.strengths) : [],
+                areasForImprovement: interview.areas_for_improvement ? JSON.parse(interview.areas_for_improvement) : [],
+                detailed_answers: interview.detailed_answers ? JSON.parse(interview.detailed_answers) : [],
+                question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
+                finalEvaluation,
+            };
+        });
     }
 
     // Interview management methods
@@ -297,34 +330,69 @@ export class PrismaService {
                     { interview_link_id: null },
                 ],
             },
+            include: {
+                final_evaluation: true,
+            },
             orderBy: { created_at: 'desc' },
         });
 
-        // Parse JSON fields
-        return interviews.map(interview => ({
-            id: interview.id,
-            session_id: interview.session_id,
-            candidate_name: interview.candidate_name,
-            candidate_email: interview.candidate_email,
-            candidate_phone: interview.candidate_phone,
-            start_time: interview.start_time,
-            end_time: interview.end_time,
-            duration: interview.duration,
-            score: interview.score,
-            total_questions: interview.total_questions,
-            correct_answers: interview.correct_answers,
-            time_spent: interview.time_spent,
-            strengths: interview.strengths ? JSON.parse(interview.strengths) : [],
-            areasForImprovement: interview.areas_for_improvement ? JSON.parse(interview.areas_for_improvement) : [],
-            overall_feedback: interview.overall_feedback,
-            detailed_answers: interview.detailed_answers ? JSON.parse(interview.detailed_answers) : [],
-            question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
-            created_at: interview.created_at,
-            updated_at: interview.updated_at,
-            cheating_detected: interview.cheating_detected,
-            cheating_incidents: interview.cheating_incidents,
-            security_agent_connected: interview.security_agent_connected,
-        }));
+        // Parse JSON fields and include finalEvaluation
+        return interviews.map(interview => {
+            const finalEvaluation = interview.final_evaluation
+                ? {
+                    id: interview.final_evaluation.id,
+                    sessionId: interview.final_evaluation.session_id,
+                    candidateId: interview.final_evaluation.candidate_id,
+                    interviewLinkId: interview.final_evaluation.interview_link_id,
+                    startTime: interview.final_evaluation.start_time,
+                    endTime: interview.final_evaluation.end_time,
+                    duration: interview.final_evaluation.duration,
+                    totalScore: interview.final_evaluation.total_score,
+                    strengths: JSON.parse(interview.final_evaluation.strengths),
+                    areasForImprovement: JSON.parse(interview.final_evaluation.areas_for_improvement),
+                    overallFeedback: interview.final_evaluation.overall_feedback,
+                    hintRequestCount: interview.final_evaluation.hint_request_count,
+                    clarificationRequestCount: interview.final_evaluation.clarification_request_count,
+                    followUpCount: interview.final_evaluation.follow_up_count,
+                    averageTimePerQuestion: interview.final_evaluation.average_time_per_question,
+                    averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
+                    fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
+                    theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
+                    codingSection: JSON.parse(interview.final_evaluation.coding_section),
+                    llmEvaluation: interview.final_evaluation.llm_evaluation 
+                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
+                        : null,
+                    createdAt: interview.final_evaluation.created_at,
+                    updatedAt: interview.final_evaluation.updated_at,
+                }
+                : null;
+
+            return {
+                id: interview.id,
+                session_id: interview.session_id,
+                candidate_name: interview.candidate_name,
+                candidate_email: interview.candidate_email,
+                candidate_phone: interview.candidate_phone,
+                start_time: interview.start_time,
+                end_time: interview.end_time,
+                duration: interview.duration,
+                score: interview.score,
+                total_questions: interview.total_questions,
+                correct_answers: interview.correct_answers,
+                time_spent: interview.time_spent,
+                strengths: interview.strengths ? JSON.parse(interview.strengths) : [],
+                areasForImprovement: interview.areas_for_improvement ? JSON.parse(interview.areas_for_improvement) : [],
+                overall_feedback: interview.overall_feedback,
+                detailed_answers: interview.detailed_answers ? JSON.parse(interview.detailed_answers) : [],
+                question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
+                created_at: interview.created_at,
+                updated_at: interview.updated_at,
+                cheating_detected: interview.cheating_detected,
+                cheating_incidents: interview.cheating_incidents,
+                security_agent_connected: interview.security_agent_connected,
+                finalEvaluation,
+            };
+        });
     }
 
     public async getInterviewsByCandidate(candidateEmail: string) {
@@ -381,11 +449,43 @@ export class PrismaService {
     public async getInterviewById(id: number) {
         const interview = await prisma.interview.findUnique({
             where: { id },
+            include: {
+                final_evaluation: true,
+            },
         });
 
         if (!interview) return null;
 
         // Parse JSON fields
+        const finalEvaluation = interview.final_evaluation
+            ? {
+                id: interview.final_evaluation.id,
+                sessionId: interview.final_evaluation.session_id,
+                candidateId: interview.final_evaluation.candidate_id,
+                interviewLinkId: interview.final_evaluation.interview_link_id,
+                startTime: interview.final_evaluation.start_time,
+                endTime: interview.final_evaluation.end_time,
+                duration: interview.final_evaluation.duration,
+                totalScore: interview.final_evaluation.total_score,
+                strengths: JSON.parse(interview.final_evaluation.strengths),
+                areasForImprovement: JSON.parse(interview.final_evaluation.areas_for_improvement),
+                overallFeedback: interview.final_evaluation.overall_feedback,
+                hintRequestCount: interview.final_evaluation.hint_request_count,
+                clarificationRequestCount: interview.final_evaluation.clarification_request_count,
+                followUpCount: interview.final_evaluation.follow_up_count,
+                averageTimePerQuestion: interview.final_evaluation.average_time_per_question,
+                    averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
+                    fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
+                    theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
+                    codingSection: JSON.parse(interview.final_evaluation.coding_section),
+                    llmEvaluation: interview.final_evaluation.llm_evaluation 
+                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
+                        : null,
+                    createdAt: interview.final_evaluation.created_at,
+                    updatedAt: interview.final_evaluation.updated_at,
+                }
+                : null;
+
         return {
             id: interview.id,
             session_id: interview.session_id,
@@ -406,6 +506,7 @@ export class PrismaService {
             question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
             created_at: interview.created_at,
             updated_at: interview.updated_at,
+            finalEvaluation,
         };
     }
 
@@ -596,6 +697,22 @@ export class PrismaService {
             console.error('❌ Error message:', dbError.message);
             console.error('❌ Error meta:', JSON.stringify(dbError.meta, null, 2));
             throw dbError;
+        }
+    }
+
+    public async updateLLMEvaluation(interviewId: number, llmEvaluation: any) {
+        try {
+            const result = await prisma.finalEvaluation.update({
+                where: { interview_id: interviewId },
+                data: {
+                    llm_evaluation: JSON.stringify(llmEvaluation),
+                },
+            });
+            console.log(`✅ LLM evaluation saved for interview ${interviewId}`);
+            return result;
+        } catch (error) {
+            console.error('❌ Error saving LLM evaluation:', error);
+            throw error;
         }
     }
 

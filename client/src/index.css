@@ -67,6 +67,53 @@ html {
   box-shadow: 0 4px 12px rgba(9, 88, 217, 0.35);
 }
 
+/* Candidate details tabs - left-aligned pill group */
+.candidate-details-tabs .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.candidate-details-tabs .ant-tabs-nav-wrap {
+  justify-content: flex-start;
+}
+
+.candidate-details-tabs .ant-tabs-nav-list {
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 3px;
+}
+
+.candidate-details-tabs .ant-tabs-tab {
+  margin: 0;
+  padding: 0;
+}
+
+.candidate-details-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 0;
+}
+
+.candidate-details-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  background: transparent;
+  font-weight: 500;
+  color: #667085;
+  transition: all 0.2s ease;
+}
+
+.candidate-details-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  background: #ffffff;
+  color: #101828;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.candidate-details-tabs .ant-tabs-ink-bar {
+  display: none;
+}
+
+.candidate-details-tabs .ant-tabs-nav::before {
+  border-bottom: none;
+}
+
 /* Card hover effects */
 .ant-card-hoverable {
   transition: all 0.3s ease;

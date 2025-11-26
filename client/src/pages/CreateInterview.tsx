@@ -431,7 +431,7 @@ export const CreateInterview: React.FC = () => {
                                       width: '50px',
                                       textAlign: 'center',
                                       color: '#333',
-                                      background: '#f5f5f5',
+                                      background: '#fafafa',
                                       borderRadius: '12px',
                                       fontWeight: 'bold',
                                       fontSize: '12px'
