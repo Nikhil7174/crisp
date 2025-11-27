@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
-import { QuestionGenerationService } from '../services/questionGenerationService';
+import { QuestionGenerationService, GeneratedQuestion } from '../services/questionGenerationService';
 
 interface AuthRequest extends Request {
     user?: {
@@ -265,9 +265,51 @@ export class InterviewerController {
                 return;
             }
 
+            const parseJsonField = (value: any, fallback: any = null) => {
+                if (!value) return fallback;
+                try {
+                    return typeof value === 'string' ? JSON.parse(value) : value;
+                } catch (error) {
+                    console.warn('Failed to parse JSON field', error);
+                    return fallback;
+                }
+            };
+
+            const topics = parseJsonField(interviewLink.topics, []);
+            const machineQuestions = parseJsonField(interviewLink.machine_questions, []);
+            const generatedQuestions = parseJsonField(interviewLink.generated_questions, []);
+            const questionSource = interviewLink.question_source || 'auto';
+
+            const manualTheoreticalQuestions = questionSource === 'manual'
+                ? (generatedQuestions || []).filter((question: any) => question.type !== 'machine_coding')
+                : [];
+            const manualCodingQuestions = questionSource === 'manual'
+                ? (generatedQuestions || []).filter((question: any) => question.type === 'machine_coding')
+                : [];
+
             res.json({
                 success: true,
-                data: interviewLink
+                data: {
+                    id: interviewLink.id,
+                    title: interviewLink.title,
+                    description: interviewLink.description,
+                    expiryDate: interviewLink.expiry_date,
+                    maxAttempts: interviewLink.max_attempts,
+                    isActive: interviewLink.is_active,
+                    jobTitle: interviewLink.job_title,
+                    jobId: interviewLink.job_id,
+                    role: interviewLink.role,
+                    yearsOfExperience: interviewLink.years_of_experience,
+                    maxInterviewQuestions: interviewLink.max_interview_questions,
+                    maxMachineCodingQuestions: interviewLink.max_machine_coding_questions,
+                    questionSource,
+                    topics,
+                    machineQuestions,
+                    manualTheoreticalQuestions,
+                    manualCodingQuestions,
+                    generatedQuestions: interviewLink.generated_questions,
+                    generated_questions: interviewLink.generated_questions,
+                }
             });
 
         } catch (error) {
@@ -289,7 +331,23 @@ export class InterviewerController {
                 return;
             }
 
-            const { title, description, expiryDate, maxAttempts, jobTitle, jobId, role, yearsOfExperience, maxInterviewQuestions, maxMachineCodingQuestions, topics, machineQuestions } = req.body;
+            const {
+                title,
+                description,
+                expiryDate,
+                maxAttempts,
+                jobTitle,
+                jobId,
+                role,
+                yearsOfExperience,
+                maxInterviewQuestions,
+                maxMachineCodingQuestions,
+                topics,
+                machineQuestions,
+                questionSource = 'auto',
+                manualTheoreticalQuestions = [],
+                manualCodingQuestions = [],
+            } = req.body;
 
             if (!title) {
                 res.status(400).json({ error: 'Title is required' });
@@ -313,8 +371,51 @@ export class InterviewerController {
                 maxInterviewQuestions,
                 maxMachineCodingQuestions,
                 topics,
-                machineQuestions
+                machineQuestions,
+                questionSource
             });
+
+            const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+            const linkUrl = `${baseUrl}/join?token=${link.link_token}`;
+
+            if (questionSource === 'manual') {
+                const combinedManualQuestions: GeneratedQuestion[] = [
+                    ...(Array.isArray(manualTheoreticalQuestions) ? manualTheoreticalQuestions : []),
+                    ...(Array.isArray(manualCodingQuestions) ? manualCodingQuestions : []),
+                ];
+
+                if (combinedManualQuestions.length === 0) {
+                    res.status(400).json({
+                        error: 'Manual questions are required when question source is manual',
+                    });
+                    return;
+                }
+
+                const normalizedManualQuestions = combinedManualQuestions.map((question, index) => ({
+                    ...question,
+                    id: question.id || `manual-${link.link_token}-${index + 1}`,
+                    type: question.type === 'machine_coding' ? 'machine_coding' : 'theoretical',
+                    timeLimit:
+                        question.timeLimit ||
+                        (question.type === 'machine_coding' ? 1200 : 60),
+                    topic: question.topic || 'General',
+                }));
+
+                await this.dbService.updateInterviewLinkQuestions(link.id, normalizedManualQuestions);
+
+                res.status(201).json({
+                    success: true,
+                    data: {
+                        ...link,
+                        url: linkUrl,
+                        token: link.link_token,
+                        generated_questions: normalizedManualQuestions,
+                    },
+                    message: 'Interview link created successfully with manual questions',
+                });
+
+                return;
+            }
 
             // Auto-generate questions for the interview link
             try {
@@ -330,10 +431,6 @@ export class InterviewerController {
                 // Don't fail the interview link creation if question generation fails
                 // The user can still generate questions manually later
             }
-
-            // Construct the interview link URL
-            const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-            const linkUrl = `${baseUrl}/join?token=${link.link_token}`;
 
             res.status(201).json({
                 success: true,
@@ -451,15 +548,77 @@ export class InterviewerController {
                 return;
             }
 
-            const { title, description, isActive, expiryDate, maxAttempts } = req.body;
+            const {
+                title,
+                description,
+                isActive,
+                expiryDate,
+                maxAttempts,
+                jobTitle,
+                jobId,
+                role,
+                yearsOfExperience,
+                maxInterviewQuestions,
+                maxMachineCodingQuestions,
+                topics,
+                machineQuestions,
+                questionSource = existingLink.question_source || 'auto',
+                manualTheoreticalQuestions = [],
+                manualCodingQuestions = [],
+            } = req.body;
+
+            if (questionSource === 'manual') {
+                const hasManualTheoretical = Array.isArray(manualTheoreticalQuestions) && manualTheoreticalQuestions.length > 0;
+                const hasManualCoding = Array.isArray(manualCodingQuestions) && manualCodingQuestions.length > 0;
+
+                if (!hasManualTheoretical && !hasManualCoding) {
+                    res.status(400).json({ error: 'Manual questions are required when question source is manual' });
+                    return;
+                }
+            }
+
+            const normalizedTopics = topics === undefined
+                ? undefined
+                : (typeof topics === 'string' ? topics : JSON.stringify(topics));
+            const normalizedMachineQuestions = machineQuestions === undefined
+                ? undefined
+                : (typeof machineQuestions === 'string' ? machineQuestions : JSON.stringify(machineQuestions));
 
             const updatedLink = await this.dbService.updateInterviewLink(linkId, {
                 title,
                 description,
                 isActive,
                 expiryDate,
-                maxAttempts
+                maxAttempts,
+                jobTitle,
+                jobId,
+                role,
+                yearsOfExperience,
+                maxInterviewQuestions,
+                maxMachineCodingQuestions,
+                topics: normalizedTopics,
+                machineQuestions: normalizedMachineQuestions,
+                questionSource,
             });
+
+            if (questionSource === 'manual') {
+                const combinedManualQuestions: GeneratedQuestion[] = [
+                    ...(Array.isArray(manualTheoreticalQuestions) ? manualTheoreticalQuestions : []),
+                    ...(Array.isArray(manualCodingQuestions) ? manualCodingQuestions : []),
+                ];
+
+                const normalizedManualQuestions = combinedManualQuestions.map((question, index) => ({
+                    ...question,
+                    id: question.id || `manual-${existingLink.link_token}-${index + 1}`,
+                    type: question.type === 'machine_coding' ? 'machine_coding' : 'theoretical',
+                    timeLimit:
+                        question.timeLimit ||
+                        (question.type === 'machine_coding' ? 1200 : 60),
+                    topic: question.topic || 'General',
+                }));
+
+                await this.dbService.updateInterviewLinkQuestions(linkId, normalizedManualQuestions);
+            }
 
             res.json({
                 success: true,

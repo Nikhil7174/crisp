@@ -26,6 +26,7 @@ import {
   QuestionCircleOutlined,
   EyeOutlined,
   CopyOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -34,6 +35,7 @@ import type { InterviewLink } from '../../types';
 import { colors, spacing } from '../../styles';
 import { QuestionGenerationModal } from '../../components/admin/QuestionGenerationModal';
 import { ViewQuestionsModal } from '../../components/admin/ViewQuestionsModal';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Paragraph } = Typography;
 
@@ -47,6 +49,7 @@ export const InterviewLinks: React.FC = () => {
   const [selectedLinkForQuestions, setSelectedLinkForQuestions] = useState<InterviewLink | null>(null);
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
   const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchLinks();
@@ -291,6 +294,15 @@ export const InterviewLinks: React.FC = () => {
               key: 'actions',
               render: (_, record) => (
                 <Space>
+                  <Tooltip title="Edit Interview Setup">
+                    <Button
+                      icon={<EditOutlined />}
+                      onClick={() => navigate(`/interviewer/create-interview?linkId=${record.id}`)}
+                      size="small"
+                    >
+                      Edit
+                    </Button>
+                  </Tooltip>
                   <Tooltip title="View Questions">
                     <Button
                       icon={<EyeOutlined />}

@@ -104,6 +104,7 @@ export class PrismaService {
         maxMachineCodingQuestions?: number;
         topics?: string | any[];
         machineQuestions?: string | any[];
+        questionSource?: 'auto' | 'manual';
     }) {
         return await prisma.interviewLink.create({
             data: {
@@ -120,6 +121,7 @@ export class PrismaService {
                 years_of_experience: linkData.yearsOfExperience,
                 max_interview_questions: linkData.maxInterviewQuestions,
                 max_machine_coding_questions: linkData.maxMachineCodingQuestions,
+                question_source: linkData.questionSource || 'auto',
                 topics: Array.isArray(linkData.topics) ? JSON.stringify(linkData.topics) : linkData.topics,
                 machine_questions: Array.isArray(linkData.machineQuestions) ? JSON.stringify(linkData.machineQuestions) : linkData.machineQuestions,
             },
@@ -175,6 +177,7 @@ export class PrismaService {
                     updatedAt: link.updated_at,
                     totalAttempts: totalAttempts,
                     completedInterviews: completedInterviews,
+                    questionSource: link.question_source || 'auto',
                     url: url,
                 };
             })
@@ -187,16 +190,52 @@ export class PrismaService {
         title?: string;
         description?: string;
         isActive?: boolean;
-        expiryDate?: string;
+        expiryDate?: string | null;
         maxAttempts?: number;
+        jobTitle?: string | null;
+        jobId?: string | null;
+        role?: string | null;
+        yearsOfExperience?: number | null;
+        maxInterviewQuestions?: number | null;
+        maxMachineCodingQuestions?: number | null;
+        topics?: string | any[] | null;
+        machineQuestions?: string | any[] | null;
+        questionSource?: 'auto' | 'manual';
     }) {
         const updateData: any = {};
         
         if (updates.title !== undefined) updateData.title = updates.title;
         if (updates.description !== undefined) updateData.description = updates.description;
         if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
-        if (updates.expiryDate !== undefined) updateData.expiry_date = updates.expiryDate ? new Date(updates.expiryDate) : null;
+        if (updates.expiryDate !== undefined) {
+            updateData.expiry_date = updates.expiryDate ? new Date(updates.expiryDate) : null;
+        }
         if (updates.maxAttempts !== undefined) updateData.max_attempts = updates.maxAttempts;
+        if (updates.jobTitle !== undefined) updateData.job_title = updates.jobTitle;
+        if (updates.jobId !== undefined) updateData.job_id = updates.jobId;
+        if (updates.role !== undefined) updateData.role = updates.role;
+        if (updates.yearsOfExperience !== undefined) updateData.years_of_experience = updates.yearsOfExperience;
+        if (updates.maxInterviewQuestions !== undefined) updateData.max_interview_questions = updates.maxInterviewQuestions;
+        if (updates.maxMachineCodingQuestions !== undefined) updateData.max_machine_coding_questions = updates.maxMachineCodingQuestions;
+        if (updates.questionSource !== undefined) updateData.question_source = updates.questionSource;
+
+        if (updates.topics !== undefined) {
+            if (updates.topics === null) {
+                updateData.topics = null;
+            } else {
+                updateData.topics = Array.isArray(updates.topics) ? JSON.stringify(updates.topics) : updates.topics;
+            }
+        }
+
+        if (updates.machineQuestions !== undefined) {
+            if (updates.machineQuestions === null) {
+                updateData.machine_questions = null;
+            } else {
+                updateData.machine_questions = Array.isArray(updates.machineQuestions)
+                    ? JSON.stringify(updates.machineQuestions)
+                    : updates.machineQuestions;
+            }
+        }
 
         return await prisma.interviewLink.update({
             where: { id: linkId },

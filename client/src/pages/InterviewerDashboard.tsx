@@ -109,15 +109,7 @@ export const InterviewerDashboard: React.FC = () => {
   };
 
   const handleEditLink = (link: InterviewLink) => {
-    setEditingLink(link);
-    form.setFieldsValue({
-      title: link.title,
-      description: link.description,
-      expiryDate: link.expiryDate ? dayjs(link.expiryDate) : null,
-      maxAttempts: link.maxAttempts,
-      isActive: link.isActive,
-    });
-    setModalVisible(true);
+    navigate(`/interviewer/create-interview?linkId=${link.id}`);
   };
 
   const handleCopyLink = (url: string) => {

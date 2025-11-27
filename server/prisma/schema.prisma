@@ -39,6 +39,7 @@ model InterviewLink {
   years_of_experience          Int?
   max_interview_questions      Int?
   max_machine_coding_questions Int?
+  question_source              String?    @default("auto")
   topics                       String?
   machine_questions            String?
   generated_questions          String?

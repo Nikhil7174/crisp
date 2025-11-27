@@ -1,0 +1,5 @@
+question*,topic*,difficulty*,expectedAnswer*,explanation,keyPoints
+"Explain the concept of closures in JavaScript.","JavaScript","medium","A closure is the combination of a function and the lexical environment within which that function was declared.","Mention how inner functions access outer scope even after the parent returns.","lexical scope;function factory;data privacy"
+"What are the SOLID principles in OOP?","Software Engineering","hard","SOLID represents five principles that make software designs more understandable, flexible, and maintainable.","List and briefly explain Single-responsibility, Open-closed, Liskov substitution, Interface segregation, Dependency inversion.","SRP;OCP;LSP;ISP;DIP"
+"Describe HTTP status codes 200, 400, and 500.","Web","easy","200 Success, 400 Client Error, 500 Server Error.","Map each code to its category and common scenarios.","success;client error;server error"
+

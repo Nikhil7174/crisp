@@ -67,6 +67,18 @@ export class QuestionGenerationService {
   async generateInterviewQuestions(interviewLink: any): Promise<GeneratedQuestion[]> {
     try {
       console.log('🎯 Generating interview questions...');
+
+      if (interviewLink.generated_questions) {
+        try {
+          const existingQuestions = JSON.parse(interviewLink.generated_questions);
+          if (Array.isArray(existingQuestions) && existingQuestions.length > 0) {
+            console.log(`✅ Using ${existingQuestions.length} pre-generated questions from interview link`);
+            return existingQuestions;
+          }
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse stored generated questions, falling back to generation', parseError);
+        }
+      }
       
       // Parse interview metadata
       let topics = JSON.parse(interviewLink.topics || '[]');
