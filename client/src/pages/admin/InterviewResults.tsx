@@ -310,28 +310,26 @@ export const InterviewResults: React.FC = () => {
       render: (record: InterviewLink) => {
         const isExpired = record.expiryDate && dayjs(record.expiryDate).isBefore(dayjs());
         const isInactive = !record.isActive;
-        const showCopyEdit = !isExpired && !isInactive;
+        const canCopyLink = !isExpired && !isInactive;
 
         return (
           <Space>
-            {showCopyEdit && (
-              <>
-                <Tooltip title="Copy Link">
-                  <Button
-                    icon={<CopyOutlined />}
-                    onClick={() => handleCopyLink(record.url)}
-                    size="small"
-                  />
-                </Tooltip>
-                <Tooltip title="Edit">
-                  <Button
-                    icon={<EditOutlined />}
-                    onClick={() => handleEditLink(record)}
-                    size="small"
-                  />
-                </Tooltip>
-              </>
+            {canCopyLink && (
+              <Tooltip title="Copy Link">
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={() => handleCopyLink(record.url)}
+                  size="small"
+                />
+              </Tooltip>
             )}
+            <Tooltip title="Edit Interview">
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => handleEditLink(record)}
+                size="small"
+              />
+            </Tooltip>
             <Tooltip title="Delete">
               <Button
                 icon={<DeleteOutlined />}

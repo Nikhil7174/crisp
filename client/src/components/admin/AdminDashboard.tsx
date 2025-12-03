@@ -28,6 +28,16 @@ import { API_BASE_URL } from '../../constants/api';
 
 const { Title, Text } = Typography;
 
+interface SecurityEvent {
+    id: number;
+    event_type: string;
+    source: string;
+    severity: 'low' | 'medium' | 'high';
+    message: string;
+    metadata?: any;
+    created_at: string;
+}
+
 interface Interview {
     id: number;
     session_id: string;
@@ -49,6 +59,7 @@ interface Interview {
     cheating_detected: boolean;
     cheating_incidents: any[];
     security_agent_connected: boolean;
+    security_events?: SecurityEvent[];
     created_at: string;
     finalEvaluation?: {
         totalScore: number;
@@ -211,28 +222,42 @@ export const AdminDashboard: React.FC = () => {
         {
             title: 'Security',
             key: 'security',
-            render: (record: Interview) => (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {record.cheating_detected ? (
-                        <Tag color="red" icon={<WarningOutlined />}>
-                            Cheating Detected
-                        </Tag>
-                    ) : (
-                        <Tag color="green" icon={<CheckCircleOutlined />}>
-                            Clean
-                        </Tag>
-                    )}
-                    {record.security_agent_connected ? (
-                        <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: 10 }}>
-                            Agent Connected
-                        </Tag>
-                    ) : (
-                        <Tag color="orange" icon={<WarningOutlined />} style={{ fontSize: 10 }}>
-                            No Agent
-                        </Tag>
-                    )}
-                </div>
-            ),
+            render: (record: Interview) => {
+                const securityEventCount = record.security_events?.length || 0;
+                const visionEvents = record.security_events?.filter(e => e.source === 'vision_security') || [];
+                const desktopEvents = record.security_events?.filter(e => e.source === 'desktop_security_agent') || [];
+                const highSeverityEvents = record.security_events?.filter(e => e.severity === 'high') || [];
+                
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {record.cheating_detected || highSeverityEvents.length > 0 ? (
+                            <Tag color="red" icon={<WarningOutlined />}>
+                                {record.cheating_detected ? 'Cheating Detected' : 'Security Alert'}
+                            </Tag>
+                        ) : (
+                            <Tag color="green" icon={<CheckCircleOutlined />}>
+                                Clean
+                            </Tag>
+                        )}
+                        {record.security_agent_connected ? (
+                            <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: 10 }}>
+                                Agent Connected
+                            </Tag>
+                        ) : (
+                            <Tag color="orange" icon={<WarningOutlined />} style={{ fontSize: 10 }}>
+                                No Agent
+                            </Tag>
+                        )}
+                        {securityEventCount > 0 && (
+                            <Tag color={highSeverityEvents.length > 0 ? 'red' : 'orange'} style={{ fontSize: 10 }}>
+                                {securityEventCount} Event{securityEventCount !== 1 ? 's' : ''}
+                                {visionEvents.length > 0 && ` (${visionEvents.length} vision)`}
+                                {desktopEvents.length > 0 && ` (${desktopEvents.length} desktop)`}
+                            </Tag>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             title: 'Actions',

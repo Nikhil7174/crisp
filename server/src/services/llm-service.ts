@@ -680,19 +680,22 @@ Respond with just the hint text (no quotes or formatting).`
   // Clarification generation - separate function
   async generateClarification(question: Question): Promise<string> {
     try {
-      const systemPrompt = `You are an AI interviewer providing clarification. Rephrase the question in a clearer way to help the candidate understand what you're asking.
+      const systemPrompt = `You are an AI interviewer providing clarification. Your ONLY job is to rephrase the question in a clearer way WITHOUT revealing the answer or key points.
 
 Original Question: ${question.question}
-Expected Answer: ${question.expectedAnswer}
-Key Points: ${question.keyPoints.join(', ')}
 
-Rephrase the question to be clearer and more specific. You can:
-1. Break it down into parts
-2. Use simpler language
-3. Add context or examples
-4. Focus on the specific aspects you want them to address
+CRITICAL RULES:
+1. ONLY rephrase the question - do NOT provide the answer, solution, or key points
+2. Do NOT hint at what the answer should be
+3. Do NOT mention specific concepts or terms that would give away the answer
+4. You can:
+   - Break the question down into simpler parts
+   - Use simpler, clearer language
+   - Add general context (but not answer-specific context)
+   - Focus on what aspect of the question needs clarification
+5. Keep it brief and focused on helping them understand what is being asked
 
-Respond with just the clarified question.`
+Respond with just the rephrased question. Do NOT include any answer, solution, or key points.`
 
       const response = await this.openai.chat.completions.create({
         model: this.config.model || 'gpt-4',
@@ -753,10 +756,14 @@ Analyze their statement and determine:
 
 SCORING RULES FOR APPROACH:
 - Score > 70 OR uses correct algo AND data structure: Give positive feedback "You're on the right track! Go ahead and implement it."
-- Score <= 70: Provide constructive feedback about what's wrong or missing. Be specific: "That's an interesting approach, but you might want to consider [specific issue] or [missing element]." DO NOT ask them to rethink - just point out what needs attention.
+- Score <= 70: Provide constructive feedback about what's WRONG in their current approach. 
+  CRITICAL: Do NOT reveal the correct approach, algorithm, or data structure.
+  CRITICAL: Do NOT suggest what they should use instead.
+  CRITICAL: Only point out issues/problems in their current approach (e.g., "Your approach might have issues with time complexity" or "This might not handle edge cases properly").
+  CRITICAL: After pointing out what's wrong, always tell them to implement their code anyway: "Please go ahead and implement your solution."
 
 IMPORTANT - IMPLEMENTATION PROMPT:
-${isFirstApproach ? '- This is the FIRST time the candidate is explaining their approach. Your feedback MUST end with a prompt to start implementing, such as "Please start implementing your solution." or "Go ahead and start coding."' : '- This is NOT the first approach explanation. Do NOT include a prompt to start implementing in your feedback - just provide the evaluation feedback.'}
+${isFirstApproach ? '- This is the FIRST time the candidate is explaining their approach. Your feedback MUST end with a prompt to start implementing, such as "Please start implementing your solution." or "Go ahead and start coding."' : '- This is NOT the first approach explanation. Still end with "Please go ahead and implement your solution" after pointing out what\'s wrong.'}
 
 If it's a clarification request:
 - Provide a brief, helpful answer to their question without leaking the solution
@@ -840,17 +847,29 @@ Examples: ${JSON.stringify(problem.examples) || 'See problem description'}${code
 
 Candidate's clarification request: "${clarificationRequest}"
 
+CRITICAL RULES:
+1. ONLY clarify what is already stated in the problem description - do NOT reveal the solution approach
+2. Do NOT hint at algorithms, data structures, or techniques that would give away the answer
+3. Do NOT provide step-by-step guidance or solution hints
+4. ONLY rephrase or emphasize information already available in the problem statement
+
 Provide a brief, direct clarification that:
-1. Explicitly answers their specific doubt
-2. Stays within the boundary of the question (doesn't leak the solution)
+1. Answers their specific doubt about the problem statement (not the solution)
+2. Stays within the boundary of the question (doesn't leak the solution or approach)
 3. Reiterates or makes clearer the already available information
 4. Is individualistic and doesn't require previous context
 
-Common clarification types:
-- Constraint values: "The input n can be up to 10^5"
-- Data structure choice: "You can use any built-in data structure"
-- Output format: "Return the result as an integer"
-- Edge cases: "Consider the case where the array is empty"
+Acceptable clarification types (only if already in problem):
+- Constraint values: "The input n can be up to 10^5" (if already stated)
+- Data structure choice: "You can use any built-in data structure" (if already stated)
+- Output format: "Return the result as an integer" (if already stated)
+- Edge cases: "Consider the case where the array is empty" (if already mentioned)
+
+DO NOT provide:
+- Algorithm suggestions
+- Data structure recommendations (unless already stated)
+- Solution approaches
+- Step-by-step hints
 
 Respond with just the clarification text (no preamble).`
 

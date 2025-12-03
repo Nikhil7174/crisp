@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./prisma/data/interviews.db"
+  url      = "file:./data/interviews.db"
 }
 
 model User {
@@ -48,6 +48,7 @@ model InterviewLink {
   updated_at                   DateTime    @updatedAt
   creator                      Interviewer @relation("InterviewLinkCreator", fields: [created_by], references: [id])
   interviews                   Interview[] @relation("InterviewLinkInterviews")
+  security_events              SecurityEvent[]
 
   @@map("interview_links")
 }
@@ -82,6 +83,7 @@ model Interview {
   evaluations              Evaluation[]
   questions                InterviewQuestion[]
   final_evaluation         FinalEvaluation?
+  security_events          SecurityEvent[]
   interview_link           InterviewLink?      @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
   user                     User?               @relation("InterviewUser", fields: [user_id], references: [id])
 
@@ -225,6 +227,25 @@ model FinalEvaluation {
   interview                   Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
 
   @@map("final_evaluations")
+}
+
+model SecurityEvent {
+  id                Int          @id @default(autoincrement())
+  interview_id      Int?
+  interview_link_id Int?
+  session_id        String?
+  event_type        String
+  source            String
+  severity          String
+  message           String
+  metadata          String?
+  created_at        DateTime     @default(now())
+  interview         Interview?   @relation(fields: [interview_id], references: [id], onDelete: SetNull)
+  interview_link    InterviewLink? @relation(fields: [interview_link_id], references: [id], onDelete: SetNull)
+
+  @@index([session_id])
+  @@index([interview_link_id])
+  @@map("SecurityEvent")
 }
 
 enum UserType {

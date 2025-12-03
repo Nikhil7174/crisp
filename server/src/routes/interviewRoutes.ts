@@ -39,6 +39,11 @@ router.put('/:sessionId/cheating-detection', authMiddleware, (req: Request, res:
     interviewController.updateCheatingDetection(req, res);
 });
 
+// Update vision security endpoint - requires authentication
+router.put('/:sessionId/vision-security', authMiddleware, (req: Request, res: Response) => {
+    interviewController.updateVisionSecurity(req, res);
+});
+
 // Final evaluation endpoint - optional authentication (same pattern as save-results)
 router.post('/final-evaluation', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization;

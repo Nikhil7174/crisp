@@ -371,6 +371,9 @@ export class PrismaService {
             },
             include: {
                 final_evaluation: true,
+                security_events: {
+                    orderBy: { created_at: 'desc' }
+                }
             },
             orderBy: { created_at: 'desc' },
         });
@@ -427,8 +430,17 @@ export class PrismaService {
                 created_at: interview.created_at,
                 updated_at: interview.updated_at,
                 cheating_detected: interview.cheating_detected,
-                cheating_incidents: interview.cheating_incidents,
+                cheating_incidents: interview.cheating_incidents ? JSON.parse(interview.cheating_incidents) : [],
                 security_agent_connected: interview.security_agent_connected,
+                security_events: interview.security_events ? interview.security_events.map((e: any) => ({
+                    id: e.id,
+                    event_type: e.event_type,
+                    source: e.source,
+                    severity: e.severity,
+                    message: e.message,
+                    metadata: e.metadata ? JSON.parse(e.metadata) : null,
+                    created_at: e.created_at
+                })) : [],
                 finalEvaluation,
             };
         });
@@ -490,6 +502,9 @@ export class PrismaService {
             where: { id },
             include: {
                 final_evaluation: true,
+                security_events: {
+                    orderBy: { created_at: 'desc' }
+                }
             },
         });
 
@@ -543,6 +558,18 @@ export class PrismaService {
             overall_feedback: interview.overall_feedback,
             detailed_answers: interview.detailed_answers ? JSON.parse(interview.detailed_answers) : [],
             question_analysis: interview.question_analysis ? JSON.parse(interview.question_analysis) : [],
+            cheating_detected: interview.cheating_detected,
+            cheating_incidents: interview.cheating_incidents ? JSON.parse(interview.cheating_incidents) : [],
+            security_agent_connected: interview.security_agent_connected,
+            security_events: interview.security_events ? interview.security_events.map((e: any) => ({
+                id: e.id,
+                event_type: e.event_type,
+                source: e.source,
+                severity: e.severity,
+                message: e.message,
+                metadata: e.metadata ? JSON.parse(e.metadata) : null,
+                created_at: e.created_at
+            })) : [],
             created_at: interview.created_at,
             updated_at: interview.updated_at,
             finalEvaluation,
@@ -574,6 +601,30 @@ export class PrismaService {
         console.log('Incidents count:', data.cheatingIncidents.length);
         console.log('Security agent connected:', data.securityAgentConnected);
 
+        // Get interview to find interview_id and interview_link_id
+        const interview = await prisma.interview.findUnique({
+            where: { session_id: sessionId },
+            select: { id: true, interview_link_id: true }
+        });
+
+        // Create security events for each cheating incident
+        if (data.cheatingIncidents && data.cheatingIncidents.length > 0) {
+            for (const incident of data.cheatingIncidents) {
+                await prisma.securityEvent.create({
+                    data: {
+                        interview_id: interview?.id,
+                        interview_link_id: interview?.interview_link_id || null,
+                        session_id: sessionId,
+                        event_type: 'app_blocked',
+                        source: 'desktop_security_agent',
+                        severity: 'high',
+                        message: `Blocked application: ${incident.processName} (${incident.reason})`,
+                        metadata: JSON.stringify(incident)
+                    }
+                });
+            }
+        }
+
         const result = await prisma.interview.update({
             where: { session_id: sessionId },
             data: {
@@ -585,6 +636,85 @@ export class PrismaService {
 
         console.log(`✅ Cheating detection updated for session ${sessionId}`);
         return result;
+    }
+
+    /**
+     * Create a security event (for vision security or other sources)
+     * Prevents duplicates by checking if the same event already exists
+     */
+    public async createSecurityEvent(sessionId: string, data: {
+        eventType: string;
+        source: string;
+        severity: 'low' | 'medium' | 'high';
+        message: string;
+        metadata?: any;
+    }) {
+        // Get interview to find interview_id and interview_link_id
+        const interview = await prisma.interview.findUnique({
+            where: { session_id: sessionId },
+            select: { id: true, interview_link_id: true }
+        });
+
+        if (!interview) {
+            console.warn(`⚠️ Interview not found for session ${sessionId}, cannot create security event`);
+            return null;
+        }
+
+        // Check for duplicate events (same type, source, and similar timestamp within 1 second)
+        // This prevents duplicate entries from multiple API calls
+        const metadataStr = data.metadata ? JSON.stringify(data.metadata) : null
+        const oneSecondAgo = new Date(Date.now() - 1000)
+        
+        const existingEvent = await prisma.securityEvent.findFirst({
+            where: {
+                interview_id: interview.id,
+                session_id: sessionId,
+                event_type: data.eventType,
+                source: data.source,
+                severity: data.severity,
+                created_at: {
+                    gte: oneSecondAgo
+                }
+            }
+        })
+
+        if (existingEvent) {
+            console.log(`⚠️ Duplicate security event detected and skipped: ${data.eventType} from ${data.source}`)
+            return existingEvent
+        }
+
+        return await prisma.securityEvent.create({
+            data: {
+                interview_id: interview.id,
+                interview_link_id: interview.interview_link_id || null,
+                session_id: sessionId,
+                event_type: data.eventType,
+                source: data.source,
+                severity: data.severity,
+                message: data.message,
+                metadata: metadataStr
+            }
+        });
+    }
+
+    /**
+     * Get security events for an interview
+     */
+    public async getSecurityEvents(interviewId: number) {
+        return await prisma.securityEvent.findMany({
+            where: { interview_id: interviewId },
+            orderBy: { created_at: 'desc' }
+        });
+    }
+
+    /**
+     * Get security events by session ID
+     */
+    public async getSecurityEventsBySession(sessionId: string) {
+        return await prisma.securityEvent.findMany({
+            where: { session_id: sessionId },
+            orderBy: { created_at: 'desc' }
+        });
     }
 
     // Interviewer management methods
@@ -667,32 +797,52 @@ export class PrismaService {
         followUpCount: number;
         averageTimePerQuestion: number;
         averageTimePerCodingProblem: number;
+        visionSecurityWarnings?: any;
     }) {
-        console.log('=== PRISMA SAVE FINAL EVALUATION DEBUG ===');
+        console.log('\n=== PRISMA SAVE FINAL EVALUATION DEBUG ===');
         console.log('Session ID:', payload.sessionId);
         console.log('Candidate ID:', payload.candidateId);
         console.log('Interview Link ID:', payload.interviewLinkId);
+        console.log('Vision Security Warnings:', payload.visionSecurityWarnings ? 'YES' : 'NO');
+        if (payload.visionSecurityWarnings) {
+            console.log('Warning types:', Object.keys(payload.visionSecurityWarnings));
+        }
 
-        // Find the interview by session_id
-        const interview = await prisma.interview.findUnique({
+        // Find or create the interview by session_id
+        let interview = await prisma.interview.findUnique({
             where: { session_id: payload.sessionId },
         });
 
         if (!interview) {
-            console.error('❌ Interview not found for session ID:', payload.sessionId);
-            console.error('❌ Searching for similar session IDs...');
-            const similarInterviews = await prisma.interview.findMany({
-                where: { 
-                    session_id: { contains: payload.sessionId.substring(0, 20) }
-                },
-                select: { id: true, session_id: true, candidate_name: true, created_at: true },
-                take: 5
+            console.log('⚠️ Interview not found for session ID:', payload.sessionId, '- creating new interview record');
+            // Create interview record from final evaluation data
+            interview = await prisma.interview.create({
+                data: {
+                    session_id: payload.sessionId,
+                    interview_link_id: payload.interviewLinkId || null,
+                    candidate_name: payload.candidateId,
+                    candidate_email: payload.candidateId,
+                    start_time: new Date(payload.startTime),
+                    end_time: new Date(payload.endTime),
+                    duration: payload.duration,
+                    score: Math.round(payload.totalScore),
+                    total_questions: (payload.theoreticalSection?.totalQuestions || 0) + (payload.codingSection?.totalProblems || 0),
+                    correct_answers: 0,
+                    time_spent: payload.duration,
+                    strengths: JSON.stringify(payload.strengths),
+                    areas_for_improvement: JSON.stringify(payload.areasForImprovement),
+                    overall_feedback: payload.overallFeedback,
+                    detailed_answers: JSON.stringify([]),
+                    question_analysis: JSON.stringify({}),
+                    cheating_detected: false,
+                    cheating_incidents: JSON.stringify([]),
+                    security_agent_connected: false
+                }
             });
-            console.error('❌ Similar interviews found:', similarInterviews);
-            throw new Error(`Interview not found for session ID: ${payload.sessionId}`);
+            console.log('✅ Interview record created:', interview.id);
+        } else {
+            console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
         }
-        
-        console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
 
         const data = {
             interview_id: interview.id,
@@ -722,6 +872,80 @@ export class PrismaService {
                 update: data,
                 create: data,
             });
+
+            // Save vision security warnings to SecurityEvent table if provided
+            if (payload.visionSecurityWarnings && Object.keys(payload.visionSecurityWarnings).length > 0) {
+                try {
+                    console.log('📊 [Security Events] Processing vision security warnings:', JSON.stringify(payload.visionSecurityWarnings, null, 2));
+                    
+                    const incidents = Object.entries(payload.visionSecurityWarnings).flatMap(([type, data]: [string, any]) => {
+                        if (!data || !data.events || !Array.isArray(data.events)) {
+                            console.warn(`⚠️ [Security Events] Invalid data structure for type ${type}:`, data);
+                            return [];
+                        }
+                        return data.events.map((event: any) => ({
+                            interview_id: interview.id,
+                            interview_link_id: interview.interview_link_id || null,
+                            session_id: payload.sessionId,
+                            event_type: type,
+                            source: 'vision_security',
+                            severity: 'medium' as const,
+                            message: `${type.replace(/_/g, ' ')} detected for ${Math.round(event.duration / 1000)}s`,
+                            metadata: JSON.stringify({ duration: event.duration, startTime: event.startTime, endTime: event.endTime })
+                        }));
+                    });
+                    
+                    console.log(`📊 [Security Events] Prepared ${incidents.length} incidents to save`);
+                    
+                    if (incidents.length > 0) {
+                        // Check for existing events to avoid duplicates
+                        const existing = await prisma.securityEvent.findMany({
+                            where: {
+                                interview_id: interview.id,
+                                source: 'vision_security'
+                            },
+                            select: { event_type: true, metadata: true }
+                        });
+                        
+                        const existingKeys = new Set(
+                            existing.map(e => {
+                                const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata) : e.metadata;
+                                return `${e.event_type}-${meta.startTime}-${meta.endTime}`;
+                            })
+                        );
+                        
+                        const newIncidents = incidents.filter(inc => {
+                            const meta = typeof inc.metadata === 'string' ? JSON.parse(inc.metadata) : inc.metadata;
+                            const key = `${inc.event_type}-${meta.startTime}-${meta.endTime}`;
+                            return !existingKeys.has(key);
+                        });
+                        
+                        console.log(`📊 [Security Events] Filtered ${incidents.length} -> ${newIncidents.length} (removed ${incidents.length - newIncidents.length} duplicates)`);
+                        
+                        if (newIncidents.length > 0) {
+                            await prisma.securityEvent.createMany({ data: newIncidents });
+                            console.log(`✅ Vision security warnings saved: ${newIncidents.length} new incidents`);
+                        }
+                        
+                        if (incidents.length > 0) {
+                            await prisma.interview.update({
+                                where: { id: interview.id },
+                                data: { cheating_detected: true }
+                            });
+                        }
+                    } else {
+                        console.warn('⚠️ [Security Events] No valid incidents to save after processing');
+                    }
+                } catch (securityError: any) {
+                    console.error('❌ [Security Events] Error saving vision security warnings:');
+                    console.error('❌ Error message:', securityError.message);
+                    console.error('❌ Error stack:', securityError.stack);
+                    console.error('❌ Error code:', securityError.code);
+                    // Don't throw - allow final evaluation to be saved even if security events fail
+                }
+            } else {
+                console.log('📊 [Security Events] No vision security warnings provided in payload');
+            }
 
             console.log(`✅ Final evaluation saved for interview ${interview.id}`);
             console.log(`✅ Final evaluation ID: ${result.id}`);

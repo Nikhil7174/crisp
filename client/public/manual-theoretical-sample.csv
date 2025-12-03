@@ -3,3 +3,5 @@ question*,topic*,difficulty*,expectedAnswer*,explanation,keyPoints
 "What are the SOLID principles in OOP?","Software Engineering","hard","SOLID represents five principles that make software designs more understandable, flexible, and maintainable.","List and briefly explain Single-responsibility, Open-closed, Liskov substitution, Interface segregation, Dependency inversion.","SRP;OCP;LSP;ISP;DIP"
 "Describe HTTP status codes 200, 400, and 500.","Web","easy","200 Success, 400 Client Error, 500 Server Error.","Map each code to its category and common scenarios.","success;client error;server error"
 
+
+

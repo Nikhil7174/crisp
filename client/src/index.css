@@ -92,7 +92,7 @@ html {
 }
 
 .candidate-details-tabs .ant-tabs-tab .ant-tabs-tab-btn {
-  padding: 8px 20px;
+  padding: 4px 12px;
   border-radius: 10px;
   background: transparent;
   font-weight: 500;

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openaiService';
 import { PrismaService } from '../services/prismaService';
+import { prisma } from '../lib/prisma';
 import { CodeExecutionService } from '../services/codeExecutionService';
 import { SecurityService } from '../services/securityService';
 import { QuestionGenerationService } from '../services/questionGenerationService';
@@ -412,6 +413,76 @@ export class InterviewController {
   }
 
   /**
+   * Update vision security data - receives vision security events from desktop app
+   */
+  async updateVisionSecurity(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+      const { suspiciousEvents } = req.body;
+
+      if (!sessionId) {
+        res.status(400).json({
+          success: false,
+          error: 'Session ID is required'
+        });
+        return;
+      }
+
+      if (!suspiciousEvents || !Array.isArray(suspiciousEvents)) {
+        res.status(400).json({
+          success: false,
+          error: 'suspiciousEvents array is required'
+        });
+        return;
+      }
+
+      // Store security events in Interview cheating_incidents field
+      const interview = await prisma.interview.findUnique({ where: { session_id: sessionId } });
+      if (!interview) {
+        res.status(404).json({ success: false, error: 'Interview not found' });
+        return;
+      }
+
+      const existingIncidents = interview.cheating_incidents ? JSON.parse(interview.cheating_incidents) : [];
+      const newIncidents = suspiciousEvents.map(event => ({
+        type: event.type,
+        severity: event.severity,
+        description: event.description,
+        count: event.count || 1,
+        firstOccurrence: event.firstOccurrence,
+        lastOccurrence: event.lastOccurrence,
+        duration: event.duration,
+        timestamp: Date.now()
+      }));
+
+      await prisma.interview.update({
+        where: { id: interview.id },
+        data: {
+          cheating_incidents: JSON.stringify([...existingIncidents, ...newIncidents]),
+          cheating_detected: true
+        }
+      });
+
+      console.log(`✅ Vision security events logged for session ${sessionId}: ${suspiciousEvents.length} event types, ${suspiciousEvents.reduce((sum: number, e: any) => sum + (e.count || 1), 0)} total occurrences`);
+
+      res.json({
+        success: true,
+        message: 'Vision security data updated successfully',
+        eventsLogged: suspiciousEvents.length,
+        totalOccurrences: suspiciousEvents.reduce((sum: number, e: any) => sum + (e.count || 1), 0)
+      });
+
+    } catch (error) {
+      console.error('Update vision security error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update vision security data',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * Save final evaluation data (conversation history and structured evaluation)
    */
   async saveFinalEvaluation(req: Request, res: Response): Promise<void> {
@@ -437,6 +508,10 @@ export class InterviewController {
       console.log('Hint Request Count:', payload.hintRequestCount || 0);
       console.log('Clarification Request Count:', payload.clarificationRequestCount || 0);
       console.log('Follow Up Count:', payload.followUpCount || 0);
+      console.log('Vision Security Warnings:', JSON.stringify((payload as any).visionSecurityWarnings, null, 2));
+      console.log('Vision Security Warnings Type:', typeof (payload as any).visionSecurityWarnings);
+      console.log('Vision Security Warnings Keys:', (payload as any).visionSecurityWarnings ? Object.keys((payload as any).visionSecurityWarnings) : 'null/undefined');
+      console.log('Vision Security Warnings Length:', (payload as any).visionSecurityWarnings ? Object.keys((payload as any).visionSecurityWarnings).length : 0);
       console.log('=== END SAVE FINAL EVALUATION DEBUG ===');
 
       // Validate required fields
@@ -486,6 +561,7 @@ export class InterviewController {
           followUpCount: payload.followUpCount,
           averageTimePerQuestion: payload.averageTimePerQuestion,
           averageTimePerCodingProblem: payload.averageTimePerCodingProblem,
+          visionSecurityWarnings: (payload as any).visionSecurityWarnings,
         });
 
         // Get interview ID from the saved evaluation (it has interview_id field)

@@ -13,6 +13,7 @@ import {
   Descriptions,
   Empty,
   Tabs,
+  Collapse,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -84,6 +85,16 @@ interface FinalEvaluationSummary {
   } | null;
 }
 
+interface SecurityEvent {
+  id: number;
+  event_type: string;
+  source: string;
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  metadata?: any;
+  created_at: string;
+}
+
 interface InterviewDetails {
   id: number;
   session_id: string;
@@ -102,6 +113,10 @@ interface InterviewDetails {
   overall_feedback: string;
   detailed_answers: any[];
   question_analysis: any;
+  cheating_detected?: boolean;
+  cheating_incidents?: any[];
+  security_agent_connected?: boolean;
+  security_events?: SecurityEvent[];
   created_at: string;
   finalEvaluation?: FinalEvaluationSummary | null;
 }
@@ -841,6 +856,125 @@ export const InterviewDetails: React.FC = () => {
           <Empty description="Conversation history not available" />
         )}
       </Card>
+            ),
+          },
+          {
+            key: 'securityEvents',
+            label: 'Security Events',
+            children: (
+              <Card
+                title="Security Events"
+                style={{ marginTop: spacing.xl }}
+              >
+                {interview.security_events && interview.security_events.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+                    {/* Group events by type */}
+                    {(() => {
+                      const eventsByType = interview.security_events.reduce((acc, event) => {
+                        if (!acc[event.event_type]) {
+                          acc[event.event_type] = []
+                        }
+                        acc[event.event_type].push(event)
+                        return acc
+                      }, {} as Record<string, SecurityEvent[]>)
+
+                      return (
+                        <Collapse
+                          items={Object.entries(eventsByType).map(([type, events]) => {
+                            const severity = events[0].severity
+                            const source = events[0].source
+                            const totalCount = events.length
+                            
+                            return {
+                              key: type,
+                              label: (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                                  <Tag color={severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'blue'}>
+                                    {severity.toUpperCase()}
+                                  </Tag>
+                                  <Tag>{source === 'desktop_security_agent' ? 'Desktop Agent' : 'Vision Security'}</Tag>
+                                  <Text strong>{type.replace(/_/g, ' ')}</Text>
+                                  <Tag color="default">{totalCount} event{totalCount !== 1 ? 's' : ''}</Tag>
+                                </div>
+                              ),
+                              children: (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                                  {events.map((event, idx) => (
+                                    <Card
+                                      key={event.id}
+                                      size="small"
+                                      style={{
+                                        borderLeft: `3px solid ${
+                                          event.severity === 'high' ? colors.error.main :
+                                          event.severity === 'medium' ? colors.warning.main :
+                                          colors.info.main
+                                        }`
+                                      }}
+                                    >
+                                      <div>
+                                        <Text strong style={{ fontSize: 13 }}>Event #{idx + 1}</Text>
+                                        <div style={{ marginTop: spacing.xs }}>
+                                          <Text style={{ display: 'block' }}>
+                                            {event.metadata?.description || event.message}
+                                          </Text>
+                                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                                            {dayjs(event.created_at).format('MMM D, YYYY HH:mm:ss')}
+                                          </Text>
+                                          {event.metadata?.duration && (
+                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                              Duration: {Math.round(event.metadata.duration / 1000)}s
+                                            </Text>
+                                          )}
+                                          {event.metadata?.firstOccurrence && event.metadata?.lastOccurrence && (
+                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                              Time: {dayjs(event.metadata.firstOccurrence).format('HH:mm:ss')} - {dayjs(event.metadata.lastOccurrence).format('HH:mm:ss')}
+                                            </Text>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </Card>
+                                  ))}
+                                </div>
+                              )
+                            }
+                          })}
+                        />
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <Empty description="No security events recorded" />
+                )}
+                {interview.cheating_incidents && interview.cheating_incidents.length > 0 && (
+                  <div style={{ marginTop: spacing.xl }}>
+                    <Title level={4}>Desktop Security Incidents</Title>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+                      {interview.cheating_incidents.map((incident: any, index: number) => (
+                        <Card
+                          key={index}
+                          size="small"
+                          style={{
+                            borderLeft: `4px solid ${colors.error.main}`
+                          }}
+                        >
+                          <Tag color="red">BLOCKED</Tag>
+                          <Text strong style={{ display: 'block', marginTop: spacing.xs }}>
+                            {incident.processName || 'Unknown Process'}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                            Reason: {incident.reason || 'Suspicious activity detected'}
+                          </Text>
+                          {incident.timestamp && (
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                              {dayjs(incident.timestamp).format('MMM D, YYYY HH:mm:ss')}
+                            </Text>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
             ),
           },
         ]}
