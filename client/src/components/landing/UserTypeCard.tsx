@@ -123,7 +123,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
                 borderRadius: 12,
                 background: colors.gradient.button,
                 border: 'none',
-                width: '140px',
+                width: '160px',
                 boxShadow: colors.shadows.md,
                 marginTop: '8px' // Additional gap between text and button
               }}
