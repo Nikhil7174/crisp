@@ -481,6 +481,38 @@ router.post('/monitor-coding-progress', async (req, res) => {
   }
 })
 
+// Generate submission feedback based on code analysis
+router.post('/generate-submission-feedback', async (req, res) => {
+  try {
+    const { problem, submittedCode, analysis } = req.body
+
+    if (!problem || !submittedCode || !analysis) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Problem, submitted code, and analysis are required' 
+      })
+    }
+
+    const feedback = await llmService.generateSubmissionFeedback(
+      problem, 
+      submittedCode, 
+      analysis
+    )
+    
+    res.json({
+      success: true,
+      feedback
+    })
+  } catch (error) {
+    console.error('Error generating submission feedback:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate submission feedback',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
 // Generate final coding feedback
 router.post('/generate-final-coding-feedback', async (req, res) => {
   try {

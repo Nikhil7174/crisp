@@ -614,49 +614,60 @@ IMPORTANT: Return ONLY valid JSON, no other text.`
   // Hint generation - separate function
   async generateHint(question: Question, candidateAnswer: string): Promise<string> {
     try {
-      const systemPrompt = `You are an AI interviewer providing helpful hints during a technical interview. Generate a constructive hint that guides the candidate toward the right direction without giving away the complete answer.
+      // IMPORTANT: Do NOT include all keyPoints - only use the question text to avoid revealing too much
+      const questionText = question.question
 
-QUESTION: ${question.question}
-KEY POINTS TO CONSIDER: ${question.keyPoints.join(', ')}
+      const systemPrompt = `You are an AI interviewer providing subtle hints during a technical interview. Your goal is to nudge the candidate in the right direction while leaving MOST of the answer for them to discover and explain.
 
-HINT GUIDELINES:
-1. Provide helpful guidance - point them to important concepts and areas to explore
-2. You can briefly explain what to think about, but don't give the full answer
-3. Mention 2-3 key topics or aspects they should consider
-4. Keep it conversational and natural
-5. You can give a small example or analogy if it helps clarify the concept
-6. Guide them toward the right thinking process
-7. Get STRAIGHT TO THE POINT - no conversational openings
+QUESTION: ${questionText}
 
-CRITICAL FORMAT RULES:
-- DO NOT start with phrases like "Great question!", "That's a great topic!", "Good question!", etc.
-- DO NOT include conversational greetings or acknowledgments
-- START DIRECTLY with the actual hint content
-- Keep it to 2-4 sentences
+CRITICAL RULES - YOU MUST FOLLOW THESE:
+1. Provide ONLY a subtle nudge - point to a general area or direction, NOT specific concepts
+2. Cover AT MOST 1-2 aspects of the answer - leave the rest for the candidate to explain
+3. Use vague, general language - avoid specific technical terms that reveal key points
+4. Do NOT mention multiple key points or concepts - that gives away too much
+5. Do NOT provide step-by-step guidance or cover all aspects
+6. Do NOT ask follow-up questions about details - that implies you've given the answer
+7. Keep it brief (1-2 sentences maximum)
+8. Get STRAIGHT TO THE POINT - no conversational openings
 
-BALANCE:
-- DO provide meaningful direction and helpful context
-- DO explain what aspects to focus on
-- DO mention specific concepts or mechanisms to consider
-- DON'T write out the complete answer verbatim
-- DON'T solve the entire problem for them
-- DON'T include conversational pleasantries
+WHAT TO DO:
+- Point to a general area: "Think about how this relates to [general concept area]"
+- Suggest a direction: "Consider what happens in [broad scenario]"
+- Use vague prompts: "What aspects of [general topic] might be relevant here?"
 
-EXAMPLES OF GOOD HINTS (note: direct, no opening phrases):
+WHAT NOT TO DO:
+- Do NOT list multiple concepts or key points
+- Do NOT mention specific mechanisms, algorithms, or techniques
+- Do NOT cover multiple aspects of the answer
+- Do NOT ask "What about X?" or "Can you explain Y?" - this implies you've given the answer
+- Do NOT provide examples that reveal the solution approach
+- Do NOT start with phrases like "Great question!", "That's a great topic!", etc.
+
+EXAMPLES OF GOOD HINTS (subtle, leaving most for candidate):
 
 For a question about JavaScript var/let/const:
-"Start by considering the differences in scope—how does each variable type behave in terms of block scope versus function scope? Also, think about hoisting: what happens to these variables before the code runs? Finally, consider whether you can reassign values to these variables after they are declared."
+"Consider how variable declarations might behave differently depending on where they're used in your code."
 
 For a question about React hooks:
-"Consider how hooks connect to the React lifecycle. When you call useState or useEffect, think about when they run during a component's lifecycle. Also, remember that hooks must follow certain rules about where and how they're called."
+"Think about how React manages component state and side effects over time."
 
 For a question about async/await:
-"Focus on how JavaScript handles asynchronous operations. Async/await is built on Promises, so think about what Promise states exist and how await pauses execution. Consider what happens to the call stack when you await something."
+"Consider how JavaScript handles operations that take time to complete."
 
 For a question about database normalization:
-"Think about the main goal: reducing redundancy and improving data integrity. Consider what happens when you have repeated data across multiple rows. The normal forms (1NF, 2NF, 3NF) each address specific types of redundancy - focus on breaking down data into logical, related tables."
+"Think about what problems can arise when the same data appears in multiple places."
 
-REMEMBER: Start DIRECTLY with the hint. No greetings, no acknowledgments, no "great question" phrases.
+BAD EXAMPLES (too revealing - DON'T do this):
+- "Start by considering scope differences, hoisting, and reassignment..." (covers too many aspects)
+- "Think about block scope vs function scope, hoisting behavior, and whether values can be reassigned..." (gives away key points)
+- "Consider useState and useEffect lifecycle, and remember hooks rules..." (too specific)
+
+REMEMBER: 
+- A hint should be a gentle nudge, not a roadmap
+- Leave at least 70-80% of the answer for the candidate to explain
+- If you're covering multiple points, you're giving away too much
+- Start DIRECTLY with the hint - no greetings or acknowledgments
 
 Respond with just the hint text (no quotes or formatting).`
 
@@ -680,22 +691,40 @@ Respond with just the hint text (no quotes or formatting).`
   // Clarification generation - separate function
   async generateClarification(question: Question): Promise<string> {
     try {
-      const systemPrompt = `You are an AI interviewer providing clarification. Your ONLY job is to rephrase the question in a clearer way WITHOUT revealing the answer or key points.
+      // IMPORTANT: Only use the question text itself - do NOT use keyPoints or expectedAnswer
+      const questionText = question.question
 
-Original Question: ${question.question}
+      const systemPrompt = `You are an AI interviewer providing clarification. Your ONLY job is to rephrase the question in a clearer way WITHOUT revealing the answer or any solution details.
 
-CRITICAL RULES:
-1. ONLY rephrase the question - do NOT provide the answer, solution, or key points
-2. Do NOT hint at what the answer should be
-3. Do NOT mention specific concepts or terms that would give away the answer
-4. You can:
-   - Break the question down into simpler parts
-   - Use simpler, clearer language
-   - Add general context (but not answer-specific context)
-   - Focus on what aspect of the question needs clarification
-5. Keep it brief and focused on helping them understand what is being asked
+Original Question: ${questionText}
 
-Respond with just the rephrased question. Do NOT include any answer, solution, or key points.`
+CRITICAL RULES - YOU MUST FOLLOW THESE STRICTLY:
+1. ONLY use information that is explicitly stated in the question text above
+2. Do NOT reveal, hint at, or suggest:
+   - The answer or solution
+   - Key concepts or topics that would give away the answer
+   - Specific techniques, algorithms, or approaches
+   - What the candidate should focus on or consider
+   - Any details that are not directly visible in the question text
+3. You can ONLY:
+   - Rephrase the question using simpler, clearer language
+   - Break down complex sentences into simpler parts
+   - Clarify ambiguous wording using only the context from the question itself
+   - Restate what is being asked without adding new information
+4. If the question is unclear, rephrase it using ONLY the words and concepts already present in the question
+5. Do NOT add examples, analogies, or explanations that aren't in the original question
+6. Keep it brief (1-2 sentences maximum)
+
+EXAMPLES OF WHAT TO DO:
+- If question says "Explain how X works", you can say "Can you describe the mechanism or process of X?"
+- If question is complex, break it into simpler parts: "The question is asking about two things: first, [part 1 from question], and second, [part 2 from question]"
+
+EXAMPLES OF WHAT NOT TO DO:
+- Do NOT say "Think about [concept]" - this hints at the answer
+- Do NOT say "Consider [specific approach]" - this reveals the solution
+- Do NOT add context like "This relates to [topic]" - this gives away key points
+
+Respond with just the rephrased clarification. Do NOT include any answer, solution, key points, or hints.`
 
       const response = await this.openai.chat.completions.create({
         model: this.config.model || 'gpt-4',
@@ -1044,21 +1073,28 @@ Problem: ${problem.title}
 Description: ${problem.description}
 Constraints: ${problem.constraints?.join(', ') || 'See problem description'}
 
-IMPORTANT: The candidate has NOT written any code yet. Focus on:
-- Problem-solving approach and strategy
-- Data structures that might be useful
-- Algorithmic techniques to consider
-- Key insights about the problem
+IMPORTANT: The candidate has NOT written any code yet.
 
-DO NOT mention code, implementation, or "you haven't added code yet"
-DO NOT reference starter code or function signatures
-Focus purely on the problem-solving approach
+CRITICAL RULES:
+1. Provide ONLY a subtle nudge - point to a general direction, NOT specific data structures or algorithms
+2. Cover AT MOST 1 aspect of the approach - leave the rest for the candidate to discover
+3. Use vague, general language - avoid naming specific data structures or algorithms
+4. Do NOT mention specific techniques like "stack", "queue", "dynamic programming", "two-pointer", etc.
+5. Do NOT give examples that reveal the approach
+6. Keep it brief (1 sentence maximum)
+7. DO NOT mention code, implementation, or "you haven't added code yet"
+8. DO NOT reference starter code or function signatures
 
-HINT LEVEL 1: Suggest data structures or high-level approach
-Examples: "Consider separating the digits into odd and even groups" or "Think about using a stack to track..."
+HINT LEVEL 1: Provide a vague, general direction
+GOOD examples (subtle):
+- "Think about how you might organize or group the input data"
+- "Consider what information you need to track as you process the input"
+- "What patterns do you notice in the problem description?"
 
-Keep it brief (1-2 sentences)
-Don't give away the complete solution
+BAD examples (too revealing - DON'T do this):
+- "Consider using a stack to track..." (reveals data structure)
+- "Think about separating digits into groups" (too specific)
+- "A hash map might be useful here" (reveals solution)
 
 Respond with just the hint text (no preamble).`
       :
@@ -1068,24 +1104,30 @@ Problem: ${problem.title}
 Description: ${problem.description}
 Constraints: ${problem.constraints?.join(', ') || 'See problem description'}
 
-IMPORTANT: The candidate has NOT written any code yet. Focus on:
-- Problem-solving approach and strategy
-- Data structures that might be useful
-- Algorithmic techniques to consider
-- Key insights about the problem
+IMPORTANT: The candidate has NOT written any code yet.
 
-DO NOT mention code, implementation, or "you haven't added code yet"
-DO NOT reference starter code or function signatures
-Focus purely on the problem-solving approach
+CRITICAL RULES:
+1. Provide a slightly more specific nudge, but still leave MOST of the approach for the candidate
+2. Cover AT MOST 1-2 aspects - do NOT cover multiple techniques or approaches
+3. You can hint at a general category (e.g., "optimization technique") but NOT specific algorithms
+4. Do NOT mention specific algorithms like "dynamic programming", "two-pointer", "binary search", etc.
+5. Do NOT ask follow-up questions about details - that implies you've given the answer
+6. Keep it brief (1 sentence maximum)
+7. DO NOT mention code, implementation, or "you haven't added code yet"
+8. DO NOT reference starter code or function signatures
 
-HINT LEVEL 2: Focus on:
-- More specific algorithmic techniques
-- Time/space complexity considerations
-- Edge cases to think about
-- Examples: "Consider dynamic programming - think about overlapping subproblems" or "A two-pointer approach might help optimize the solution"
+HINT LEVEL 2: Provide a slightly more specific direction, but still vague
+GOOD examples (subtle):
+- "Consider whether you need to process the data in multiple passes"
+- "Think about how you might optimize repeated operations"
+- "What if you could break this into smaller subproblems?"
 
-Keep it brief (1-2 sentences)
-Don't give away the complete solution
+BAD examples (too revealing - DON'T do this):
+- "Consider dynamic programming - think about overlapping subproblems" (reveals algorithm)
+- "A two-pointer approach might help" (reveals specific technique)
+- "Use a stack or queue to track state" (reveals data structure)
+
+REMEMBER: Leave at least 70-80% of the approach for the candidate to discover. A hint should nudge, not guide.
 
 Respond with just the hint text (no preamble).`
 
@@ -1172,6 +1214,92 @@ Respond with JSON:
         progressPercentage: 0,
         shouldProvideHint: false
       }
+    }
+  }
+
+  // Generate detailed feedback after code submission based on code analysis
+  async generateSubmissionFeedback(
+    problem: any,
+    submittedCode: string,
+    analysis: {
+      progress: number
+      approach: 'correct' | 'incorrect' | 'incomplete' | 'unsure'
+      issues: string[]
+      codeQuality: 'good' | 'fair' | 'poor'
+    }
+  ): Promise<string> {
+    try {
+      const systemPrompt = `You are an AI interviewer providing brief, clear feedback on a submitted coding solution.
+
+Problem: ${problem.title}
+Description: ${problem.description}
+
+Submitted code:
+\`\`\`
+${submittedCode}
+\`\`\`
+
+Code Analysis:
+- Progress: ${analysis.progress}%
+- Approach: ${analysis.approach}
+- Code Quality: ${analysis.codeQuality}
+- Issues found: ${analysis.issues.length > 0 ? analysis.issues.join('; ') : 'None'}
+
+CRITICAL RULES:
+1. Be BRIEF and DIRECT (1-3 sentences maximum)
+2. Clearly state if the solution is CORRECT or WRONG/INCOMPLETE
+3. If wrong/incomplete, mention the MAIN issues (use the issues list above)
+4. Be specific about what's wrong or missing, but don't give away the solution
+5. Keep it conversational and natural for voice output
+6. Do NOT ask questions - just provide feedback
+
+Feedback structure:
+- If correct: "Your solution is correct. [Brief praise if code quality is good]"
+- If wrong: "Your solution has some issues. [Main problem from issues list]"
+- If incomplete: "Your solution is incomplete. [What's missing or wrong]"
+
+Examples:
+- Correct: "Your solution is correct and handles all the edge cases well."
+- Wrong: "Your solution has a logic error - your loop condition doesn't include the last element."
+- Incomplete: "Your solution is incomplete - you're not handling the case when the input array is empty."
+
+Respond with just the feedback text (no preamble, no quotes).`
+
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model || 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Provide brief feedback on this submission.' }
+        ],
+        temperature: 0.5,
+        max_tokens: 150
+      })
+
+      return response.choices[0]?.message?.content?.trim() || this.generateFallbackFeedback(analysis)
+    } catch (error) {
+      console.error('Error generating submission feedback:', error)
+      return this.generateFallbackFeedback(analysis)
+    }
+  }
+
+  private generateFallbackFeedback(analysis: {
+    progress: number
+    approach: 'correct' | 'incorrect' | 'incomplete' | 'unsure'
+    issues: string[]
+  }): string {
+    if (analysis.approach === 'correct' && analysis.progress >= 80) {
+      return "Your solution is correct. Well done."
+    } else if (analysis.approach === 'incorrect') {
+      const mainIssue = analysis.issues[0] || "there's a logic error in your approach"
+      return `Your solution has issues. ${mainIssue}.`
+    } else if (analysis.approach === 'incomplete') {
+      const mainIssue = analysis.issues[0] || "some parts are missing"
+      return `Your solution is incomplete. ${mainIssue}.`
+    } else if (analysis.progress >= 50) {
+      const mainIssue = analysis.issues[0] || "there are some issues to address"
+      return `You've made good progress, but ${mainIssue}.`
+    } else {
+      return "Your solution needs more work. Let's move on."
     }
   }
 
