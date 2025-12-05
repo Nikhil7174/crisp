@@ -1,3 +1,32 @@
+export interface User {
+  id: number;
+  email: string;
+  password_hash: string;
+  full_name: string;
+  user_type: 'candidate' | 'interviewer';
+  phone?: string;
+  company?: string;
+  created_at: Date;
+  last_login?: Date;
+  is_active: boolean;
+}
+
+export interface InterviewLink {
+  id: number;
+  created_by: number;
+  link_token: string;
+  title: string;
+  description?: string;
+  expiry_date?: Date;
+  max_attempts: number;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+  creator_name?: string;
+  creator_email?: string;
+  total_attempts?: number;
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -109,6 +138,7 @@ export interface InterviewQuestion {
   // Coding fields (for coding questions)
   language?: 'javascript' | 'typescript' | 'python' | 'java' | 'cpp';
   initialCode?: string;
+  starterCodes?: Record<string, string>; // Multi-language starter codes: { javascript: "...", python: "...", java: "...", cpp: "..." }
   expectedOutput?: string;
   testCases?: Array<{
     input: string;
@@ -163,4 +193,126 @@ export interface FinalResults {
     timeTaken: number;
   }>;
   duration: number;
+}
+
+// Final Evaluation Types (from crispDesktop app)
+export interface ConversationMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  metadata: {
+    type: 'question' | 'answer' | 'hint' | 'clarification' | 'followup' | 'feedback' | 'code_submission' | 'code_analysis';
+    questionId?: string;
+    evaluation?: {
+      score?: number;
+      keyPointsCovered?: string[];
+      needsFollowUp?: boolean;
+    };
+    hintLevel?: 1 | 2;
+    section?: 'theoretical' | 'coding';
+    codingProblemId?: string;
+  };
+}
+
+export interface Evaluation {
+  score: number;
+  keyPointsCovered: string[];
+  needsFollowUp: boolean;
+  feedback?: string;
+}
+
+export interface Question {
+  id: string;
+  question: string;
+  type: 'theoretical' | 'coding';
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface CodingProblem {
+  id: string;
+  problem: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  language?: string;
+  testCases?: Array<{
+    input: string;
+    expectedOutput: string;
+  }>;
+}
+
+export interface CodeAnalysis {
+  timestamp: number;
+  code: string;
+  analysis: string;
+  score?: number;
+  feedback?: string;
+}
+
+export interface TheoreticalConversation {
+  questionId: string;
+  question: string;
+  conversation: ConversationMessage[];
+  evaluations: Evaluation[];
+  totalScore: number;
+}
+
+export interface CodingConversation {
+  problemId: string;
+  problem: CodingProblem;
+  conversation: ConversationMessage[];
+  finalCode?: string;
+  timeComplexity?: string;
+  spaceComplexity?: string;
+  codeAnalysisHistory: CodeAnalysis[];
+  submittedAt?: string;
+  evaluation?: {
+    score: number;
+    feedback: string;
+    testResults?: Array<{
+      passed: boolean;
+      input: string;
+      expectedOutput: string;
+      actualOutput: string;
+    }>;
+  };
+}
+
+export interface FinalEvaluationPayload {
+  // Session metadata
+  sessionId: string;
+  candidateId: string;
+  interviewLinkId?: number;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+  duration: number; // milliseconds
+
+  // Full chronological conversation (all sections)
+  fullConversationHistory: ConversationMessage[];
+
+  // Structured breakdowns for easy analysis
+  theoreticalSection: {
+    questions: Question[];
+    conversations: TheoreticalConversation[];
+    overallScore: number;
+    totalQuestions: number;
+  };
+
+  codingSection: {
+    problems: CodingProblem[];
+    conversations: CodingConversation[];
+    overallScore: number;
+    totalProblems: number;
+  };
+
+  // Summary metrics
+  totalScore: number;
+  strengths: string[];
+  areasForImprovement: string[];
+  overallFeedback: string;
+
+  // Additional metadata
+  hintRequestCount: number;
+  clarificationRequestCount: number;
+  followUpCount: number;
+  averageTimePerQuestion: number;
+  averageTimePerCodingProblem: number;
 }

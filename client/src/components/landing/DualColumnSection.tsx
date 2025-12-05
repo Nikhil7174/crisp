@@ -1,13 +1,14 @@
 // src/components/landing/DualColumnSection.tsx
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Row, Col } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { UserTypeCard } from './UserTypeCard';
 import { useUserSelection } from '../../hooks/useUserSelection';
 import { useNavigate } from 'react-router-dom';
+import { DownloadModal } from '../DownloadModal';
 
 const intervieweeFeatures = [
-  'AI-powered mock interviews',
+  'Join interview sessions',
   'Real-time performance analysis',
   'Industry-specific questions',
   'Confidence building exercises',
@@ -23,13 +24,16 @@ const interviewerFeatures = [
 export const DualColumnSection: React.FC = () => {
   const { activeUserType, selectUserType } = useUserSelection();
   const navigate = useNavigate();
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
-  const handleStartPracticing = useCallback(() => {
-    navigate('/interview');
-  }, [navigate]);
+  const handleJoinInterview = useCallback(() => {
+    // Show download modal instead of navigating to interview
+    setShowDownloadModal(true);
+  }, []);
 
   const handleCreateInterview = useCallback(() => {
-    navigate('/admin');
+    // Navigate to login with interviewer context
+    navigate('/login', { state: { userType: 'interviewer', returnTo: '/interviewer/dashboard' } });
   }, [navigate]);
 
   return (
@@ -42,13 +46,13 @@ export const DualColumnSection: React.FC = () => {
         <Col xs={24} md={12}>
           <UserTypeCard
             type="interviewee"
-            title="Practice & Perfect"
-            subtitle="Get personalized mock interviews, instant feedback, and skill improvement tips"
+            title="Join & Practice"
+            subtitle="Join interview sessions, get instant feedback, and improve your skills"
             features={intervieweeFeatures}
-            ctaText="Start Practicing"
+            ctaText="Join Interview"
             isActive={activeUserType === 'interviewee'}
             onSelect={() => selectUserType('interviewee')}
-            onCtaClick={handleStartPracticing}
+            onCtaClick={handleJoinInterview}
             icon={<UserOutlined />}
           />
         </Col>
@@ -67,6 +71,11 @@ export const DualColumnSection: React.FC = () => {
           />
         </Col>
       </Row>
+      
+      <DownloadModal
+        visible={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+      />
     </div>
   );
 };

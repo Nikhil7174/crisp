@@ -329,4 +329,34 @@ Return JSON with this exact format:
         }
         */
     }
+
+    async generateQuestions(prompt: string): Promise<any[]> {
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: 'gpt-4',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert technical interviewer. Generate relevant interview questions. Always return valid JSON format.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.7,
+                max_tokens: 3000
+            });
+
+            const content = response.choices[0]?.message.content;
+            if (!content) throw new Error('No response from OpenAI');
+
+            const questions = JSON.parse(content);
+            return Array.isArray(questions) ? questions : [questions];
+
+        } catch (error) {
+            console.error('Error generating questions:', error);
+            throw new Error('Failed to generate questions');
+        }
+    }
 }

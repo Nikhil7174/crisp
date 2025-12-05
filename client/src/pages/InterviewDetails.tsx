@@ -1,450 +1,984 @@
-// src/pages/InterviewDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Card,
-    Button,
-    Typography,
-    Row,
-    Col,
-    Tag,
-    Space,
-    Descriptions,
-    message,
-    Spin,
-    Collapse
+  Card,
+  Typography,
+  Button,
+  Tag,
+  Row,
+  Col,
+  Statistic,
+  message,
+  Spin,
+  Descriptions,
+  Empty,
+  Tabs,
+  Collapse,
 } from 'antd';
 import {
-    ArrowLeftOutlined,
-    TrophyOutlined
+  ArrowLeftOutlined,
+  UserOutlined,
+  MessageOutlined,
+  SettingOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
-import { spacing } from '../styles';
+import dayjs from 'dayjs';
 import { API_BASE_URL } from '../constants/api';
+import { useAuth } from '../hooks/useAuth';
+import { colors, spacing } from '../styles';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-interface Interview {
-    id: number;
-    session_id: string;
-    candidate_name: string;
-    candidate_email: string;
-    candidate_phone: string;
-    start_time: string;
-    end_time: string;
-    duration: number;
+type ConversationRole = 'user' | 'assistant' | 'system';
+
+interface ConversationMetadata {
+  type?: string;
+  section?: 'theoretical' | 'coding';
+  questionId?: string;
+  codingProblemId?: string;
+  hintLevel?: number;
+  evaluation?: {
     score: number;
-    total_questions: number;
-    correct_answers: number;
-    time_spent: number;
-    strengths: string[];
-    areasForImprovement: string[];
-    overall_feedback: string;
-    detailed_answers: any[];
-    question_analysis: any[];
-    created_at: string;
+    keyPointsCovered?: string[];
+  };
+}
+
+interface ConversationMessage {
+  role: ConversationRole;
+  content: string;
+  timestamp?: number;
+  metadata?: ConversationMetadata;
+}
+
+interface FinalEvaluationSummary {
+  fullConversationHistory: ConversationMessage[];
+  theoreticalSection: any;
+  codingSection: any;
+  totalScore: number;
+  strengths: string[];
+  areasForImprovement: string[];
+  overallFeedback: string;
+  hintRequestCount: number;
+  clarificationRequestCount: number;
+  followUpCount: number;
+  averageTimePerQuestion?: number;
+  averageTimePerCodingProblem?: number;
+  llmEvaluation?: {
+    theoreticalSection: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+    codingSection: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+    overall: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+  } | null;
+}
+
+interface SecurityEvent {
+  id: number;
+  event_type: string;
+  source: string;
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  metadata?: any;
+  created_at: string;
+}
+
+interface InterviewDetails {
+  id: number;
+  session_id: string;
+  candidate_name: string;
+  candidate_email: string;
+  candidate_phone: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  score: number;
+  total_questions: number;
+  correct_answers: number;
+  time_spent: number;
+  strengths: string[];
+  areasForImprovement: string[];
+  overall_feedback: string;
+  detailed_answers: any[];
+  question_analysis: any;
+  cheating_detected?: boolean;
+  cheating_incidents?: any[];
+  security_agent_connected?: boolean;
+  security_events?: SecurityEvent[];
+  created_at: string;
+  finalEvaluation?: FinalEvaluationSummary | null;
 }
 
 export const InterviewDetails: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
-    const [interview, setInterview] = useState<Interview | null>(null);
-    const [loading, setLoading] = useState(true);
+  const { linkId, id } = useParams<{ linkId: string; id: string }>();
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const [interview, setInterview] = useState<InterviewDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [llmEvaluation, setLlmEvaluation] = useState<{
+    theoreticalSection: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+    codingSection: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+    overall: {
+      score: number;
+      feedback: string;
+      strengths: string[];
+      areasForImprovement: string[];
+    };
+  } | null>(null);
+  const [generatingEvaluation, setGeneratingEvaluation] = useState(false);
 
-    useEffect(() => {
-        const fetchInterviewDetails = async () => {
-            try {
-                const token = localStorage.getItem('adminToken');
-                if (!token) {
-                    message.error('Authentication token not found. Please log in.');
-                    navigate('/admin');
-                    return;
-                }
-
-                const response = await fetch(`${API_BASE_URL}/admin/interview/${id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
-
-                if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                        message.error('Unauthorized access. Please log in again.');
-                        localStorage.removeItem('adminToken');
-                        navigate('/admin');
-                    } else {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                }
-
-                const result = await response.json();
-                if (result.success) {
-                    setInterview(result.data);
-                } else {
-                    message.error('Failed to fetch interview details');
-                }
-            } catch (error) {
-                console.error('Error fetching interview details:', error);
-                message.error('Error fetching interview details');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchInterviewDetails();
-    }, [id, navigate]);
-
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <Spin size="large" />
-            </div>
-        );
+  useEffect(() => {
+    if (id) {
+      fetchInterviewDetails();
     }
+  }, [id]);
 
-    if (!interview) {
-        return (
-            <div style={{ padding: spacing.xl, textAlign: 'center' }}>
-                <Title level={3}>Interview not found</Title>
-                <Button onClick={() => navigate(-1)}>Back to Dashboard</Button>
-            </div>
-        );
+  // Check for existing LLM evaluation or generate it when interview data is loaded
+  useEffect(() => {
+    if (interview?.finalEvaluation) {
+      // First check if LLM evaluation already exists in finalEvaluation
+      if (interview.finalEvaluation.llmEvaluation) {
+        setLlmEvaluation(interview.finalEvaluation.llmEvaluation);
+        return;
+      }
+
+      // If no LLM evaluation exists and we have conversation history, generate it
+      if (
+        interview.finalEvaluation.fullConversationHistory &&
+        interview.finalEvaluation.fullConversationHistory.length > 0 &&
+        !llmEvaluation &&
+        !generatingEvaluation
+      ) {
+        generateLLMEvaluation();
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview]);
 
-    // Safely parse detailed_answers
-    let answers = [];
+  const fetchInterviewDetails = async () => {
     try {
-        if (typeof interview.detailed_answers === 'string') {
-            answers = JSON.parse(interview.detailed_answers);
-        } else if (Array.isArray(interview.detailed_answers)) {
-            answers = interview.detailed_answers;
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/interviewer/interview/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        setInterview(data.data);
+      } else {
+        message.error(data.message || 'Failed to fetch interview details');
+        // Navigate back to candidates list for this link
+        if (linkId) {
+          navigate(`/interviewer/link/${linkId}/candidates`);
+        } else {
+          navigate('/interviewer/dashboard');
         }
+      }
     } catch (error) {
-        console.error('Error parsing detailed_answers:', error);
-        answers = [];
+      console.error('Error fetching interview details:', error);
+      message.error('Failed to fetch interview details');
+      // Navigate back to candidates list for this link
+      if (linkId) {
+        navigate(`/interviewer/link/${linkId}/candidates`);
+      } else {
+        navigate('/interviewer/dashboard');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!interview) {
+    return (
+      <div style={{ padding: spacing.xl }}>
+        <Empty description="Interview not found" />
+      </div>
+    );
+  }
+
+  const conversationHistory = interview.finalEvaluation?.fullConversationHistory || [];
+
+  const conversationData = conversationHistory.map((message, index) => ({
+    key: index,
+    ...message,
+    section: message.metadata?.section,
+    type: message.metadata?.type,
+    reference: message.metadata?.questionId || message.metadata?.codingProblemId || '',
+  }));
+
+  const formatTimestamp = (timestamp?: number) =>
+    timestamp ? dayjs(timestamp).format('MMM D, YYYY HH:mm:ss') : 'Time not recorded';
+
+  const generateLLMEvaluation = async () => {
+    if (!interview?.finalEvaluation?.fullConversationHistory || !interview?.id) {
+      return;
     }
 
-    return (
-        <div style={{ padding: spacing.xl, background: '#f5f5f5', minHeight: '100vh' }}>
-            {/* Header */}
-            <div style={{ marginBottom: spacing.xl }}>
-                <Button
-                    icon={<ArrowLeftOutlined />}
-                    onClick={() => navigate(-1)}
-                    style={{ marginBottom: spacing.md }}
+    try {
+      setGeneratingEvaluation(true);
+      const response = await fetch(`${API_BASE_URL}/llm/generate-comprehensive-evaluation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          conversationHistory: interview.finalEvaluation.fullConversationHistory,
+          interviewId: interview.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.evaluation) {
+        setLlmEvaluation(data.evaluation);
+        if (data.cached) {
+          console.log('✅ Loaded cached LLM evaluation from database');
+        } else {
+          console.log('✅ Generated and stored new LLM evaluation');
+        }
+      } else {
+        console.error('Failed to generate evaluation:', data.error);
+      }
+    } catch (error) {
+      console.error('Error generating LLM evaluation:', error);
+    } finally {
+      setGeneratingEvaluation(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: spacing.xl, background: '#fafafa', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ marginBottom: spacing.xl }}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => {
+            // Navigate back to candidates list for this link
+            if (linkId) {
+              navigate(`/interviewer/link/${linkId}/candidates`);
+            } else {
+              navigate(-1);
+            }
+          }}
+          style={{ marginBottom: spacing.md }}
+        >
+          Back to Candidates
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>
+          Interview Details
+        </Title>
+      </div>
+
+      <Tabs
+        className="candidate-details-tabs"
+        defaultActiveKey="candidateDetails"
+        items={[
+          {
+            key: 'candidateDetails',
+            label: 'Candidate Details',
+            children: (
+              <>
+
+      {/* Candidate Information */}
+                <Card
+                  title="Candidate Information"
+                  style={{ marginBottom: spacing.xl }}
                 >
-                    Back to Dashboard
-                </Button>
+        <Descriptions column={{ xs: 1, sm: 2 }}>
+                    <Descriptions.Item label="Name">
+                      {interview.candidate_name}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Email">
+                      {interview.candidate_email}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Phone">
+                      {interview.candidate_phone || 'N/A'}
+                    </Descriptions.Item>
+          <Descriptions.Item label="Session ID">
+            <Text code>{interview.session_id}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Start Time">
+                      {dayjs(interview.start_time).format(
+                        'MMM D, YYYY HH:mm:ss',
+                      )}
+          </Descriptions.Item>
+          <Descriptions.Item label="End Time">
+                      {interview.end_time
+                        ? dayjs(interview.end_time).format(
+                            'MMM D, YYYY HH:mm:ss',
+                          )
+                        : 'N/A'}
+          </Descriptions.Item>
+        </Descriptions>
+      </Card>
 
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: spacing.md
-                }}>
-                    <div>
-                        <Title level={2} style={{ margin: 0 }}>
-                            {interview.candidate_name}
-                        </Title>
-                        <Text type="secondary">{interview.candidate_email}</Text>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
-                        <Tag
-                            color={interview.score >= 70 ? 'green' : interview.score >= 50 ? 'orange' : 'red'}
-                            style={{ fontSize: '1.2em', padding: '5px 10px' }}
-                        >
-                            <TrophyOutlined style={{ marginRight: '4px' }} />
-                            {interview.score}%
-                        </Tag>
-                        <Text type="secondary">
-                            {new Date(interview.created_at).toLocaleDateString()}
-                        </Text>
-                    </div>
-                </div>
-            </div>
-
-            {/* Candidate Information & Performance Metrics */}
-            <Row gutter={[spacing.xl, spacing.xl]} style={{ marginBottom: spacing.xl }}>
-                <Col xs={24} md={12}>
-                    <Card title="Candidate Information" style={{ height: '100%' }}>
-                        <Descriptions column={1} bordered>
-                            <Descriptions.Item label="Name">{interview.candidate_name}</Descriptions.Item>
-                            <Descriptions.Item label="Email">{interview.candidate_email}</Descriptions.Item>
-                            <Descriptions.Item label="Phone">{interview.candidate_phone || 'N/A'}</Descriptions.Item>
-                            <Descriptions.Item label="Session ID">{interview.session_id}</Descriptions.Item>
-                            <Descriptions.Item label="Interview Date">{new Date(interview.created_at).toLocaleDateString()}</Descriptions.Item>
-                        </Descriptions>
-                    </Card>
+      {/* LLM-Generated Evaluation */}
+      <Card
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+            <span>Comprehensive Evaluation</span>
+          </div>
+        }
+        style={{ marginBottom: spacing.xl }}
+      >
+        {llmEvaluation ? (
+          <>
+            {/* Overall Evaluation */}
+            <Card
+              type="inner"
+              title="Overall Performance"
+              style={{ marginBottom: spacing.md }}
+            >
+              <Row gutter={16}>
+                <Col xs={24} sm={8}>
+                  <Statistic
+                    title="Overall Score"
+                    value={llmEvaluation.overall.score}
+                    suffix="%"
+                    valueStyle={{
+                      color:
+                        llmEvaluation.overall.score >= 70
+                          ? colors.success.main
+                          : llmEvaluation.overall.score >= 60
+                          ? colors.warning.main
+                          : colors.error.main,
+                    }}
+                  />
                 </Col>
-                <Col xs={24} md={12}>
-                    <Card title="Performance Metrics" style={{ height: '100%' }}>
-                        <Descriptions column={1} bordered>
-                            <Descriptions.Item label="Score">
-                                <Tag color={interview.score >= 70 ? 'green' : interview.score >= 50 ? 'orange' : 'red'}>
-                                    {interview.score}%
+                <Col xs={24} sm={16}>
+                  <Paragraph>{llmEvaluation.overall.feedback}</Paragraph>
+                  {llmEvaluation.overall.strengths.length > 0 && (
+                    <div style={{ marginTop: spacing.md }}>
+                      <Text strong>Strengths: </Text>
+                      {llmEvaluation.overall.strengths.join(', ')}
+                    </div>
+                  )}
+                  {llmEvaluation.overall.areasForImprovement.length > 0 && (
+                    <div style={{ marginTop: spacing.sm }}>
+                      <Text strong>Areas for Improvement: </Text>
+                      {llmEvaluation.overall.areasForImprovement.join(', ')}
+                    </div>
+                  )}
+                </Col>
+              </Row>
+        </Card>
+
+            <Row gutter={16}>
+              {/* Theoretical Section */}
+        <Col xs={24} sm={12}>
+                <Card
+                  type="inner"
+                  title="Theoretical Section"
+                  style={{ marginBottom: spacing.md }}
+                >
+                  <Statistic
+                    title="Score"
+                    value={llmEvaluation.theoreticalSection.score}
+                    suffix="%"
+                    valueStyle={{
+                      color:
+                        llmEvaluation.theoreticalSection.score >= 70
+                          ? colors.success.main
+                          : llmEvaluation.theoreticalSection.score >= 60
+                          ? colors.warning.main
+                          : colors.error.main,
+                    }}
+                  />
+                  <Paragraph style={{ marginTop: spacing.md }}>
+                    {llmEvaluation.theoreticalSection.feedback}
+                  </Paragraph>
+                  {llmEvaluation.theoreticalSection.strengths.length > 0 && (
+                    <div style={{ marginTop: spacing.sm }}>
+                      <Text strong style={{ fontSize: 12 }}>Strengths:</Text>
+                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
+                        {llmEvaluation.theoreticalSection.strengths.map(
+                          (strength, idx) => (
+                            <li key={idx}>
+                              <Text style={{ fontSize: 12 }}>{strength}</Text>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                  {llmEvaluation.theoreticalSection.areasForImprovement.length >
+                    0 && (
+                    <div style={{ marginTop: spacing.sm }}>
+                      <Text strong style={{ fontSize: 12 }}>
+                        Areas for Improvement:
+                      </Text>
+                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
+                        {llmEvaluation.theoreticalSection.areasForImprovement.map(
+                          (area, idx) => (
+                            <li key={idx}>
+                              <Text style={{ fontSize: 12 }}>{area}</Text>
+                  </li>
+                          )
+                        )}
+              </ul>
+                    </div>
+            )}
+          </Card>
+        </Col>
+
+              {/* Coding Section */}
+        <Col xs={24} sm={12}>
+                <Card
+                  type="inner"
+                  title="Coding Section"
+                  style={{ marginBottom: spacing.md }}
+                >
+                  <Statistic
+                    title="Score"
+                    value={llmEvaluation.codingSection.score}
+                    suffix="%"
+                    valueStyle={{
+                      color:
+                        llmEvaluation.codingSection.score >= 70
+                          ? colors.success.main
+                          : llmEvaluation.codingSection.score >= 60
+                          ? colors.warning.main
+                          : colors.error.main,
+                    }}
+                  />
+                  <Paragraph style={{ marginTop: spacing.md }}>
+                    {llmEvaluation.codingSection.feedback}
+                  </Paragraph>
+                  {llmEvaluation.codingSection.strengths.length > 0 && (
+                    <div style={{ marginTop: spacing.sm }}>
+                      <Text strong style={{ fontSize: 12 }}>Strengths:</Text>
+                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
+                        {llmEvaluation.codingSection.strengths.map(
+                          (strength, idx) => (
+                            <li key={idx}>
+                              <Text style={{ fontSize: 12 }}>{strength}</Text>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                  {llmEvaluation.codingSection.areasForImprovement.length >
+                    0 && (
+                    <div style={{ marginTop: spacing.sm }}>
+                      <Text strong style={{ fontSize: 12 }}>
+                        Areas for Improvement:
+                      </Text>
+                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
+                        {llmEvaluation.codingSection.areasForImprovement.map(
+                          (area, idx) => (
+                            <li key={idx}>
+                              <Text style={{ fontSize: 12 }}>{area}</Text>
+                  </li>
+                          )
+                        )}
+              </ul>
+                    </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+          </>
+        ) : generatingEvaluation ? (
+          <div style={{ textAlign: 'center', padding: spacing.xl }}>
+            <Spin size="large" />
+            <Paragraph type="secondary" style={{ marginTop: spacing.md }}>
+              Generating AI evaluation from conversation history...
+            </Paragraph>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: spacing.xl }}>
+            <RobotOutlined
+              style={{ fontSize: 48, color: colors.neutral[400], marginBottom: spacing.md }}
+            />
+            <Paragraph type="secondary">
+              {interview?.finalEvaluation?.fullConversationHistory
+                ? 'Evaluation will be generated automatically...'
+                : 'No conversation history available for evaluation'}
+            </Paragraph>
+          </div>
+        )}
+      </Card>
+              </>
+            ),
+          },
+          {
+            key: 'detailedAnswers',
+            label: 'Detailed Answers',
+            children: (
+              <Card
+                title="Conversation History"
+                style={{ marginTop: spacing.xl }}
+                bodyStyle={{ paddingLeft: 60, paddingRight: 60 }}
+              >
+        {conversationData.length > 0 ? (
+          <>
+                    <Text
+                      type="secondary"
+                      style={{ display: 'block', marginBottom: spacing.md }}
+                    >
+                      Full transcript captured during the interview, including
+                      theoretical and coding sections.
+            </Text>
+                    <div
+                      style={{
+                        border: `1px solid ${colors.neutral[200]}`,
+                        borderRadius: 12,
+                        maxHeight: 700,
+                        overflowY: 'auto',
+                        padding: spacing.xl,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: spacing.lg,
+                        background: colors.background.primary,
+                      }}
+                    >
+                      {conversationData.map((message) => {
+                        const isCandidate = message.role === 'user';
+                        const isAI = message.role === 'assistant';
+                        const roleLabel = isCandidate
+                          ? 'Candidate'
+                          : isAI
+                          ? 'AI Interviewer'
+                          : 'System';
+                        const RoleIcon = isCandidate
+                          ? UserOutlined
+                          : isAI
+                          ? MessageOutlined
+                          : SettingOutlined;
+                        const bubbleColor = isCandidate
+                          ? colors.background.primary
+                          : isAI
+                          ? '#f8f9fa'
+                          : colors.neutral[100];
+                        const borderColor = isCandidate
+                          ? colors.neutral[200]
+                          : isAI
+                          ? colors.neutral[300]
+                          : colors.neutral[300];
+                        const boxShadow = isCandidate
+                          ? '0 0 0 3px #f0fff4, 0 2px 12px rgba(240, 255, 244, 0.4)'
+                          : colors.shadows.xs;
+                        const textColor = colors.neutral[800];
+                        const iconColor = isCandidate
+                          ? colors.primary.main
+                          : isAI
+                          ? colors.neutral[600]
+                          : colors.neutral[500];
+                        const alignment = isCandidate
+                          ? 'flex-end'
+                          : 'flex-start';
+
+                        return (
+                          <div
+                            key={message.key}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems:
+                                alignment as 'flex-start' | 'flex-end',
+                              width: '100%',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: spacing.sm,
+                                marginBottom: spacing.xs,
+                                justifyContent:
+                                  isCandidate ? 'flex-end' : 'flex-start',
+                              }}
+                            >
+                              <RoleIcon
+                                style={{
+                                  fontSize: 16,
+                                  color: iconColor,
+                                }}
+                              />
+                              <Text
+                                strong
+                                style={{
+                                  fontSize: 13,
+                                  color: colors.neutral[700],
+                                  fontWeight: 600,
+                                  letterSpacing: '0.01em',
+                                }}
+                              >
+                                {roleLabel}
+                              </Text>
+                              <Text
+                                type="secondary"
+                                style={{
+                                  fontSize: 11,
+                                  color: colors.neutral[500],
+                                  marginLeft: spacing.xs,
+                                }}
+                              >
+                                {formatTimestamp(message.timestamp)}
+                              </Text>
+                            </div>
+                            <div
+                              style={{
+                                background: bubbleColor,
+                                border: `1px solid ${borderColor}`,
+                                borderRadius: 12,
+                                padding: spacing.md,
+                                maxWidth: '75%',
+                                boxShadow: boxShadow,
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              {message.type && (
+                                <Tag
+                                  style={{
+                                    marginBottom: spacing.xs,
+                                    fontSize: 11,
+                                    padding: '2px 8px',
+                                    border: 'none',
+                                    background:
+                                      message.type === 'question'
+                                        ? '#e6f4ff'
+                                        : message.type === 'answer'
+                                        ? '#f6ffed'
+                                        : '#fff7e6',
+                                    color:
+                                      message.type === 'question'
+                                        ? colors.primary.dark
+                                        : message.type === 'answer'
+                                        ? colors.success.dark
+                                        : colors.warning.dark,
+                                  }}
+                                >
+                                  {message.type.charAt(0).toUpperCase() +
+                                    message.type.slice(1)}
                                 </Tag>
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Correct Answers">
-                                {interview.correct_answers}/{interview.total_questions}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Time Spent">
-                                {Math.round(interview.time_spent / 60)} minutes
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Total Duration">
-                                {Math.round(interview.duration / 1000 / 60)} minutes
-                            </Descriptions.Item>
-                        </Descriptions>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Strengths & Areas for Improvement */}
-            <Row gutter={[spacing.xl, spacing.xl]} style={{ marginBottom: spacing.xl }}>
-                <Col xs={24} md={12}>
-                    <Card title="Strengths" style={{ height: '100%' }}>
-                        <Space wrap>
-                            {interview.strengths && interview.strengths.length > 0 ? (
-                                interview.strengths.map((strength, index) => (
-                                    <Tag key={index} color="green" style={{ marginBottom: 8 }}>
-                                        {strength}
-                                    </Tag>
-                                ))
-                            ) : (
-                                <Text type="secondary">No strengths identified.</Text>
-                            )}
-                        </Space>
-                    </Card>
-                </Col>
-                <Col xs={24} md={12}>
-                    <Card title="Areas for Improvement" style={{ height: '100%' }}>
-                        <Space wrap>
-                            {interview.areasForImprovement && interview.areasForImprovement.length > 0 ? (
-                                interview.areasForImprovement.map((area, index) => (
-                                    <Tag key={index} color="orange" style={{ marginBottom: 8 }}>
-                                        {area}
-                                    </Tag>
-                                ))
-                            ) : (
-                                <Text type="secondary">No areas for improvement identified.</Text>
-                            )}
-                        </Space>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Overall Feedback */}
-            <Card title="Overall Feedback" style={{ marginBottom: spacing.xl }}>
-                <Text>{interview.overall_feedback}</Text>
-            </Card>
-
-            {/* Chat History Section */}
-            <Card title="Chat History Section">
-                {answers && answers.length > 0 ? (
-                    <Collapse
-                        items={[{
-                            key: 'chat-history',
-                            label: (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                    <Space>
-                                        <Text strong>View Chat History ({answers.length} questions)</Text>
-                                    </Space>
-                                    <Space>
-                                        <Text type="secondary">Click to expand</Text>
-                                    </Space>
+                              )}
+                              <Text
+                                style={{
+                                  whiteSpace: 'pre-wrap',
+                                  display: 'block',
+                                  fontSize: 14,
+                                  lineHeight: 1.6,
+                                  color: textColor,
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {message.content}
+                              </Text>
+                              {/* Display code for code submissions */}
+                              {message.type === 'code_submission' && (message.metadata as any)?.code && (
+                                <div
+                                  style={{
+                                    marginTop: spacing.md,
+                                    padding: spacing.md,
+                                    background: '#f5f5f5',
+                                    borderRadius: 8,
+                                    border: `1px solid ${colors.neutral[300]}`,
+                                  }}
+                                >
+                                  <Text
+                                    strong
+                                    style={{
+                                      display: 'block',
+                                      marginBottom: spacing.xs,
+                                      fontSize: 12,
+                                      color: colors.neutral[700],
+                                    }}
+                                  >
+                                    Submitted Code:
+                                  </Text>
+                                  <pre
+                                    style={{
+                                      margin: 0,
+                                      padding: spacing.sm,
+                                      background: '#ffffff',
+                                      borderRadius: 4,
+                                      border: `1px solid ${colors.neutral[200]}`,
+                                      fontSize: 12,
+                                      fontFamily: 'monospace',
+                                      whiteSpace: 'pre-wrap',
+                                      wordBreak: 'break-word',
+                                      overflowX: 'auto',
+                                      maxHeight: 400,
+                                      overflowY: 'auto',
+                                    }}
+                                  >
+                                    <code>{(message.metadata as any).code}</code>
+                                  </pre>
                                 </div>
-                            ),
-                            children: (
-                                <div style={{ padding: '16px 0' }}>
-                                    <div style={{
-                                        maxHeight: '600px',
-                                        overflowY: 'auto',
-                                        border: '1px solid #d9d9d9',
-                                        borderRadius: '8px',
-                                        background: '#fafafa',
-                                        padding: '16px'
-                                    }}>
-                                        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                                            {answers.map((answer: any, index: number) => {
-                                                const isCorrect = answer.isCorrect;
-                                                const userAnswerId = answer.userAnswer?.replace('Selected: ', '');
-                                                const correctAnswerId = answer.correctAnswer;
-                                                const isCodingQuestion = answer.questionId === 'q5' || answer.questionId === 'q6';
-
-                                                return (
-                                                    <div key={index}>
-                                                        {/* AI Question Message */}
-                                                        <div style={{
-                                                            display: 'flex',
-                                                            justifyContent: 'flex-start',
-                                                            marginBottom: '12px'
-                                                        }}>
-                                                            <div style={{
-                                                                background: '#e6f7ff',
-                                                                border: '1px solid #91d5ff',
-                                                                borderRadius: '12px',
-                                                                padding: '12px 16px',
-                                                                width: '100%',
-                                                                maxWidth: '100%',
-                                                                position: 'relative'
-                                                            }}>
-                                                                <div style={{
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    marginBottom: '8px'
-                                                                }}>
-                                                                    <div style={{
-                                                                        width: '8px',
-                                                                        height: '8px',
-                                                                        borderRadius: '50%',
-                                                                        background: '#1890ff',
-                                                                        marginRight: '8px'
-                                                                    }}></div>
-                                                                    <Text strong style={{ color: '#1890ff' }}>AI Interviewer</Text>
-                                                                    <Text type="secondary" style={{ marginLeft: '8px', fontSize: '12px' }}>
-                                                                        Question {index + 1}
-                                                                    </Text>
-                                                                    {isCodingQuestion && (
-                                                                        <Tag color="blue" style={{ marginLeft: '8px' }}>
-                                                                            Coding Question
-                                                                        </Tag>
-                                                                    )}
-                                                                </div>
-                                                                <Text style={{ fontSize: '16px', marginBottom: '12px' }}>
-                                                                    {answer.question}
-                                                                </Text>
-
-                                                                {/* Show code editor for coding questions (q5 and q6) */}
-                                                                {isCodingQuestion ? (
-                                                                    <div style={{ marginTop: '12px' }}>
-                                                                        <div style={{
-                                                                            border: '1px solid #d9d9d9',
-                                                                            borderRadius: '6px',
-                                                                            background: '#fafafa',
-                                                                            padding: '12px',
-                                                                            marginBottom: '8px'
-                                                                        }}>
-                                                                            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
-                                                                                Your Code Solution:
-                                                                            </Text>
-                                                                            <pre style={{
-                                                                                background: '#f5f5f5',
-                                                                                padding: '12px',
-                                                                                borderRadius: '4px',
-                                                                                border: '1px solid #e8e8e8',
-                                                                                fontSize: '14px',
-                                                                                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-                                                                                whiteSpace: 'pre-wrap',
-                                                                                wordWrap: 'break-word',
-                                                                                margin: 0,
-                                                                                maxHeight: '300px',
-                                                                                overflowY: 'auto'
-                                                                            }}>
-                                                                                {answer.userAnswer && answer.userAnswer !== 'No code submitted'
-                                                                                    ? answer.userAnswer
-                                                                                    : '// No code was submitted for this question'}
-                                                                            </pre>
-                                                                        </div>
-                                                                        <div style={{
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '8px'
-                                                                        }}>
-                                                                            <Tag color={isCorrect ? 'success' : 'error'}>
-                                                                                {isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                                                                            </Tag>
-                                                                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                                                                                Time taken: {answer.timeTaken || 0}s
-                                                                            </Text>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    /* MCQ Options for non-coding questions */
-                                                                    <div style={{ marginTop: '12px' }}>
-                                                                        {['a', 'b', 'c', 'd'].map((optionId) => {
-                                                                            const isUserAnswer = optionId === userAnswerId;
-                                                                            const isCorrectAnswer = optionId === correctAnswerId;
-                                                                            const optionText = answer[`option${optionId.toUpperCase()}`] || `Option ${optionId.toUpperCase()}`;
-
-                                                                            return (
-                                                                                <div
-                                                                                    key={optionId}
-                                                                                    style={{
-                                                                                        padding: '8px 12px',
-                                                                                        margin: '4px 0',
-                                                                                        border: '1px solid #d9d9d9',
-                                                                                        borderRadius: '6px',
-                                                                                        background: isCorrectAnswer ? '#f6ffed' : isUserAnswer ? '#fff2e8' : '#fff',
-                                                                                        borderColor: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : '#d9d9d9',
-                                                                                        position: 'relative',
-                                                                                        width: '100%',
-                                                                                        minHeight: '48px',
-                                                                                        display: 'flex',
-                                                                                        alignItems: 'center'
-                                                                                    }}
-                                                                                >
-                                                                                    <div style={{
-                                                                                        display: 'flex',
-                                                                                        alignItems: 'center',
-                                                                                        gap: '8px',
-                                                                                        width: '100%'
-                                                                                    }}>
-                                                                                        <div style={{
-                                                                                            width: '20px',
-                                                                                            height: '20px',
-                                                                                            borderRadius: '50%',
-                                                                                            border: '2px solid',
-                                                                                            borderColor: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : '#d9d9d9',
-                                                                                            background: isCorrectAnswer ? '#52c41a' : isUserAnswer ? '#ff7875' : 'transparent',
-                                                                                            display: 'flex',
-                                                                                            alignItems: 'center',
-                                                                                            justifyContent: 'center',
-                                                                                            fontSize: '12px',
-                                                                                            fontWeight: 'bold',
-                                                                                            color: 'white',
-                                                                                            flexShrink: 0
-                                                                                        }}>
-                                                                                            {optionId.toUpperCase()}
-                                                                                        </div>
-                                                                                        <Text style={{
-                                                                                            flex: 1,
-                                                                                            wordWrap: 'break-word',
-                                                                                            overflowWrap: 'break-word'
-                                                                                        }}>
-                                                                                            {optionText}
-                                                                                        </Text>
-                                                                                        <div style={{ flexShrink: 0 }}>
-                                                                                            {isCorrectAnswer && (
-                                                                                                <Tag color="success">
-                                                                                                    ✓ Correct
-                                                                                                </Tag>
-                                                                                            )}
-                                                                                            {isUserAnswer && !isCorrectAnswer && (
-                                                                                                <Tag color="error">
-                                                                                                    ✗ Your Answer
-                                                                                                </Tag>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </Space>
-                                    </div>
+                              )}
+                              {(message.section ||
+                                message.reference ||
+                                message.metadata?.hintLevel ||
+                                message.metadata?.evaluation?.score ||
+                                (message.type === 'code_submission' && ((message.metadata as any)?.timeComplexity || (message.metadata as any)?.spaceComplexity))) && (
+                                <div
+                                  style={{
+                                    marginTop: spacing.sm,
+                                    paddingTop: spacing.sm,
+                                    borderTop: `1px solid ${colors.neutral[200]}`,
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: spacing.xs,
+                                  }}
+                                >
+                                  {message.section && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background:
+                                          message.section === 'coding'
+                                            ? '#fff2e8'
+                                            : '#f9f0ff',
+                                        color:
+                                          message.section === 'coding'
+                                            ? '#d46b08'
+                                            : '#722ed1',
+                                      }}
+                                    >
+                                      {message.section.charAt(0).toUpperCase() +
+                                        message.section.slice(1)}
+                                    </Tag>
+                                  )}
+                                  {message.reference && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background: '#e6fffb',
+                                        color: '#13c2c2',
+                                      }}
+                                    >
+                                      {message.metadata?.questionId
+                                        ? `Q: ${message.reference}`
+                                        : `P: ${message.reference}`}
+                                    </Tag>
+                                  )}
+                                  {message.metadata?.hintLevel && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background: '#fff7e6',
+                                        color: '#d48806',
+                                      }}
+                                    >
+                                      Hint L{message.metadata.hintLevel}
+                                    </Tag>
+                                  )}
+                                  {message.metadata?.evaluation?.score && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background: '#f6ffed',
+                                        color: '#389e0d',
+                                      }}
+                                    >
+                                      Score: {message.metadata.evaluation.score}%
+                                    </Tag>
+                                  )}
+                                  {/* Display time and space complexity for code submissions */}
+                                  {message.type === 'code_submission' && (message.metadata as any)?.timeComplexity && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background: '#e6f7ff',
+                                        color: '#1890ff',
+                                      }}
+                                    >
+                                      TC: {(message.metadata as any).timeComplexity}
+                                    </Tag>
+                                  )}
+                                  {message.type === 'code_submission' && (message.metadata as any)?.spaceComplexity && (
+                                    <Tag
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 8px',
+                                        border: 'none',
+                                        background: '#e6f7ff',
+                                        color: '#1890ff',
+                                      }}
+                                    >
+                                      SC: {(message.metadata as any).spaceComplexity}
+                                    </Tag>
+                                  )}
                                 </div>
-                            )
-                        }]}
-                    />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+          </>
+        ) : (
+          <Empty description="Conversation history not available" />
+        )}
+      </Card>
+            ),
+          },
+          {
+            key: 'securityEvents',
+            label: 'Security Events',
+            children: (
+              <Card
+                title="Security Events"
+                style={{ marginTop: spacing.xl }}
+              >
+                {interview.security_events && interview.security_events.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+                    {/* Group events by type */}
+                    {(() => {
+                      const eventsByType = interview.security_events.reduce((acc, event) => {
+                        if (!acc[event.event_type]) {
+                          acc[event.event_type] = []
+                        }
+                        acc[event.event_type].push(event)
+                        return acc
+                      }, {} as Record<string, SecurityEvent[]>)
+
+                      return (
+                        <Collapse
+                          items={Object.entries(eventsByType).map(([type, events]) => {
+                            const severity = events[0].severity
+                            const source = events[0].source
+                            const totalCount = events.length
+                            
+                            return {
+                              key: type,
+                              label: (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                                  <Tag color={severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'blue'}>
+                                    {severity.toUpperCase()}
+                                  </Tag>
+                                  <Tag>{source === 'desktop_security_agent' ? 'Desktop Agent' : 'Vision Security'}</Tag>
+                                  <Text strong>{type.replace(/_/g, ' ')}</Text>
+                                  <Tag color="default">{totalCount} event{totalCount !== 1 ? 's' : ''}</Tag>
+                                </div>
+                              ),
+                              children: (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                                  {events.map((event, idx) => (
+                                    <Card
+                                      key={event.id}
+                                      size="small"
+                                      style={{
+                                        borderLeft: `3px solid ${
+                                          event.severity === 'high' ? colors.error.main :
+                                          event.severity === 'medium' ? colors.warning.main :
+                                          colors.info.main
+                                        }`
+                                      }}
+                                    >
+                                      <div>
+                                        <Text strong style={{ fontSize: 13 }}>Event #{idx + 1}</Text>
+                                        <div style={{ marginTop: spacing.xs }}>
+                                          <Text style={{ display: 'block' }}>
+                                            {event.metadata?.description || event.message}
+                                          </Text>
+                                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                                            {dayjs(event.created_at).format('MMM D, YYYY HH:mm:ss')}
+                                          </Text>
+                                          {event.metadata?.duration && (
+                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                              Duration: {Math.round(event.metadata.duration / 1000)}s
+                                            </Text>
+                                          )}
+                                          {event.metadata?.firstOccurrence && event.metadata?.lastOccurrence && (
+                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                              Time: {dayjs(event.metadata.firstOccurrence).format('HH:mm:ss')} - {dayjs(event.metadata.lastOccurrence).format('HH:mm:ss')}
+                                            </Text>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </Card>
+                                  ))}
+                                </div>
+                              )
+                            }
+                          })}
+                        />
+                      )
+                    })()}
+                  </div>
                 ) : (
-                    <Text type="secondary">No detailed answers available</Text>
+                  <Empty description="No security events recorded" />
                 )}
-            </Card>
-        </div>
-    );
+                {interview.cheating_incidents && interview.cheating_incidents.length > 0 && (
+                  <div style={{ marginTop: spacing.xl }}>
+                    <Title level={4}>Desktop Security Incidents</Title>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+                      {interview.cheating_incidents.map((incident: any, index: number) => (
+                        <Card
+                          key={index}
+                          size="small"
+                          style={{
+                            borderLeft: `4px solid ${colors.error.main}`
+                          }}
+                        >
+                          <Tag color="red">BLOCKED</Tag>
+                          <Text strong style={{ display: 'block', marginTop: spacing.xs }}>
+                            {incident.processName || 'Unknown Process'}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                            Reason: {incident.reason || 'Suspicious activity detected'}
+                          </Text>
+                          {incident.timestamp && (
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                              {dayjs(incident.timestamp).format('MMM D, YYYY HH:mm:ss')}
+                            </Text>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
 };
+

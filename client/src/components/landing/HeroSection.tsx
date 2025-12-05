@@ -11,7 +11,7 @@ export const HeroSection: React.FC = () => {
     <div style={{ 
       textAlign: 'center', 
       padding: `${spacing.xxxl}px ${spacing.lg}px ${spacing.xl}px`, // Reduced from xxxl * 1.5 and xxxl
-      background: colors.background.primary,
+      background: 'transparent',
     }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}

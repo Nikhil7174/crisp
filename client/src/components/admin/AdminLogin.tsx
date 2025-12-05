@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Divider } from 'antd';
+import { MailOutlined, LockOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import { API_BASE_URL } from '../../constants/api';
 
 const { Title, Text } = Typography;
 
 interface AdminLoginProps {
-    onLogin: (token: string) => void;
+    onLogin: (token: string, userData?: any) => void;
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
     const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (values: { username: string; password: string }) => {
+    const handleSubmit = async (values: { email: string; password: string }) => {
         setLoading(true);
         try {
             const response = await fetch(`${API_BASE_URL}/admin/login`, {
@@ -29,7 +30,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             if (data.success) {
                 localStorage.setItem('adminToken', data.token);
                 message.success('Login successful!');
-                onLogin(data.token);
+                onLogin(data.token, data.user);
             } else {
                 message.error(data.error || 'Login failed');
             }
@@ -60,10 +61,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             >
                 <div style={{ textAlign: 'center', marginBottom: spacing.xl }}>
                     <Title level={2} style={{ color: colors.primary.main, marginBottom: spacing.sm }}>
-                        Admin Dashboard
+                        Interviewer Dashboard
                     </Title>
                     <Text type="secondary">
-                        Sign in to view interview results
+                        Sign in to view your interview results
                     </Text>
                 </div>
 
@@ -74,12 +75,15 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
                     size="large"
                 >
                     <Form.Item
-                        name="username"
-                        rules={[{ required: true, message: 'Please enter your username!' }]}
+                        name="email"
+                        rules={[
+                            { required: true, message: 'Please enter your email!' },
+                            { type: 'email', message: 'Please enter a valid email!' }
+                        ]}
                     >
                         <Input
-                            prefix={<UserOutlined />}
-                            placeholder="Username"
+                            prefix={<MailOutlined />}
+                            placeholder="Email"
                             style={{ borderRadius: 8 }}
                         />
                     </Form.Item>
@@ -113,9 +117,27 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
                     </Form.Item>
                 </Form>
 
-                <div style={{ textAlign: 'center', marginTop: spacing.lg }}>
+                <Divider />
+
+                <div style={{ textAlign: 'center' }}>
+                    <Text type="secondary">
+                        Want to conduct interviews?{' '}
+                        <Link
+                            to="/register"
+                            state={{ defaultUserType: 'interviewer' }}
+                            style={{
+                                color: colors.primary.main,
+                                fontWeight: 500,
+                            }}
+                        >
+                            Sign up as Interviewer
+                        </Link>
+                    </Text>
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: spacing.md }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                        Default credentials: admin / admin123
+                        Only registered interviewers can access this dashboard
                     </Text>
                 </div>
             </Card>

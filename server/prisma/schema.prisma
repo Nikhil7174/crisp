@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int         @id @default(autoincrement())
+  email         String      @unique
+  password_hash String
+  full_name     String
+  user_type     UserType
+  phone         String?
+  company       String?
+  resume_data   String?
+  created_at    DateTime    @default(now())
+  last_login    DateTime?
+  is_active     Boolean     @default(true)
+  interviews    Interview[] @relation("InterviewUser")
+
+  @@map("users")
+}
+
+model InterviewLink {
+  id                           Int         @id @default(autoincrement())
+  created_by                   Int
+  link_token                   String      @unique
+  title                        String
+  description                  String?
+  expiry_date                  DateTime?
+  max_attempts                 Int         @default(0)
+  is_active                    Boolean     @default(true)
+  job_title                    String?
+  job_id                       String?
+  role                         String?
+  years_of_experience          Int?
+  max_interview_questions      Int?
+  max_machine_coding_questions Int?
+  question_source              String?    @default("auto")
+  topics                       String?
+  machine_questions            String?
+  generated_questions          String?
+  questions_approved           Boolean     @default(false)
+  created_at                   DateTime    @default(now())
+  updated_at                   DateTime    @updatedAt
+  creator                      Interviewer @relation("InterviewLinkCreator", fields: [created_by], references: [id])
+  interviews                   Interview[] @relation("InterviewLinkInterviews")
+  security_events              SecurityEvent[]
+
+  @@map("interview_links")
+}
+
+model Interview {
+  id                       Int                 @id @default(autoincrement())
+  session_id               String              @unique
+  user_id                  Int?
+  interview_link_id        Int?
+  candidate_name           String
+  candidate_email          String
+  candidate_phone          String?
+  start_time               DateTime
+  end_time                 DateTime?
+  duration                 Int?
+  score                    Int?
+  total_questions          Int?
+  correct_answers          Int?
+  time_spent               Int?
+  strengths                String?
+  areas_for_improvement    String?
+  overall_feedback         String?
+  detailed_answers         String?
+  question_analysis        String?
+  is_mock_interview        Boolean             @default(false)
+  cheating_detected        Boolean             @default(false)
+  cheating_incidents       String?
+  security_agent_connected Boolean             @default(false)
+  created_at               DateTime            @default(now())
+  updated_at               DateTime            @updatedAt
+  code_snapshots           CodeSnapshot[]
+  evaluations              Evaluation[]
+  questions                InterviewQuestion[]
+  final_evaluation         FinalEvaluation?
+  security_events          SecurityEvent[]
+  interview_link           InterviewLink?      @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
+  user                     User?               @relation("InterviewUser", fields: [user_id], references: [id])
+
+  @@map("interviews")
+}
+
+model InterviewQuestion {
+  id               Int         @id @default(autoincrement())
+  interview_id     Int
+  question_text    String
+  expected_answer  String
+  key_points       String
+  candidate_answer String?
+  order            Int
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+  evaluation       Evaluation?
+  interview        Interview   @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("interview_questions")
+}
+
+model Evaluation {
+  id                 Int               @id @default(autoincrement())
+  interview_id       Int
+  question_id        Int               @unique
+  candidate_answer   String
+  key_points_covered String
+  score              Float
+  feedback           String
+  needs_follow_up    Boolean           @default(false)
+  follow_up_question String?
+  created_at         DateTime          @default(now())
+  question           InterviewQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  interview          Interview         @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("evaluations")
+}
+
+model CodeSnapshot {
+  id           Int       @id @default(autoincrement())
+  interview_id Int
+  code         String
+  timestamp    DateTime  @default(now())
+  analysis     String?
+  interview    Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("code_snapshots")
+}
+
+model Interviewer {
+  id                      Int             @id @default(autoincrement())
+  email                   String          @unique
+  password_hash           String
+  full_name               String
+  phone                   String?
+  company                 String?
+  created_at              DateTime        @default(now())
+  last_login              DateTime?
+  is_active               Boolean         @default(true)
+  created_interview_links InterviewLink[] @relation("InterviewLinkCreator")
+
+  @@map("interviewers")
+}
+
+model TheoreticalQuestion {
+  id              Int      @id @default(autoincrement())
+  topic           String
+  question_text   String
+  difficulty      String
+  category        String
+  expected_answer String
+  explanation     String
+  key_points      String?
+  documentation   String?
+  companies       String?
+  tags            String?
+  success_rate    Float?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@index([topic, difficulty])
+  @@index([category])
+  @@map("theoretical_questions")
+}
+
+model MachineCodingQuestion {
+  id                Int      @id @default(autoincrement())
+  topic             String
+  question_text     String
+  difficulty        String
+  category          String
+  language          String
+  problem_statement String
+  constraints       String?
+  examples          String?
+  starter_code      String?
+  test_cases        String
+  hints             String?
+  solution          String?
+  time_complexity   String?
+  space_complexity  String?
+  companies         String?
+  similar_to        String?
+  tags              String?
+  success_rate      Float?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  starter_codes     String?
+
+  @@index([topic, difficulty])
+  @@index([category])
+  @@index([language])
+  @@map("machine_coding_questions")
+}
+
+model FinalEvaluation {
+  id                          Int       @id @default(autoincrement())
+  interview_id                Int       @unique
+  session_id                  String
+  candidate_id                String
+  interview_link_id           Int?
+  start_time                  DateTime
+  end_time                    DateTime
+  duration                    Int       // milliseconds
+  full_conversation_history   String    // JSON string of ConversationMessage[]
+  theoretical_section         String    // JSON string of theoretical section data
+  coding_section              String    // JSON string of coding section data
+  total_score                 Float
+  strengths                   String    // JSON string of string[]
+  areas_for_improvement       String    // JSON string of string[]
+  overall_feedback            String
+  hint_request_count          Int       @default(0)
+  clarification_request_count Int       @default(0)
+  follow_up_count             Int       @default(0)
+  average_time_per_question   Float?
+  average_time_per_coding_problem Float?
+  llm_evaluation              String?  // JSON string of LLM comprehensive evaluation
+  created_at                  DateTime  @default(now())
+  updated_at                  DateTime  @updatedAt
+  interview                   Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@map("final_evaluations")
+}
+
+model SecurityEvent {
+  id                Int          @id @default(autoincrement())
+  interview_id      Int?
+  interview_link_id Int?
+  session_id        String?
+  event_type        String
+  source            String
+  severity          String
+  message           String
+  metadata          String?
+  created_at        DateTime     @default(now())
+  interview         Interview?   @relation(fields: [interview_id], references: [id], onDelete: SetNull)
+  interview_link    InterviewLink? @relation(fields: [interview_link_id], references: [id], onDelete: SetNull)
+
+  @@index([session_id])
+  @@index([interview_link_id])
+  @@map("SecurityEvent")
+}
+
+enum UserType {
+  candidate
+  interviewer
+}

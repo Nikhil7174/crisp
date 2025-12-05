@@ -66,7 +66,7 @@ export class ResumeParserService {
     }
 
     // Use OpenAI to extract structured data
-    const extractedData = await this.extractDataWithAI(text);
+    const extractedData = await this.fallbackExtraction(text);
 
     return {
       ...extractedData,
