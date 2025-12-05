@@ -11,7 +11,7 @@ A full-stack AI-powered interview platform that conducts automated technical int
 │   (Vite + TS)   │                     │   (Node.js)     │
 │                 │                     │                 │
 │ • Redux Store   │                     │ • REST API      │
-│ • Session Mgmt  │                     │ • SQLite DB     │
+│ • Session Mgmt  │                     │ • PostgreSQL DB │
 │ • Monaco Editor │                     │ • OpenAI API    │
 │ • Real-time UI  │                     │ • Code Sandbox  │
 └─────────────────┘                     └─────────────────┘
@@ -34,7 +34,7 @@ A full-stack AI-powered interview platform that conducts automated technical int
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
 - **TypeScript** - Type-safe server development
-- **SQLite** - Lightweight database
+- **PostgreSQL** - Production-ready database (via Supabase)
 - **OpenAI API** - AI-powered question generation
 - **Helmet** - Security middleware
 - **CORS** - Cross-origin resource sharing
@@ -83,7 +83,7 @@ crisp/
 │   │   │   ├── openaiService.ts          # AI integration
 │   │   │   └── databaseService.ts        # Database operations
 │   │   └── utils/           # Utility functions
-│   └── data/               # SQLite database files
+│   └── prisma/             # Prisma schema and migrations
 │
 └── ADMIN_SETUP.md          # Admin configuration guide
 ```
@@ -171,7 +171,7 @@ class OpenAIService {
 2. **Text Extraction** → Raw text processing
 3. **AI Analysis** → Structured data extraction
 4. **Validation** → Data quality checks
-5. **Storage** → SQLite database
+5. **Storage** → PostgreSQL database (Supabase)
 
 ## 📊 State Management
 
@@ -235,7 +235,7 @@ export const API_CONFIG = {
 ### Production Setup
 1. **Frontend**: Deployed on Vercel
 2. **Backend**: Deployed on Render
-3. **Database**: SQLite with automated backups
+3. **Database**: PostgreSQL (Supabase) with automated backups
 4. **CDN**: Static assets via Vercel
 
 ## 🔧 Development
@@ -281,7 +281,7 @@ npm start      # Production server
 
 ### Backend
 - **Database Indexing** → Optimized queries
-- **Connection Pooling** → SQLite optimization
+- **Connection Pooling** → PostgreSQL connection pooling
 - **Response Caching** → Redis integration
 - **Rate Limiting** → API protection
 

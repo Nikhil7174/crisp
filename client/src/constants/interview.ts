@@ -140,7 +140,6 @@ export const TECH_STACKS = [
   { value: 'Elasticsearch', label: 'Elasticsearch', category: 'Database' },
   { value: 'Cassandra', label: 'Cassandra', category: 'Database' },
   { value: 'DynamoDB', label: 'DynamoDB', category: 'Database' },
-  { value: 'SQLite', label: 'SQLite', category: 'Database' },
   { value: 'Oracle', label: 'Oracle', category: 'Database' },
   { value: 'SQL Server', label: 'SQL Server', category: 'Database' },
   { value: 'Neo4j', label: 'Neo4j', category: 'Database' },
