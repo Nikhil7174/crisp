@@ -971,6 +971,19 @@ export class PrismaService {
                     llm_evaluation: JSON.stringify(llmEvaluation),
                 },
             });
+            
+            // Also update the interview.score field with the LLM evaluation overall score if available
+            // This ensures the score is easily accessible for statistics
+            if (llmEvaluation?.overall?.score !== null && llmEvaluation?.overall?.score !== undefined) {
+                await prisma.interview.update({
+                    where: { id: interviewId },
+                    data: {
+                        score: Math.round(llmEvaluation.overall.score),
+                    },
+                });
+                console.log(`✅ Interview score updated to ${llmEvaluation.overall.score} for interview ${interviewId}`);
+            }
+            
             console.log(`✅ LLM evaluation saved for interview ${interviewId}`);
             return result;
         } catch (error) {

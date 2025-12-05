@@ -86,6 +86,18 @@ export const Header: React.FC = () => {
               type="primary"
               icon={<LoginOutlined />}
               onClick={handleLoginClick}
+              style={{
+                background: colors.neutral[900],
+                borderColor: colors.neutral[900],
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = colors.neutral[800];
+                e.currentTarget.style.borderColor = colors.neutral[800];
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = colors.neutral[900];
+                e.currentTarget.style.borderColor = colors.neutral[900];
+              }}
             >
               Login
             </Button>

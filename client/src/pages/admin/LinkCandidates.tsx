@@ -183,10 +183,19 @@ export const LinkCandidates: React.FC = () => {
     },
     {
       title: 'Duration',
-      dataIndex: 'duration',
       key: 'duration',
       width: 100,
-      render: (duration: number) => <Text>{Math.round(duration / 1000 / 60)} min</Text>,
+      render: (record: Interview) => {
+        // Calculate duration from start_time and end_time (most reliable)
+        if (record.start_time && record.end_time) {
+          const start = new Date(record.start_time).getTime();
+          const end = new Date(record.end_time).getTime();
+          const durationMs = end - start;
+          const durationMinutes = Math.round(durationMs / 1000 / 60);
+          return <Text>{durationMinutes > 0 ? `${durationMinutes} min` : '-'}</Text>;
+        }
+        return <Text>-</Text>;
+      },
     },
     {
       title: 'Date',

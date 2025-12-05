@@ -40,16 +40,46 @@ export class InterviewerController {
             // Calculate summary statistics
             const totalInterviews = interviews.length;
             const totalCandidates = new Set(interviews.map(i => i.candidate_email)).size;
-            const averageScore = totalInterviews > 0
-                ? Math.round(interviews.reduce((sum, i) => {
-                    // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
-                    const score = (i as any).finalEvaluation?.llmEvaluation?.overall?.score 
-                        || (i as any).finalEvaluation?.totalScore 
-                        || i.score 
-                        || 0;
-                    return sum + score;
-                }, 0) / totalInterviews)
+            
+            // Calculate average score from completed interviews
+            // Priority: LLM evaluation overall score > finalEvaluation totalScore > interview.score
+            const scores: number[] = [];
+            
+            interviews.forEach(i => {
+                if (!i.end_time) return; // Skip incomplete interviews
+                
+                // Try to get score from various sources
+                let score: number | null = null;
+                
+                // Check LLM evaluation first (most accurate)
+                if ((i as any).finalEvaluation?.llmEvaluation?.overall?.score !== null && 
+                    (i as any).finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
+                    score = (i as any).finalEvaluation.llmEvaluation.overall.score;
+                }
+                // Check finalEvaluation totalScore
+                else if ((i as any).finalEvaluation?.totalScore !== null && 
+                         (i as any).finalEvaluation?.totalScore !== undefined) {
+                    score = (i as any).finalEvaluation.totalScore;
+                }
+                // Check interview.score
+                else if (i.score !== null && i.score !== undefined) {
+                    score = i.score;
+                }
+                
+                // Only add if we found a valid score (including 0 as valid)
+                if (score !== null && score !== undefined) {
+                    scores.push(score);
+                    console.log(`[Average Score] Interview ${i.id}: score=${score} (from ${(i as any).finalEvaluation?.llmEvaluation ? 'llmEvaluation' : (i as any).finalEvaluation ? 'finalEvaluation.totalScore' : 'interview.score'})`);
+                } else {
+                    console.log(`[Average Score] Interview ${i.id}: No valid score found (end_time: ${i.end_time}, has finalEvaluation: ${!!(i as any).finalEvaluation})`);
+                }
+            });
+            
+            const averageScore = scores.length > 0
+                ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
                 : 0;
+            
+            console.log(`[Average Score] Total completed interviews: ${interviews.filter(i => i.end_time).length}, Interviews with scores: ${scores.length}, Average: ${averageScore}`);
             const completedInterviews = interviews.filter(i => i.end_time).length;
             
             // Calculate cheating detection statistics

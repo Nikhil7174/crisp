@@ -103,13 +103,42 @@ export const LinkCandidates: React.FC = () => {
 
         // Calculate statistics
         const completedInterviews = candidateList.filter((c: Candidate) => c.end_time).length;
-        const averageScore =
-          candidateList.length > 0
-            ? Math.round(
-                candidateList.reduce((sum: number, c: Candidate) => sum + (c.score || 0), 0) /
-                  candidateList.length
-              )
-            : 0;
+        
+        // Calculate average score using the same priority as admin dashboard
+        // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
+        const scores: number[] = [];
+        candidateList.forEach((c: Candidate) => {
+          if (!c.end_time) return; // Skip incomplete interviews
+          
+          let score: number | null = null;
+          
+          // Check LLM evaluation first (most accurate)
+          if (c.finalEvaluation?.llmEvaluation?.overall?.score !== null && 
+              c.finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
+            score = c.finalEvaluation.llmEvaluation.overall.score;
+          }
+          // Check finalEvaluation totalScore
+          else if (c.finalEvaluation?.totalScore !== null && 
+                   c.finalEvaluation?.totalScore !== undefined) {
+            score = c.finalEvaluation.totalScore;
+          }
+          // Check interview.score
+          else if (c.score !== null && c.score !== undefined) {
+            score = c.score;
+          }
+          
+          // Only add if we found a valid score (including 0 as valid)
+          if (score !== null && score !== undefined) {
+            scores.push(score);
+            console.log(`[LinkCandidates] Candidate ${c.id}: score=${score} (from ${c.finalEvaluation?.llmEvaluation ? 'llmEvaluation' : c.finalEvaluation ? 'finalEvaluation.totalScore' : 'interview.score'})`);
+          }
+        });
+        
+        const averageScore = scores.length > 0
+          ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+          : 0;
+        
+        console.log(`[LinkCandidates] Total candidates: ${candidateList.length}, Completed: ${completedInterviews}, With scores: ${scores.length}, Average: ${averageScore}`);
 
         setStatistics({
           totalCandidates: candidateList.length,
@@ -179,16 +208,42 @@ export const LinkCandidates: React.FC = () => {
           </Tag>
         );
       },
+      sorter: (a: Candidate, b: Candidate) => {
+        const scoreA = a.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? a.finalEvaluation?.totalScore 
+          ?? a.score 
+          ?? 0;
+        const scoreB = b.finalEvaluation?.llmEvaluation?.overall?.score 
+          ?? b.finalEvaluation?.totalScore 
+          ?? b.score 
+          ?? 0;
+        return scoreA - scoreB;
+      },
     },
     {
       title: 'Duration',
       key: 'duration',
       render: (_: any, record: Candidate) => {
-        if (record.end_time) {
-          const duration = Math.round(record.duration / 60); // Convert to minutes
-          return `${duration} min`;
+        // Calculate duration from start_time and end_time (most reliable)
+        if (record.start_time && record.end_time) {
+          const start = new Date(record.start_time).getTime();
+          const end = new Date(record.end_time).getTime();
+          const durationMs = end - start;
+          const durationMinutes = Math.round(durationMs / 1000 / 60);
+          return `${durationMinutes} min`;
         }
         return '-';
+      },
+      sorter: (a: Candidate, b: Candidate) => {
+        const getDuration = (record: Candidate): number => {
+          if (record.start_time && record.end_time) {
+            const start = new Date(record.start_time).getTime();
+            const end = new Date(record.end_time).getTime();
+            return end - start;
+          }
+          return 0;
+        };
+        return getDuration(a) - getDuration(b);
       },
     },
     {
@@ -196,6 +251,11 @@ export const LinkCandidates: React.FC = () => {
       dataIndex: 'start_time',
       key: 'start_time',
       render: (date: string) => dayjs(date).format('MMM D, YYYY HH:mm'),
+      sorter: (a: Candidate, b: Candidate) => {
+        const dateA = new Date(a.start_time).getTime();
+        const dateB = new Date(b.start_time).getTime();
+        return dateA - dateB;
+      },
     },
     {
       title: 'Actions',

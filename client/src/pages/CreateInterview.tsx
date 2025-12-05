@@ -1155,7 +1155,7 @@ export const CreateInterview: React.FC = () => {
                                     </Row>
                                     <Row gutter={16} style={{ marginTop: spacing.sm }}>
                                       <Col xs={24} md={12}>
-                                        <Text strong>Time Limit:</Text> <Text>{question.timeLimit ? `${question.timeLimit}s` : '—'}</Text>
+                                        <Text strong>Time Limit:</Text> <Text>{question.timeLimit ? `${Math.round(question.timeLimit / 60)} min` : '—'}</Text>
                                       </Col>
                                       <Col xs={24} md={12}>
                                         <Text strong>Test Cases:</Text> <Text>{question.testCases?.length || 0}</Text>

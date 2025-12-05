@@ -211,8 +211,17 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
   );
 
   const renderMachineCodingQuestion = (question: GeneratedQuestion) => (
-    <div>
-      <Paragraph strong>{question.problemStatement || question.question}</Paragraph>
+    <div style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+      {question.question && question.question !== question.problemStatement && (
+        <Title level={5} style={{ marginBottom: spacing.sm }}>
+          {question.question}
+        </Title>
+      )}
+      {question.problemStatement && (
+        <Paragraph strong style={{ marginBottom: question.constraints ? spacing.sm : 0 }}>
+          {question.problemStatement}
+        </Paragraph>
+      )}
       {question.constraints && question.constraints.length > 0 && (
         <div style={{ marginBottom: spacing.sm }}>
           <Text strong>Constraints:</Text>
@@ -232,7 +241,10 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
             borderRadius: 4,
             marginTop: spacing.xs,
             fontSize: '12px',
-            overflow: 'auto'
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            maxWidth: '100%'
           }}>
             {question.starterCode}
           </pre>
@@ -243,10 +255,10 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
           <Text strong>Examples:</Text>
           {Array.isArray(question.examples) ? (
             question.examples.map((example, index) => (
-              <div key={`${question.id}-example-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px' }}>
-                {example.input && <Text code>Input: {example.input}</Text>}
+              <div key={`${question.id}-example-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px', wordBreak: 'break-word' }}>
+                {example.input && <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Input: {example.input}</Text>}
                 {example.input && example.output && <br />}
-                {example.output && <Text code>Output: {example.output}</Text>}
+                {example.output && <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Output: {example.output}</Text>}
                 {example.explanation && (
                   <>
                     <br />
@@ -273,10 +285,10 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
         <div style={{ marginBottom: spacing.sm }}>
           <Text strong>Test Cases:</Text>
           {question.testCases.map((testCase, index) => (
-            <div key={`${question.id}-testcase-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px' }}>
-              <Text code>Input: {testCase.input}</Text>
+            <div key={`${question.id}-testcase-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px', wordBreak: 'break-word' }}>
+              <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Input: {testCase.input}</Text>
               <br />
-              <Text code>Expected: {testCase.expectedOutput}</Text>
+              <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Expected: {testCase.expectedOutput}</Text>
             </div>
           ))}
         </div>
@@ -290,13 +302,14 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
       open={visible}
       onCancel={onClose}
       width={1000}
+      style={{ maxWidth: '90vw' }}
       footer={[
         <Button key="close" onClick={onClose}>
           Close
         </Button>,
       ]}
     >
-      <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+      <div style={{ maxHeight: '70vh', overflow: 'auto', overflowX: 'hidden', wordWrap: 'break-word' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: spacing.xxl }}>
             <Spin size="large" />
@@ -335,7 +348,7 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
                   />
                 </Col>
                 <Col xs={24} sm={12}>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', marginRight: spacing.md }}>
                     <Text type="secondary">
                       Showing {filteredQuestions.length} of {questions.length} questions
                     </Text>
@@ -351,8 +364,11 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
                   key={`question-${question.id}-${index}`}
                   style={{ 
                     marginBottom: spacing.md,
-                    border: `1px solid ${colors.neutral[300]}`
+                    border: `1px solid ${colors.neutral[300]}`,
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word'
                   }}
+                  bodyStyle={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
                 >
                   <div style={{ 
                     display: 'flex', 
@@ -367,10 +383,12 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
                       <Tag color="blue">{question.type.replace('_', ' ').toUpperCase()}</Tag>
                       <Tag color="purple">{question.topic}</Tag>
                     </Space>
-                    <Space>
-                      <ClockCircleOutlined />
-                      <Text>{question.timeLimit}s</Text>
-                    </Space>
+                    {question.type !== 'theoretical' && (
+                      <Space>
+                        <ClockCircleOutlined />
+                        <Text>{Math.round(question.timeLimit / 60)} min</Text>
+                      </Space>
+                    )}
                   </div>
 
                   <div style={{ marginBottom: spacing.sm }}>

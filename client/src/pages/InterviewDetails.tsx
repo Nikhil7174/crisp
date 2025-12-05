@@ -348,7 +348,6 @@ export const InterviewDetails: React.FC = () => {
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-            <RobotOutlined />
             <span>Comprehensive Evaluation</span>
           </div>
         }

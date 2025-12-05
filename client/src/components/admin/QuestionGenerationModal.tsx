@@ -223,7 +223,7 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
           {question.options.map((option) => (
             <div key={option.id} style={{ marginBottom: spacing.xs }}>
               <Text style={{ 
-                color: option.isCorrect ? colors.success.main : colors.text.primary,
+                color: option.isCorrect ? colors.success.main : colors.neutral[900],
                 fontWeight: option.isCorrect ? 'bold' : 'normal'
               }}>
                 {option.id.toUpperCase()}. {option.text}
@@ -237,8 +237,17 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
   );
 
   const renderMachineCodingQuestion = (question: GeneratedQuestion) => (
-    <div>
-      <Paragraph strong>{question.problemStatement || question.question}</Paragraph>
+    <div style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+      {question.question && question.question !== question.problemStatement && (
+        <Title level={5} style={{ marginBottom: spacing.sm }}>
+          {question.question}
+        </Title>
+      )}
+      {question.problemStatement && (
+        <Paragraph strong style={{ marginBottom: question.constraints ? spacing.sm : 0 }}>
+          {question.problemStatement}
+        </Paragraph>
+      )}
       {question.constraints && question.constraints.length > 0 && (
         <div style={{ marginBottom: spacing.sm }}>
           <Text strong>Constraints:</Text>
@@ -254,10 +263,10 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
           <Text strong>Examples:</Text>
           {Array.isArray(question.examples) ? (
             question.examples.map((example, index) => (
-              <div key={`${question.id}-example-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px' }}>
-                {example.input && <Text code>Input: {example.input}</Text>}
+              <div key={`${question.id}-example-${index}`} style={{ marginTop: spacing.xs, fontSize: '12px', wordBreak: 'break-word' }}>
+                {example.input && <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Input: {example.input}</Text>}
                 {example.input && example.output && <br />}
-                {example.output && <Text code>Output: {example.output}</Text>}
+                {example.output && <Text code style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Output: {example.output}</Text>}
                 {example.explanation && (
                   <>
                     <br />
@@ -289,7 +298,10 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
             borderRadius: 4,
             marginTop: spacing.xs,
             fontSize: '12px',
-            overflow: 'auto'
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            maxWidth: '100%'
           }}>
             {question.starterCode}
           </pre>
@@ -305,9 +317,9 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
       onCancel={onClose}
       width={1000}
       footer={null}
-      style={{ top: 20 }}
+      style={{ top: 20, maxWidth: '90vw' }}
     >
-      <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+      <div style={{ maxHeight: '70vh', overflow: 'auto', overflowX: 'hidden', wordWrap: 'break-word', marginRight: spacing.md}}>
         {questions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: spacing.xxl }}>
             <QuestionCircleOutlined style={{ fontSize: 48, color: colors.primary.main, marginBottom: spacing.lg }} />
@@ -390,8 +402,11 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
                   style={{ 
                     marginBottom: spacing.md,
                     border: selectedQuestions.has(question.id) ? `2px solid ${colors.primary.main}` : '1px solid #d9d9d9',
-                    background: selectedQuestions.has(question.id) ? colors.primary.light : 'white'
+                    background: selectedQuestions.has(question.id) ? colors.primary.light : 'white',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word'
                   }}
+                  bodyStyle={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.md }}>
                     <Checkbox
@@ -413,10 +428,12 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
                           <Tag color="blue">{question.type.replace('_', ' ').toUpperCase()}</Tag>
                           <Tag color="purple">{question.topic}</Tag>
                         </Space>
-                        <Space>
-                          <ClockCircleOutlined />
-                          <Text>{question.timeLimit}s</Text>
-                        </Space>
+                        {question.type !== 'theoretical' && (
+                          <Space>
+                            <ClockCircleOutlined />
+                            <Text>{Math.round(question.timeLimit / 60)} min</Text>
+                          </Space>
+                        )}
                       </div>
                       
                       {question.type === 'theoretical' 
