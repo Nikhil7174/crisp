@@ -37,7 +37,7 @@ import { QuestionGenerationModal } from '../../components/admin/QuestionGenerati
 import { ViewQuestionsModal } from '../../components/admin/ViewQuestionsModal';
 import { useNavigate } from 'react-router-dom';
 
-const { Title, Paragraph } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 export const InterviewLinks: React.FC = () => {
   const [links, setLinks] = useState<InterviewLink[]>([]);

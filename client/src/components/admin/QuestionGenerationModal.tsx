@@ -6,20 +6,13 @@ import {
   Typography,
   Space,
   Tag,
-  Divider,
-  Spin,
   message,
-  Row,
-  Col,
   Checkbox,
   Alert,
 } from 'antd';
 import {
   QuestionCircleOutlined,
-  CodeOutlined,
   ClockCircleOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { API_BASE_URL } from '../../constants/api';
 import { colors, spacing } from '../../styles';
@@ -396,7 +389,7 @@ export const QuestionGenerationModal: React.FC<QuestionGenerationModalProps> = (
             />
 
             <div style={{ marginBottom: spacing.lg }}>
-              {questions.map((question, index) => (
+              {questions.map((question) => (
                 <Card
                   key={question.id}
                   style={{ 

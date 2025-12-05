@@ -14,7 +14,6 @@ import {
 } from 'antd';
 import {
   ClockCircleOutlined,
-  TrophyOutlined,
   FileTextOutlined,
   LogoutOutlined,
   PlayCircleOutlined,

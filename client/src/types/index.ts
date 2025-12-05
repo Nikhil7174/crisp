@@ -23,6 +23,8 @@ export interface InterviewLink {
   createdAt: string;
   updatedAt: string;
   totalAttempts?: number;
+  completedInterviews?: number;
+  questionsApproved?: boolean;
   url: string;
 }
 

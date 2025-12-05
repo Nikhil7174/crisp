@@ -6,20 +6,15 @@ import {
   Typography,
   Space,
   Tag,
-  Divider,
   Spin,
   message,
   Row,
   Col,
-  Alert,
   Input,
 } from 'antd';
 import {
   QuestionCircleOutlined,
-  CodeOutlined,
   ClockCircleOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
 import { API_BASE_URL } from '../../constants/api';

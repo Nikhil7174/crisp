@@ -3,7 +3,7 @@ import { Modal, Button, Typography, Space, Divider, Alert } from 'antd';
 import { DownloadOutlined, DesktopOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { colors, spacing } from '../styles';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface DownloadModalProps {
   visible: boolean;
