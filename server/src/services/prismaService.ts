@@ -876,23 +876,70 @@ export class PrismaService {
             // Save vision security warnings to SecurityEvent table if provided
             if (payload.visionSecurityWarnings && Object.keys(payload.visionSecurityWarnings).length > 0) {
                 try {
-                    console.log('📊 [Security Events] Processing vision security warnings:', JSON.stringify(payload.visionSecurityWarnings, null, 2));
+                    // Log summary without full screenshot data (which can be megabytes)
+                    const warningSummary = Object.entries(payload.visionSecurityWarnings).map(([type, data]: [string, any]) => ({
+                        type,
+                        count: data?.count || 0,
+                        totalDuration: data?.totalDuration || 0,
+                        eventsCount: data?.events?.length || 0,
+                        hasScreenshot: !!data?.screenshot,
+                        screenshotLength: data?.screenshot?.length || 0
+                    }));
+                    console.log('📊 [Security Events] Processing vision security warnings:', JSON.stringify(warningSummary, null, 2));
                     
                     const incidents = Object.entries(payload.visionSecurityWarnings).flatMap(([type, data]: [string, any]) => {
                         if (!data || !data.events || !Array.isArray(data.events)) {
                             console.warn(`⚠️ [Security Events] Invalid data structure for type ${type}:`, data);
                             return [];
                         }
-                        return data.events.map((event: any) => ({
-                            interview_id: interview.id,
-                            interview_link_id: interview.interview_link_id || null,
-                            session_id: payload.sessionId,
-                            event_type: type,
-                            source: 'vision_security',
-                            severity: 'medium' as const,
-                            message: `${type.replace(/_/g, ' ')} detected for ${Math.round(event.duration / 1000)}s`,
-                            metadata: JSON.stringify({ duration: event.duration, startTime: event.startTime, endTime: event.endTime })
-                        }));
+                        // For multiple_faces, include screenshot if available (only 1 screenshot total)
+                        const screenshot = type === 'multiple_faces' && data.screenshot ? data.screenshot : null;
+                        
+                        if (screenshot) {
+                            console.log(`📸 [Security Events] Screenshot found for ${type}, length: ${screenshot.length} chars`);
+                        } else {
+                            console.log(`📸 [Security Events] No screenshot for ${type}`);
+                        }
+                        
+                        // If we have a screenshot but no events, create a placeholder event to store the screenshot
+                        if (type === 'multiple_faces' && screenshot && data.events.length === 0) {
+                            console.log(`📸 [Security Events] Creating placeholder event for multiple_faces to store screenshot`);
+                            return [{
+                                interview_id: interview.id,
+                                interview_link_id: interview.interview_link_id || null,
+                                session_id: payload.sessionId,
+                                event_type: type,
+                                source: 'vision_security',
+                                severity: 'medium' as const,
+                                message: 'Multiple faces detected',
+                                metadata: JSON.stringify({ screenshot: screenshot })
+                            }];
+                        }
+                        
+                        return data.events.map((event: any, index: number) => {
+                            const metadata: any = { 
+                                duration: event.duration, 
+                                startTime: event.startTime, 
+                                endTime: event.endTime 
+                            };
+                            // Include screenshot ONLY in the FIRST event for multiple_faces
+                            // All other events will reference this first event
+                            if (screenshot && index === 0) {
+                                metadata.screenshot = screenshot; // base64 string
+                                console.log(`📸 [Security Events] Adding screenshot to FIRST event only for ${type}`);
+                            }
+                            
+                            return {
+                                interview_id: interview.id,
+                                interview_link_id: interview.interview_link_id || null,
+                                session_id: payload.sessionId,
+                                event_type: type,
+                                source: 'vision_security',
+                                severity: 'medium' as const,
+                                message: `${type.replace(/_/g, ' ')} detected for ${Math.round(event.duration / 1000)}s`,
+                                metadata: JSON.stringify(metadata)
+                            };
+                        });
                     });
                     
                     console.log(`📊 [Security Events] Prepared ${incidents.length} incidents to save`);

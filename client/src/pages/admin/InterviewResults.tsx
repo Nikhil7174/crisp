@@ -44,6 +44,7 @@ export const InterviewResults: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLink, setEditingLink] = useState<InterviewLink | null>(null);
   const [form] = Form.useForm();
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
   const [statistics, setStatistics] = useState({
     totalLinks: 0,
     activeLinks: 0,
@@ -175,9 +176,14 @@ export const InterviewResults: React.FC = () => {
     setModalVisible(true);
   };
 
-  const handleCopyLink = (url: string) => {
+  const handleCopyLink = (url: string, linkId: number) => {
     navigator.clipboard.writeText(url);
     message.success('Link copied to clipboard!');
+    setCopiedLinkId(linkId);
+    // Reset after 2 seconds
+    setTimeout(() => {
+      setCopiedLinkId(null);
+    }, 2000);
   };
 
   const columns = [
@@ -315,10 +321,10 @@ export const InterviewResults: React.FC = () => {
         return (
           <Space>
             {canCopyLink && (
-              <Tooltip title="Copy Link">
+              <Tooltip title={copiedLinkId === record.id ? "Copied!" : "Copy Link"}>
                 <Button
                   icon={<CopyOutlined />}
-                  onClick={() => handleCopyLink(record.url)}
+                  onClick={() => handleCopyLink(record.url, record.id)}
                   size="small"
                 />
               </Tooltip>
