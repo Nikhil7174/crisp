@@ -867,8 +867,11 @@ export const InterviewDetails: React.FC = () => {
               >
                 {interview.security_events && interview.security_events.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
-                    {/* Group events by type */}
                     {(() => {
+                      // Find any screenshot from all events
+                      const eventWithScreenshot = interview.security_events.find(e => e.metadata?.screenshot);
+                      
+                      // Group events by type
                       const eventsByType = interview.security_events.reduce((acc, event) => {
                         if (!acc[event.event_type]) {
                           acc[event.event_type] = []
@@ -878,66 +881,123 @@ export const InterviewDetails: React.FC = () => {
                       }, {} as Record<string, SecurityEvent[]>)
 
                       return (
-                        <Collapse
-                          items={Object.entries(eventsByType).map(([type, events]) => {
-                            const severity = events[0].severity
-                            const source = events[0].source
-                            const totalCount = events.length
-                            
-                            return {
-                              key: type,
-                              label: (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                                  <Tag color={severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'blue'}>
-                                    {severity.toUpperCase()}
-                                  </Tag>
-                                  <Tag>{source === 'desktop_security_agent' ? 'Desktop Agent' : 'Vision Security'}</Tag>
-                                  <Text strong>{type.replace(/_/g, ' ')}</Text>
-                                  <Tag color="default">{totalCount} event{totalCount !== 1 ? 's' : ''}</Tag>
-                                </div>
-                              ),
-                              children: (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                                  {events.map((event, idx) => (
-                                    <Card
-                                      key={event.id}
-                                      size="small"
-                                      style={{
-                                        borderLeft: `3px solid ${
-                                          event.severity === 'high' ? colors.error.main :
-                                          event.severity === 'medium' ? colors.warning.main :
-                                          colors.info.main
-                                        }`
-                                      }}
-                                    >
-                                      <div>
-                                        <Text strong style={{ fontSize: 13 }}>Event #{idx + 1}</Text>
-                                        <div style={{ marginTop: spacing.xs }}>
-                                          <Text style={{ display: 'block' }}>
-                                            {event.metadata?.description || event.message}
-                                          </Text>
-                                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
-                                            {dayjs(event.created_at).format('MMM D, YYYY HH:mm:ss')}
-                                          </Text>
-                                          {event.metadata?.duration && (
-                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                                              Duration: {Math.round(event.metadata.duration / 1000)}s
+                        <>
+                          {/* Display screenshot at the very top if available - collapsible, open by default */}
+                          {eventWithScreenshot?.metadata?.screenshot && (
+                            <Collapse
+                              defaultActiveKey={['screenshot']}
+                              style={{ marginBottom: spacing.md }}
+                              items={[{
+                                key: 'screenshot',
+                                label: (
+                                  <Text strong style={{ fontSize: 14 }}>
+                                    📸 Security Screenshot Evidence
+                                  </Text>
+                                ),
+                                children: (
+                                  <img
+                                    src={eventWithScreenshot.metadata.screenshot}
+                                    alt="Security violation screenshot"
+                                    style={{
+                                      maxWidth: '100%',
+                                      maxHeight: '400px',
+                                      borderRadius: 8,
+                                      border: `1px solid ${colors.neutral[300]}`,
+                                      cursor: 'pointer',
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                    }}
+                                    onClick={() => {
+                                      // Open in new window for full size
+                                      const newWindow = window.open();
+                                      if (newWindow) {
+                                        newWindow.document.write(`
+                                          <html>
+                                            <head><title>Security Screenshot</title></head>
+                                            <body style="margin:0;padding:20px;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh;">
+                                              <img src="${eventWithScreenshot.metadata.screenshot}" style="max-width:100%;max-height:90vh;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
+                                            </body>
+                                          </html>
+                                        `);
+                                      }
+                                    }}
+                                  />
+                                )
+                              }]}
+                            />
+                          )}
+                          
+                          {/* Display all warnings grouped by type */}
+                          <Collapse
+                            items={Object.entries(eventsByType).map(([type, events]) => {
+                              const severity = events[0].severity
+                              const source = events[0].source
+                              const totalCount = events.length
+                              
+                              // Calculate total duration for this warning type
+                              const totalDuration = events.reduce((sum, event) => {
+                                return sum + (event.metadata?.duration || 0)
+                              }, 0)
+                              const totalDurationSec = Math.round(totalDuration / 1000)
+                              
+                              return {
+                                key: type,
+                                label: (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                                    <Tag color={severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'blue'}>
+                                      {severity.toUpperCase()}
+                                    </Tag>
+                                    <Tag>{source === 'desktop_security_agent' ? 'Desktop Agent' : 'Vision Security'}</Tag>
+                                    <Text strong>{type.replace(/_/g, ' ')}</Text>
+                                    <Tag color="default">{totalCount} event{totalCount !== 1 ? 's' : ''}</Tag>
+                                    {totalDurationSec > 0 && (
+                                      <Tag color="orange">Total: {totalDurationSec}s</Tag>
+                                    )}
+                                  </div>
+                                ),
+                                children: (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                                    {/* Display all events */}
+                                    {events.map((event, idx) => (
+                                      <Card
+                                        key={event.id}
+                                        size="small"
+                                        style={{
+                                          borderLeft: `3px solid ${
+                                            event.severity === 'high' ? colors.error.main :
+                                            event.severity === 'medium' ? colors.warning.main :
+                                            colors.info.main
+                                          }`
+                                        }}
+                                      >
+                                        <div>
+                                          <Text strong style={{ fontSize: 13 }}>Event #{idx + 1}</Text>
+                                          <div style={{ marginTop: spacing.xs }}>
+                                            <Text style={{ display: 'block' }}>
+                                              {event.metadata?.description || event.message}
                                             </Text>
-                                          )}
-                                          {event.metadata?.firstOccurrence && event.metadata?.lastOccurrence && (
-                                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                                              Time: {dayjs(event.metadata.firstOccurrence).format('HH:mm:ss')} - {dayjs(event.metadata.lastOccurrence).format('HH:mm:ss')}
+                                            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                                              {dayjs(event.created_at).format('MMM D, YYYY HH:mm:ss')}
                                             </Text>
-                                          )}
+                                            {event.metadata?.duration !== undefined && event.metadata?.duration !== null && (
+                                              <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                                Duration: {Math.round(event.metadata.duration / 1000)}s
+                                              </Text>
+                                            )}
+                                            {event.metadata?.firstOccurrence && event.metadata?.lastOccurrence && (
+                                              <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                                Time: {dayjs(event.metadata.firstOccurrence).format('HH:mm:ss')} - {dayjs(event.metadata.lastOccurrence).format('HH:mm:ss')}
+                                              </Text>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    </Card>
-                                  ))}
-                                </div>
-                              )
-                            }
-                          })}
-                        />
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )
+                              }
+                            })}
+                          />
+                        </>
                       )
                     })()}
                   </div>

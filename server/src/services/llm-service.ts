@@ -27,7 +27,7 @@ export interface Evaluation {
 }
 
 export interface IntentDetection {
-  intent: 'answer' | 'hint_request' | 'clarification_request'
+  intent: 'answer' | 'hint_request' | 'clarification_request' | 'skip_question'
   confidence: number
 }
 
@@ -565,10 +565,15 @@ CLASSIFY the candidate's input as one of:
    - Contains phrases like: "what do you mean by", "can you clarify", "I don't understand the question"
    - Examples: "What do you mean by scope?", "Can you clarify what you're asking?"
 
+4. "skip_question" - They want to skip the question or don't know the answer
+   - Contains phrases like: "skip this", "I don't know", "next question", "pass"
+   - Examples: "I have no idea", "Can we skip this one?"
+
 SCORING GUIDELINES:
 - If they provide ANY technical content related to the question → "answer" (even if incomplete)
 - If they explicitly ask for help → "hint_request"  
 - If they ask about the question itself → "clarification_request"
+- If they explicitly say they don't know or want to skip → "skip_question"
 - When in doubt, default to "clarification_request"
 
 Respond with:
@@ -597,7 +602,7 @@ IMPORTANT: Return ONLY valid JSON, no other text.`
       const parsed = JSON.parse(content) as IntentDetection
       
       // Validate intent value - ensure it's one of the 3 valid options
-      const validIntents = ['answer', 'hint_request', 'clarification_request'] as const
+      const validIntents = ['answer', 'hint_request', 'clarification_request', 'skip_question'] as const
       if (!parsed.intent || !validIntents.includes(parsed.intent as any)) {
         console.warn('Invalid intent value received:', parsed.intent, '- defaulting to "clarification_request"')
         return { intent: 'clarification_request', confidence: parsed.confidence || 0.5 }

@@ -46,6 +46,7 @@ export const InterviewerDashboard: React.FC = () => {
   const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
   const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchLinks();
@@ -112,9 +113,14 @@ export const InterviewerDashboard: React.FC = () => {
     navigate(`/interviewer/create-interview?linkId=${link.id}`);
   };
 
-  const handleCopyLink = (url: string) => {
+  const handleCopyLink = (url: string, linkId: number) => {
     navigator.clipboard.writeText(url);
     message.success('Link copied to clipboard!');
+    setCopiedLinkId(linkId);
+    // Reset after 2 seconds
+    setTimeout(() => {
+      setCopiedLinkId(null);
+    }, 2000);
   };
 
   const handleViewQuestions = (link: InterviewLink) => {
@@ -214,10 +220,10 @@ export const InterviewerDashboard: React.FC = () => {
                 size="small"
               />
             </Tooltip>
-            <Tooltip title={isActive ? "Copy Link" : "Link is inactive or expired"}>
+            <Tooltip title={copiedLinkId === record.id ? "Copied!" : (isActive ? "Copy Link" : "Link is inactive or expired")}>
               <Button
                 icon={<CopyOutlined />}
-                onClick={() => handleCopyLink(record.url)}
+                onClick={() => handleCopyLink(record.url, record.id)}
                 disabled={!isActive}
                 size="small"
               />

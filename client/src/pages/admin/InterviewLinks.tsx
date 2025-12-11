@@ -49,6 +49,7 @@ export const InterviewLinks: React.FC = () => {
   const [selectedLinkForQuestions, setSelectedLinkForQuestions] = useState<InterviewLink | null>(null);
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
   const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -134,9 +135,14 @@ export const InterviewLinks: React.FC = () => {
     fetchLinks(); // Refresh the links to show updated status
   };
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, linkId: number) => {
     navigator.clipboard.writeText(text);
     message.success('Link copied to clipboard!');
+    setCopiedLinkId(linkId);
+    // Reset after 2 seconds
+    setTimeout(() => {
+      setCopiedLinkId(null);
+    }, 2000);
   };
 
 
@@ -322,10 +328,10 @@ export const InterviewLinks: React.FC = () => {
                       Generate Questions
                     </Button>
                   </Tooltip>
-                  <Tooltip title="Copy Link">
+                  <Tooltip title={copiedLinkId === record.id ? "Copied!" : "Copy Link"}>
                     <Button
                       icon={<CopyOutlined />}
-                      onClick={() => copyToClipboard(`${window.location.origin}/join/${record.token}`)}
+                      onClick={() => copyToClipboard(`${window.location.origin}/join/${record.token}`, record.id)}
                       size="small"
                     >
                       Copy
