@@ -60,7 +60,7 @@ export const DualColumnSection: React.FC = () => {
         <Col xs={24} md={12}>
           <UserTypeCard
             type="interviewer"
-            title="Hire with Confidence"
+            title="Hire Confidently"
             subtitle="Create structured interviews, evaluate candidates objectively, make better hiring decisions"
             features={interviewerFeatures}
             ctaText="Create Interview"
