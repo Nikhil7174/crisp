@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, Typography, Divider, Radio, Space, Alert, App } from 'antd';
+import { Form, Input, Button, Card, Typography, Divider, Tabs, Alert, App } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
@@ -73,6 +73,45 @@ export const Register: React.FC = () => {
           .login-signup-button:focus {
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
           }
+          .user-type-tabs .ant-tabs-nav {
+            margin-bottom: 0 !important;
+            border-bottom: none !important;
+          }
+          .user-type-tabs .ant-tabs-nav::before {
+            display: none !important;
+          }
+          .user-type-tabs .ant-tabs-tab {
+            flex: 1;
+            text-align: center;
+            padding: 8px 12px !important;
+            margin: 0 !important;
+            border-radius: 6px !important;
+            transition: all 0.3s;
+          }
+          .user-type-tabs.ant-tabs-small .ant-tabs-tab {
+            padding: 10px 10px !important;
+          }
+          .user-type-tabs.ant-tabs-small .ant-tabs-tab-btn {
+            font-size: 14px !important;
+          }
+          .user-type-tabs .ant-tabs-tab-active {
+            background: linear-gradient(135deg, rgb(9, 88, 217) 0%, rgb(208 233 255) 100%) !important;
+          }
+          .user-type-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+            color: white !important;
+            font-weight: 600 !important;
+          }
+          .user-type-tabs .ant-tabs-tab:not(.ant-tabs-tab-active) .ant-tabs-tab-btn {
+            color: ${colors.neutral[900]} !important;
+            font-weight: 600 !important;
+          }
+          .user-type-tabs .ant-tabs-ink-bar {
+            display: none !important;
+          }
+          .user-type-tabs .ant-tabs-nav-list {
+            width: 100%;
+            display: flex;
+          }
         `}
       </style>
       <div
@@ -97,7 +136,7 @@ export const Register: React.FC = () => {
           <Title level={2} style={{ color: colors.primary.main, marginBottom: spacing.sm }}>
             Create Account
           </Title>
-          <Text type="secondary">Join Crisp to get started</Text>
+          <Text type="secondary">Join Shakra to get started</Text>
         </div>
 
         <Form
@@ -121,22 +160,39 @@ export const Register: React.FC = () => {
           
           <Form.Item
             name="userType"
-            label="I am a"
             rules={[{ required: true }]}
+            style={{ marginBottom: spacing.lg }}
           >
-            <Radio.Group
-              onChange={(e) => setUserType(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Radio value="candidate" style={{ width: '100%' }}>
-                  <strong>Candidate</strong> - Looking to practice or take interviews
-                </Radio>
-                <Radio value="interviewer" style={{ width: '100%' }}>
-                  <strong>Interviewer</strong> - Want to create and manage interviews
-                </Radio>
-              </Space>
-            </Radio.Group>
+            <div>
+              <Tabs
+                activeKey={userType}
+                onChange={(key) => {
+                  setUserType(key as 'candidate' | 'interviewer');
+                  form.setFieldsValue({ userType: key });
+                }}
+                items={[
+                  {
+                    key: 'candidate',
+                    label: 'Candidate',
+                  },
+                  {
+                    key: 'interviewer',
+                    label: 'Interviewer',
+                  },
+                ]}
+                className="user-type-tabs"
+                style={{
+                  width: '100%',
+                }}
+                tabBarStyle={{
+                  marginBottom: 0,
+                  background: colors.neutral[50],
+                  borderRadius: 8,
+                  padding: 2,
+                }}
+                size="small"
+              />
+            </div>
           </Form.Item>
 
           <Form.Item

@@ -78,7 +78,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, user, onLogo
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              Crisp Admin
+              Shakra Admin
             </Text>
           )}
           {collapsed && (
@@ -91,7 +91,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, user, onLogo
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              C
+              S
             </Text>
           )}
         </div>

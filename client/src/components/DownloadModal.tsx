@@ -13,7 +13,7 @@ interface DownloadModalProps {
 export const DownloadModal: React.FC<DownloadModalProps> = ({ visible, onClose }) => {
   const handleDownload = () => {
     // TODO: Replace with actual download URL
-    window.open('https://crisp.com/download', '_blank');
+    window.open('https://shakra.com/download', '_blank');
   };
 
   return (
@@ -46,7 +46,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ visible, onClose }
           </div>
           
           <Title level={2} style={{ marginBottom: spacing.sm, color: colors.neutral[900] }}>
-            Download Crisp Desktop App
+            Download Shakra Desktop App
           </Title>
           
           <Text type="secondary" style={{ fontSize: 16 }}>
@@ -83,7 +83,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ visible, onClose }
         {/* Info Alert */}
         <Alert
           message="Desktop App Required"
-          description="To participate in interviews, you need to download and install the Crisp desktop application. This ensures a secure and optimal interview experience."
+          description="To participate in interviews, you need to download and install the Shakra desktop application. This ensures a secure and optimal interview experience."
           type="info"
           icon={<InfoCircleOutlined />}
           style={{ marginBottom: spacing.xl }}
@@ -130,7 +130,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ visible, onClose }
         {/* Footer Info */}
         <div style={{ textAlign: 'center' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Available for Windows, macOS, and Linux
+            Available for Windows
           </Text>
         </div>
       </div>

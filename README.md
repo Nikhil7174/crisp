@@ -1,4 +1,4 @@
-# Crisp AI Interview Platform
+# Shakra AI Interview Platform
 
 A full-stack AI-powered interview platform that conducts automated technical interviews with real-time code execution, resume parsing, and comprehensive candidate evaluation.
 

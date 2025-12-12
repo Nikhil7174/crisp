@@ -4,7 +4,7 @@ import { Layout, Button, Space } from 'antd';
 import { LoginOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
-import crispLogo from '../../assets/images/crisp.png';
+import shakraLogo from '../../assets/images/shakra.png';
 import { useAuth } from '../../hooks/useAuth';
 
 const { Header: AntHeader } = Layout;
@@ -55,8 +55,8 @@ export const Header: React.FC = () => {
           onClick={handleTitleClick}
         >
           <img
-            src={crispLogo}
-            alt="Crisp Logo"
+            src={shakraLogo}
+            alt="Shakra Logo"
             style={{
               height: 32,
               width: 'auto'
@@ -67,7 +67,7 @@ export const Header: React.FC = () => {
             fontWeight: 600,
             color: colors.neutral[900]
           }}>
-            Crisp
+            Shakra
           </span>
         </div>
 

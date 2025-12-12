@@ -28,7 +28,7 @@ export const Layout: React.FC = () => {
           color: colors.neutral[500],
           fontSize: typography.fontSize.sm,
         }}>
-          © 2024 AI Interview. All rights reserved.
+          © 2025 Shakra AI Interview. All rights reserved.
         </div>
       </Footer>
     </AntLayout>
