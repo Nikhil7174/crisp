@@ -237,6 +237,12 @@ export const TECH_STACKS = [
   { value: 'Kali Linux', label: 'Kali Linux', category: 'Security' },
   { value: 'Penetration Testing', label: 'Penetration Testing', category: 'Security' },
   { value: 'Vulnerability Assessment', label: 'Vulnerability Assessment', category: 'Security' },
+
+  // Computer Science Fundamentals
+  { value: 'OOPS', label: 'OOPS (Object-Oriented Programming)', category: 'Computer Science' },
+  { value: 'DBMS', label: 'DBMS (Database Management System)', category: 'Computer Science' },
+  { value: 'Computer Networks', label: 'Computer Networks', category: 'Computer Science' },
+  { value: 'Operating System', label: 'Operating System', category: 'Computer Science' },
 ];
 
 // Default topics for new interviews - empty by default

@@ -91,7 +91,7 @@ export const Login: React.FC = () => {
           <Text type="secondary">
             {userTypeContext === 'candidate' ? 'Sign in to practice interviews and track your progress' :
              userTypeContext === 'interviewer' ? 'Sign in to create and manage interview links' :
-             'Sign in to continue to Crisp'}
+             'Sign in to continue to Shakra'}
           </Text>
         </div>
 
