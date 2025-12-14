@@ -5,17 +5,19 @@ import landingBg from '../assets/images/landingBg.jpg'
 
 const Home = () => {
   return (
-    <div style={{
-      backgroundImage: `url(${landingBg})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      minHeight: '100vh'
-    }}>
+    <>
+      <div style={{
+        backgroundImage: `url(${landingBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        minHeight: '100vh'
+      }}>
         <HeroSection />
         <DualColumnSection />
-        <CommonContentRow />
-    </div>
+      </div>
+      <CommonContentRow />
+    </>
   )
 }
 
