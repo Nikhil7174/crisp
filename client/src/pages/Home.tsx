@@ -1,6 +1,7 @@
 import { HeroSection } from '../components/landing/HeroSection'
 import { DualColumnSection } from '../components/landing/DualColumnSection'
 import { CommonContentRow } from '../components/landing/CommonContentRow'
+import CostCalculatorSection from '../components/landing/CostCalculatorSection'
 import landingBg from '../assets/images/landingBg.jpg'
 
 const Home = () => {
@@ -17,6 +18,7 @@ const Home = () => {
         <DualColumnSection />
       </div>
       <CommonContentRow />
+      <CostCalculatorSection />
     </>
   )
 }

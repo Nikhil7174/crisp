@@ -3,9 +3,10 @@ import React from 'react';
 import { Layout as AntLayout } from 'antd';
 import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
-import { colors, spacing, typography } from '../../styles';
+import { Footer } from './Footer';
+import { colors } from '../../styles';
 
-const { Content, Footer } = AntLayout;
+const { Content } = AntLayout;
 
 export const Layout: React.FC = () => {
   return (
@@ -17,20 +18,7 @@ export const Layout: React.FC = () => {
       <Content>
         <Outlet />
       </Content>
-      <Footer style={{
-        textAlign: 'center',
-        background: colors.background.secondary,
-        padding: `${spacing.xxl}px ${spacing.lg}px`,
-        marginTop: spacing.xxxl,
-        borderTop: `1px solid ${colors.divider}`,
-      }}>
-        <div style={{
-          color: colors.neutral[500],
-          fontSize: typography.fontSize.sm,
-        }}>
-          © 2025 Shakra AI Interview. All rights reserved.
-        </div>
-      </Footer>
+      <Footer />
     </AntLayout>
   );
 };
