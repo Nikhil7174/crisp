@@ -565,9 +565,9 @@ const CostCalculatorSection: React.FC = () => {
                           }
                           // Format hours
                           if (value >= 1000) {
-                            return `${(value / 1000).toFixed(1)}k hrs`;
+                            return `${(value / 1000).toFixed(1)}k`;
                           }
-                          return `${Math.round(value)} hrs`;
+                          return `${Math.round(value)}`;
                         }}
                         width={60}
                         domain={[0, 'auto']}
@@ -577,7 +577,7 @@ const CostCalculatorSection: React.FC = () => {
                             : 'Time (hours)',
                           angle: -90,
                           position: 'insideLeft',
-                          offset: -5,
+                          offset: 0,
                           style: { fill: colors.neutral[500], fontSize: typography.fontSize.sm, textAnchor: 'middle' },
                         }}
                       />
