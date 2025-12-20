@@ -41,11 +41,19 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
   const imageSrc = isInterviewee ? intervieweeImage : interviewerImage;
 
   return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
-      <Card
+    <>
+      <style>{`
+        @media (max-width:820px) {
+          .user-type-card-title {
+            font-size: 24px !important;
+          }
+        }
+      `}</style>
+      <motion.div
+        whileHover={{ y: -4 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <Card
         hoverable
         style={{
           height: 400,
@@ -86,7 +94,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
               {isInterviewee ? 'For Candidates' : 'For Recruiters'}
             </Text>
 
-            <Title level={2} style={{
+            <Title level={2} className="user-type-card-title" style={{
               color: theme.text,
               fontSize: '28px',
               fontWeight: 700,
@@ -121,7 +129,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
                 fontSize: 16,
                 fontWeight: 600,
                 borderRadius: 12,
-                background: colors.gradient.button,
+                background: colors.primary.main,
                 border: 'none',
                 width: '160px',
                 boxShadow: colors.shadows.md,
@@ -254,6 +262,7 @@ export const UserTypeCard: React.FC<UserTypeCardProps> = memo(({
         </div>
       </Card>
     </motion.div>
+    </>
   );
 });
 

@@ -38,7 +38,7 @@ export const DualColumnSection: React.FC = () => {
 
   return (
     <div style={{
-      padding: '60px 24px',
+      padding: '60px 24px 100px 24px',
       maxWidth: 1200,
       margin: '0 auto',
     }}>
