@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Button,
@@ -42,24 +42,15 @@ export const InterviewerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [links, setLinks] = useState<InterviewLink[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
   const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchLinks();
-    
-    // Auto-refresh every 30 seconds to get updated candidate counts
-    const interval = setInterval(() => {
-      fetchLinks();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchLinks = async () => {
+  // Memoized fetch function - React will handle when to call this
+  const fetchLinks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/interviewer/links`, {
@@ -67,13 +58,31 @@ export const InterviewerDashboard: React.FC = () => {
       });
       if (response.data.success) {
         setLinks(response.data.links);
+        setLastFetched(new Date());
       }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to fetch links');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchLinks();
+  }, [fetchLinks]);
+
+  // Optional: Refetch on window focus (if data is very stale - 5 minutes)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (lastFetched && Date.now() - lastFetched.getTime() > 600000) {
+        fetchLinks();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchLinks, lastFetched]);
 
 
   const handleDeleteLink = (link: InterviewLink) => {
@@ -250,11 +259,17 @@ export const InterviewerDashboard: React.FC = () => {
     },
   ];
 
-  const activeLinks = (links || []).filter((link) => {
-    const isExpired = link.expiryDate && dayjs(link.expiryDate).isBefore(dayjs());
-    return link.isActive && !isExpired;
-  });
-  const totalAttempts = (links || []).reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
+  // Memoized computed values
+  const activeLinks = useMemo(() => {
+    return (links || []).filter((link) => {
+      const isExpired = link.expiryDate && dayjs(link.expiryDate).isBefore(dayjs());
+      return link.isActive && !isExpired;
+    });
+  }, [links]);
+
+  const totalAttempts = useMemo(() => {
+    return (links || []).reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
+  }, [links]);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: spacing.xl }}>
