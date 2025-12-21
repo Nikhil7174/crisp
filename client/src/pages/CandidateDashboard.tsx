@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Button,
@@ -53,9 +53,6 @@ export const CandidateDashboard: React.FC = () => {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   
-  // Refs for cleanup
-  const intervalRef = useRef<number | null>(null);
-
   // Memoized fetch function - React will handle when to call this
   const fetchAttempts = useCallback(async () => {
     try {
@@ -104,23 +101,11 @@ export const CandidateDashboard: React.FC = () => {
     fetchAttempts();
   }, [fetchAttempts]);
 
-  // Auto-refresh every minute
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      fetchAttempts();
-    }, 60000);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [fetchAttempts]);
-
-  // Refetch on window focus (if data is stale)
+  // Optional: Refetch on window focus (if data is very stale - 5 minutes)
   useEffect(() => {
     const handleFocus = () => {
-      if (lastFetched && Date.now() - lastFetched.getTime() > 30000) {
+      if (lastFetched && Date.now() - lastFetched.getTime() > 600000) {
         fetchAttempts();
       }
     };
