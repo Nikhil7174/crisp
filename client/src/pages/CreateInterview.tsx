@@ -615,7 +615,7 @@ export const CreateInterview: React.FC = () => {
                   <Col xs={24} sm={12}>
                     <Form.Item
                       name="maxInterviewQuestions"
-                      label="Max Interview Questions"
+                      label="Max Theoretical Questions"
                       rules={[{ required: true, message: 'Please enter max interview questions' }]}
                     >
                       <InputNumber
