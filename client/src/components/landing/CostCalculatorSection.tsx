@@ -221,14 +221,16 @@ const CostCalculatorSection: React.FC = () => {
         padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${spacing.xxxl * 2.5}px ${spacing.lg}px`,
         // marginTop: spacing.xxl,
         overflowX: 'hidden',
+        overflowY: 'hidden',
       }}
     >
-      <div style={{ maxWidth: 1400, margin: '0 auto', width: '100%', overflowX: 'hidden' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', width: '100%', overflowX: 'hidden', overflowY: 'hidden', boxSizing: 'border-box' }}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
+          style={{ width: '100%', overflowX: 'hidden', overflowY: 'hidden', willChange: 'transform' }}
         >
           {/* Top Row - Controls Alignment */}
           <Row gutter={[spacing.xxxl, spacing.lg]} align="middle" style={{ marginBottom: spacing.xl }}>
@@ -412,8 +414,8 @@ const CostCalculatorSection: React.FC = () => {
             </Col>
 
             {/* Right Column - Slider and Chart */}
-            <Col xs={24} lg={13} style={{ overflowX: 'hidden' }}>
-              <Space direction="vertical" size="large" style={{ width: '100%', overflowX: 'hidden' }}>
+            <Col xs={24} lg={13} style={{ overflowX: 'hidden', maxWidth: '100%', boxSizing: 'border-box' }}>
+              <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                 {/* Number of Hires Slider */}
                 <div style={{ marginBottom: spacing.xl }}>
                   <div
@@ -515,6 +517,10 @@ const CostCalculatorSection: React.FC = () => {
                     borderRadius: borderRadius.xl,
                     boxShadow: colors.shadows.md,
                     position: 'relative',
+                    width: '100%',
+                    maxWidth: '100%',
+                    overflowX: 'hidden',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <style>{`
@@ -536,12 +542,13 @@ const CostCalculatorSection: React.FC = () => {
                       font-size: 14px !important;
                     }
                   `}</style>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart
-                      data={chartData}
-                      margin={{ top: 20, right: 10, left: 10, bottom: 5 }}
-                      barCategoryGap="30%"
-                    >
+                  <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', minWidth: 0 }}>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: 20, right: 10, left: 10, bottom: 5 }}
+                        barCategoryGap="30%"
+                      >
                       <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} />
                       <XAxis
                         dataKey="name"
@@ -676,8 +683,9 @@ const CostCalculatorSection: React.FC = () => {
                           );
                         }}
                       />
-                    </BarChart>
-                  </ResponsiveContainer>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </Space>
             </Col>
