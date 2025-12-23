@@ -144,7 +144,7 @@ export const VideoSection: React.FC = () => {
         >
           <video
             ref={videoRef}
-            src="https://ik.imagekit.io/uv3iwfy9e/shakraLanding.mp4"
+            src="https://ik.imagekit.io/uv3iwfy9e/ShakraProduct.mp4"
             poster="https://ik.imagekit.io/uv3iwfy9e/Screenshot_20251223_201318.png"
             controls
             loop
