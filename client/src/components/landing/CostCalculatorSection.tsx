@@ -218,7 +218,7 @@ const CostCalculatorSection: React.FC = () => {
     <div
       style={{
         background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)',
-        padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${spacing.xxxl * 2.5}px ${spacing.lg}px`,
+        padding: `${spacing.xxxl * 1.5}px ${spacing.xl}px ${spacing.xxxl * 2.5}px ${spacing.xl}px`,
         // marginTop: spacing.xxl,
         overflowX: 'hidden',
         overflowY: 'hidden',
