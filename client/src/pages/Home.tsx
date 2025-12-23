@@ -1,5 +1,5 @@
 import { HeroSection } from '../components/landing/HeroSection'
-import { DualColumnSection } from '../components/landing/DualColumnSection'
+import { VideoSection } from '../components/landing/VideoSection'
 import { CommonContentRow } from '../components/landing/CommonContentRow'
 import CostCalculatorSection from '../components/landing/CostCalculatorSection'
 import landingBg from '../assets/images/landingBg.jpg'
@@ -15,7 +15,7 @@ const Home = () => {
         minHeight: '100vh'
       }}>
         <HeroSection />
-        <DualColumnSection />
+        <VideoSection />
       </div>
       <CommonContentRow />
       <CostCalculatorSection />

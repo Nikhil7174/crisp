@@ -77,7 +77,7 @@ export const Header: React.FC = () => {
               type="text"
               icon={<LogoutOutlined />}
               onClick={handleLogoutClick}
-              style={{ color: colors.error.main }}
+              style={{ color: colors.error.main, height: 40 }}
             >
               Logout
             </Button>
@@ -89,6 +89,7 @@ export const Header: React.FC = () => {
               style={{
                 background: colors.neutral[900],
                 borderColor: colors.neutral[900],
+                height: 40,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = colors.neutral[800];
