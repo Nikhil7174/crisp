@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
+    "@emailjs/browser": "^4.4.1",
     "@monaco-editor/react": "^4.7.0",
     "@reduxjs/toolkit": "^2.9.0",
-    "@tailwindcss/vite": "^4.1.13",
     "antd": "^5.27.4",
     "axios": "^1.12.2",
     "dayjs": "^1.11.18",
@@ -25,8 +25,7 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.9.3",
     "recharts": "^3.5.1",
-    "redux-persist": "^6.0.0",
-    "tailwindcss": "^4.1.13"
+    "redux-persist": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

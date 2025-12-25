@@ -1,0 +1,9 @@
+/* Varela Round Font - Production Ready (Self-hosted) */
+@font-face {
+  font-family: 'Varela Round';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/VarelaRound-Regular.ttf') format('truetype');
+}
+

@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Typography, Space, Row, Col, Button, Tabs, Select } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { colors, spacing, typography, borderRadius } from '../../styles';
 
 const { Title, Paragraph, Text } = Typography;
@@ -65,7 +66,8 @@ const USA_CONSTANTS = {
 };
 
 const CostCalculatorSection: React.FC = () => {
-  const [numHires, setNumHires] = useState<number>(50);
+  const navigate = useNavigate();
+  const [numHires, setNumHires] = useState<number>(80);
   const [activeView, setActiveView] = useState<ViewType>('financial');
   const [country, setCountry] = useState<Country>('india');
   const [scenario, setScenario] = useState<Scenario>('mid');
@@ -399,6 +401,7 @@ const CostCalculatorSection: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
+                  onClick={() => navigate('/contact')}
                   style={{
                     background: colors.success.main,
                     borderColor: colors.success.main,
@@ -406,9 +409,10 @@ const CostCalculatorSection: React.FC = () => {
                     fontSize: typography.fontSize.base,
                     fontWeight: typography.fontWeight.medium,
                     borderRadius: borderRadius.lg,
+                    padding: `${spacing.xs}px ${spacing.xxl}px`,
                   }}
                 >
-                  See Shakra in Action →
+                  Talk to us →
                 </Button>
               </Space>
             </Col>
@@ -457,6 +461,8 @@ const CostCalculatorSection: React.FC = () => {
                       background: `linear-gradient(to right, ${colors.primary.main} 0%, ${colors.primary.main} ${((numHires - 10) / 490) * 100}%, ${colors.neutral[300]} ${((numHires - 10) / 490) * 100}%, ${colors.neutral[300]} 100%)`,
                       outline: 'none',
                       WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      appearance: 'none',
                       cursor: 'pointer',
                     }}
                     className="slider-input"
@@ -465,7 +471,7 @@ const CostCalculatorSection: React.FC = () => {
                     .slider-input::-webkit-slider-thumb {
                       -webkit-appearance: none;
                       appearance: none;
-                      width:40px;
+                      width: 40px;
                       height: 40px;
                       border-radius: 50%;
                       background: ${colors.background.primary};
@@ -474,13 +480,20 @@ const CostCalculatorSection: React.FC = () => {
                       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
                     }
                     .slider-input::-moz-range-thumb {
-                      width: 20px;
-                      height: 20px;
+                      width: 40px;
+                      height: 40px;
                       border-radius: 50%;
                       background: ${colors.background.primary};
                       border: 2px solid ${colors.primary.main};
                       cursor: pointer;
                       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                      -moz-appearance: none;
+                      appearance: none;
+                    }
+                    .slider-input::-moz-range-track {
+                      height: 32px;
+                      border-radius: ${borderRadius.xl};
+                      background: transparent;
                     }
                   `}</style>
                   <div
@@ -528,10 +541,8 @@ const CostCalculatorSection: React.FC = () => {
                       transition: fill 0.2s ease !important;
                       cursor: pointer;
                     }
-                    .recharts-bar-rectangle:hover {
-                      opacity: 0.8;
-                      filter: brightness(1.3);
-                    }
+                    /* Remove global hover styles that conflict with custom hover colors */
+                    /* Custom hover is handled via fill attribute in shape functions */
                     .recharts-legend-wrapper {
                       display: flex !important;
                       justify-content: center !important;
@@ -675,7 +686,7 @@ const CostCalculatorSection: React.FC = () => {
                           return (
                             <rect
                               {...props}
-                              fill={isHovered ? '#6dd835' : colors.success.main}
+                              fill={isHovered ? '#65d42a' : colors.success.main}
                               onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
                               onMouseLeave={() => setHoveredSegment(null)}
                               style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}

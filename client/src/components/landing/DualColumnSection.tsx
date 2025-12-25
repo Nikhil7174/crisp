@@ -1,11 +1,10 @@
 // src/components/landing/DualColumnSection.tsx
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { Row, Col } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { UserTypeCard } from './UserTypeCard';
 import { useUserSelection } from '../../hooks/useUserSelection';
 import { useNavigate } from 'react-router-dom';
-import { DownloadModal } from '../DownloadModal';
 
 const intervieweeFeatures = [
   'Join interview sessions',
@@ -24,11 +23,13 @@ const interviewerFeatures = [
 export const DualColumnSection: React.FC = () => {
   const { activeUserType, selectUserType } = useUserSelection();
   const navigate = useNavigate();
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const handleJoinInterview = useCallback(() => {
-    // Show download modal instead of navigating to interview
-    setShowDownloadModal(true);
+    // Scroll to download section
+    const downloadSection = document.getElementById('download-section');
+    if (downloadSection) {
+      downloadSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, []);
 
   const handleCreateInterview = useCallback(() => {
@@ -71,11 +72,6 @@ export const DualColumnSection: React.FC = () => {
           />
         </Col>
       </Row>
-      
-      <DownloadModal
-        visible={showDownloadModal}
-        onClose={() => setShowDownloadModal(false)}
-      />
     </div>
   );
 };

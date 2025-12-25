@@ -1,16 +1,14 @@
 // src/components/landing/VideoSection.tsx
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from 'antd';
 import { PlayCircleOutlined, EditOutlined } from '@ant-design/icons';
 import { colors, spacing, borderRadius } from '../../styles';
 import { useNavigate } from 'react-router-dom';
-import { DownloadModal } from '../DownloadModal';
 
 export const VideoSection: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   useEffect(() => {
     // Auto-play video on mount (muted)
@@ -22,8 +20,11 @@ export const VideoSection: React.FC = () => {
   }, []);
 
   const handleJoinInterview = useCallback(() => {
-    // Show download modal instead of navigating to interview
-    setShowDownloadModal(true);
+    // Scroll to download section
+    const downloadSection = document.getElementById('download-section');
+    if (downloadSection) {
+      downloadSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, []);
 
   const handleCreateInterview = useCallback(() => {
@@ -160,11 +161,6 @@ export const VideoSection: React.FC = () => {
           />
         </div>
       </motion.div>
-
-      <DownloadModal
-        visible={showDownloadModal}
-        onClose={() => setShowDownloadModal(false)}
-      />
     </div>
   );
 };
