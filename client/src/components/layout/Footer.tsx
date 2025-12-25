@@ -15,17 +15,62 @@ export const Footer: React.FC = () => {
       borderTop: `1px solid ${colors.divider}`,
     }}>
       <style>{`
-        @media (max-width: 820px) {
+        @media (max-width: 768px) {
+          .ant-layout-footer {
+            padding-top: ${spacing.xl}px !important;
+            padding-left: ${spacing.md}px !important;
+            padding-right: ${spacing.md}px !important;
+          }
+          .footer-container {
+            padding: 0 !important;
+          }
+          .footer-row {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            row-gap: ${spacing.lg}px !important;
+          }
           .footer-row .ant-col {
-            padding-left: 14px !important;
-            padding-right: 14px !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-bottom: ${spacing.lg}px;
+          }
+          .footer-row .ant-col:last-child {
+            margin-bottom: 0;
+          }
+          .footer-copyright {
+            margin-top: ${spacing.xl}px !important;
+            padding-top: ${spacing.lg}px !important;
+          }
+        }
+        @media (max-width: 576px) {
+          .ant-layout-footer {
+            padding-top: ${spacing.lg}px !important;
+            padding-left: ${spacing.md}px !important;
+            padding-right: ${spacing.md}px !important;
+            padding-bottom: ${spacing.md}px !important;
+          }
+          .footer-container {
+            padding: 0 !important;
+          }
+          .footer-row {
+            row-gap: ${spacing.md}px !important;
+          }
+          .footer-row .ant-col {
+            margin-bottom: ${spacing.md}px;
           }
         }
       `}</style>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <Row gutter={[spacing.xxxl, spacing.xl]} className="footer-row">
+      <div style={{ maxWidth: 1200, margin: '0 auto' }} className="footer-container">
+        <Row 
+          gutter={[spacing.xxxl, spacing.xl]} 
+          className="footer-row"
+          style={{
+            marginLeft: 0,
+            marginRight: 0,
+          }}
+        >
           {/* Brand Column */}
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={24} md={6}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               <div>
                 <Title level={4} style={{ 
@@ -256,7 +301,7 @@ export const Footer: React.FC = () => {
           </Col>
 
           {/* Legal Column */}
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={24} md={6}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <Title level={5} style={{ 
                 margin: 0, 
@@ -313,7 +358,7 @@ export const Footer: React.FC = () => {
         </Row>
 
         {/* Copyright Row */}
-        <Row style={{ marginTop: spacing.xxxl, paddingTop: spacing.xl, borderTop: `1px solid ${colors.divider}` }}>
+        <Row className="footer-copyright" style={{ marginTop: spacing.xxxl, paddingTop: spacing.xl, borderTop: `1px solid ${colors.divider}` }}>
           <Col xs={24}>
             <div style={{ textAlign: 'center' }}>
               <Text style={{ 
@@ -329,4 +374,7 @@ export const Footer: React.FC = () => {
     </AntFooter>
   );
 };
+
+
+
 

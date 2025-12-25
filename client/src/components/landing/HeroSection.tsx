@@ -25,7 +25,8 @@ export const HeroSection: React.FC = () => {
             color: colors.neutral[900],
             letterSpacing: typography.letterSpacing.tight,
             lineHeight: typography.lineHeight.tight,
-            marginBottom: spacing.sm, // Reduced from spacing.lg
+            marginBottom: spacing.sm,
+            fontFamily: '"Varela Round", sans-serif',
           }}>
             Technical interviews on 
             <span style={{ color: colors.primary.main }}> Autopilot </span>

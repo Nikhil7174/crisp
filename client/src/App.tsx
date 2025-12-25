@@ -20,6 +20,8 @@ import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
 import { CreateInterview } from './pages/CreateInterview';
 import { InterviewDetails } from './pages/InterviewDetails';
+import { Contact } from './pages/Contact';
+import { Download } from './pages/Download';
 import './utils/clearStorage'; // Clear old Redux state on startup
 
 const App: React.FC = () => {
@@ -32,14 +34,18 @@ const App: React.FC = () => {
             <Router>
               <Routes>
                 {/* Public Routes */}
-                {/* Public Routes */}
-<Route path="/" element={<Layout />}>
-  <Route index element={
-    <PublicRoute>
-      <Home />
-    </PublicRoute>
-  } />
-</Route>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={
+                    <PublicRoute>
+                      <Home />
+                    </PublicRoute>
+                  } />
+                  <Route path="contact" element={
+                    <PublicRoute>
+                      <Contact />
+                    </PublicRoute>
+                  } />
+                </Route>
 
                 {/* Auth Routes */}
                 <Route path="/login" element={<Login />} />
@@ -87,6 +93,14 @@ const App: React.FC = () => {
                   element={
                     <ProtectedRoute allowedUserTypes={['candidate']}>
                       <CandidateDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/download"
+                  element={
+                    <ProtectedRoute>
+                      <Download />
                     </ProtectedRoute>
                   }
                 />

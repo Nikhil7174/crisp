@@ -35,6 +35,7 @@ export const Header: React.FC = () => {
         top: 0,
         zIndex: 1000,
         padding: `0 ${spacing.lg}px`,
+        height: 60,
       }}
     >
       <div style={{
@@ -65,7 +66,8 @@ export const Header: React.FC = () => {
           <span style={{
             fontSize: 20,
             fontWeight: 600,
-            color: colors.neutral[900]
+            fontFamily: '"Varela Round", sans-serif',
+            color: colors.neutral[900],
           }}>
             Shakra
           </span>
@@ -74,10 +76,22 @@ export const Header: React.FC = () => {
         <Space>
           {isAuthenticated ? (
             <Button
-              type="text"
+              type="primary"
               icon={<LogoutOutlined />}
               onClick={handleLogoutClick}
-              style={{ color: colors.error.main, height: 40 }}
+              style={{
+                background: '#e63946',
+                borderColor: '#e63946',
+                height: 40,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#d62839';
+                e.currentTarget.style.borderColor = '#d62839';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#e63946';
+                e.currentTarget.style.borderColor = '#e63946';
+              }}
             >
               Logout
             </Button>

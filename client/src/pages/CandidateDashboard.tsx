@@ -25,7 +25,6 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../styles';
 import { API_BASE_URL } from '../constants/api';
-import { DownloadModal } from '../components/DownloadModal';
 
 const { Title, Text } = Typography;
 
@@ -51,7 +50,6 @@ export const CandidateDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
   
   // Memoized fetch function - React will handle when to call this
   const fetchAttempts = useCallback(async () => {
@@ -160,8 +158,8 @@ export const CandidateDashboard: React.FC = () => {
   }, [logout, navigate]);
 
   const handleJoinInterview = useCallback(() => {
-    setShowDownloadModal(true);
-  }, []);
+    navigate('/download');
+  }, [navigate]);
 
   // Memoized table columns
   const columns = useMemo(() => [
@@ -420,11 +418,6 @@ export const CandidateDashboard: React.FC = () => {
           )}
         </Card>
       </div>
-      
-      <DownloadModal
-        visible={showDownloadModal}
-        onClose={() => setShowDownloadModal(false)}
-      />
     </div>
   );
 };
