@@ -13,15 +13,30 @@ const { TextArea } = Input;
 // EmailJS configuration
 // Get these from your EmailJS account: https://www.emailjs.com/
 // You can use environment variables or replace these values
+// NOTE: In Vite, env vars are embedded at BUILD TIME, not runtime
+// For Render: Set VITE_EMAILJS_* variables in Render Dashboard > Environment tab
+// Then trigger a new deployment for changes to take effect
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'YOUR_SERVICE_ID';
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'YOUR_TEMPLATE_ID';
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'YOUR_PUBLIC_KEY';
 
-// Check if EmailJS is configured
+// Check if EmailJS is configured (handle both placeholder values and empty strings)
 const isEmailJSConfigured = 
+  EMAILJS_SERVICE_ID && 
   EMAILJS_SERVICE_ID !== 'YOUR_SERVICE_ID' && 
+  EMAILJS_TEMPLATE_ID && 
   EMAILJS_TEMPLATE_ID !== 'YOUR_TEMPLATE_ID' && 
+  EMAILJS_PUBLIC_KEY && 
   EMAILJS_PUBLIC_KEY !== 'YOUR_PUBLIC_KEY';
+
+// Debug logging (works in both dev and prod to help diagnose issues)
+console.log('EmailJS Configuration Check:', {
+  serviceId: EMAILJS_SERVICE_ID ? `${EMAILJS_SERVICE_ID.substring(0, 8)}...` : 'NOT SET',
+  templateId: EMAILJS_TEMPLATE_ID ? `${EMAILJS_TEMPLATE_ID.substring(0, 8)}...` : 'NOT SET',
+  publicKey: EMAILJS_PUBLIC_KEY ? `${EMAILJS_PUBLIC_KEY.substring(0, 8)}...` : 'NOT SET',
+  isConfigured: isEmailJSConfigured,
+  env: import.meta.env.MODE
+});
 
 export const Contact: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +55,13 @@ export const Contact: React.FC = () => {
     setShowSuccess(false); // Hide any previous success message
     try {
       if (!isEmailJSConfigured) {
+        // Log the issue for debugging
+        console.error('EmailJS not configured. Values:', {
+          serviceId: EMAILJS_SERVICE_ID,
+          templateId: EMAILJS_TEMPLATE_ID,
+          publicKey: EMAILJS_PUBLIC_KEY ? `${EMAILJS_PUBLIC_KEY.substring(0, 10)}...` : 'missing'
+        });
+        
         // Fallback: Create mailto link with form data
         const subject = encodeURIComponent('Contact Form Submission - Shakra AI');
         const body = encodeURIComponent(
@@ -49,7 +71,7 @@ export const Contact: React.FC = () => {
           `Company: ${values.company || 'Not provided'}\n\n` +
           `Message:\n${values.message}`
         );
-        window.location.href = `mailto:contact@shakra.ai?subject=${subject}&body=${body}`;
+        window.location.href = `mailto:nikhilkumarsingh7174@gmail.com?subject=${subject}&body=${body}`;
         message.info('Opening your email client. Please send the email to complete your submission.');
         form.resetFields();
         setLoading(false);
@@ -283,7 +305,7 @@ export const Contact: React.FC = () => {
             </Form>
           </Card>
 
-          {/* <div style={{
+          <div style={{
             marginTop: spacing.xl,
             textAlign: 'center',
           }}>
@@ -302,10 +324,10 @@ export const Contact: React.FC = () => {
                   e.currentTarget.style.textDecoration = 'none';
                 }}
               >
-                shakra7174@gmail.com
+                nikhilkumarsingh7174@gmail.com
               </a>
             </Text>
-          </div> */}
+          </div>
         </motion.div>
       </div>
     </div>
