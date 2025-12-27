@@ -631,4 +631,74 @@ export class InterviewController {
       });
     }
   }
+
+  /**
+   * Save candidate feedback after interview completion
+   */
+  async saveCandidateFeedback(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        sessionId,
+        rating,
+        overallExperience,
+        technicalQuestionsQuality,
+        interviewPlatformRating,
+        suggestions,
+        wouldRecommend
+      } = req.body;
+
+      if (!sessionId || !rating) {
+        res.status(400).json({
+          success: false,
+          error: 'Session ID and rating are required'
+        });
+        return;
+      }
+
+      if (rating < 1 || rating > 5) {
+        res.status(400).json({
+          success: false,
+          error: 'Rating must be between 1 and 5'
+        });
+        return;
+      }
+
+      // Find interview by session ID using prisma directly
+      const interview = await prisma.interview.findUnique({
+        where: { session_id: sessionId }
+      });
+
+      if (!interview) {
+        res.status(404).json({
+          success: false,
+          error: 'Interview not found'
+        });
+        return;
+      }
+
+      // Save feedback
+      const feedback = await this.dbService.saveCandidateFeedback({
+        interviewId: interview.id,
+        sessionId,
+        rating,
+        overallExperience,
+        technicalQuestionsQuality,
+        interviewPlatformRating,
+        suggestions,
+        wouldRecommend
+      });
+
+      res.json({
+        success: true,
+        data: feedback
+      });
+    } catch (error) {
+      console.error('Save candidate feedback error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save candidate feedback',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 }

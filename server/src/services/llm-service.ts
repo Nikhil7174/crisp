@@ -114,8 +114,7 @@ export class LLMService extends EventEmitter {
       candidateAnswerLength: candidateAnswer.length
     })
     
-    try {
-      const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
+    const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
 - This is a verbal interview - the candidate is speaking, not typing
@@ -190,63 +189,93 @@ IMPORTANT:
 - Only ask follow-ups when the answer is significantly incomplete (score < 60)
 - Keep feedback encouraging and constructive`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Candidate's answer: ${candidateAnswer}` }
-        ],
-        temperature: this.config.temperature || 0.3,
-        max_tokens: this.config.maxTokens || 500
-      })
+    const maxRetries = 3
+    let lastError: any = null
 
-      const content = response.choices[0]?.message?.content
-      if (!content) {
-        throw new Error('No response from LLM')
-      }
-
-      console.log('LLM Response content:', content)
-
-      let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-      
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        evaluation = JSON.parse(content)
-      } catch (parseError) {
-        console.error('Failed to parse LLM response as JSON:', content)
-        console.error('Parse error:', parseError)
+        console.log(`🔍 [LLM-Server] Calling OpenAI API (attempt ${attempt}/${maxRetries})`)
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model || 'gpt-4',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Candidate's answer: ${candidateAnswer}` }
+          ],
+          temperature: this.config.temperature || 0.3,
+          max_tokens: this.config.maxTokens || 500
+        })
+
+        const content = response.choices[0]?.message?.content
+        if (!content) {
+          throw new Error('No response from LLM')
+        }
+
+        console.log('LLM Response content:', content)
+
+        let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
         
-        // Fallback: create a basic evaluation
-        evaluation = {
-          keyPointsCovered: [],
-          score: 0,
-          needsFollowUp: false,
-          followUpQuestion: undefined,
-          feedback: "I had trouble processing your answer. Could you please try again?"
+        try {
+          evaluation = JSON.parse(content)
+        } catch (parseError) {
+          console.error('Failed to parse LLM response as JSON:', content)
+          console.error('Parse error:', parseError)
+          
+          // Fallback: create a basic evaluation
+          evaluation = {
+            keyPointsCovered: [],
+            score: 0,
+            needsFollowUp: false,
+            followUpQuestion: undefined,
+            feedback: "I had trouble processing your answer. Could you please try again?"
+          }
+        }
+        
+        const result = {
+          questionId: question.id,
+          candidateAnswer,
+          ...evaluation
+        }
+        
+        // Validate follow-up criteria programmatically (safety check)
+        const validatedResult = this.validateFollowUpCriteria(result, followUpDepth)
+        
+        console.log('🔍 [LLM-Server] evaluateAnswer final result:', {
+          questionId: validatedResult.questionId,
+          needsFollowUp: validatedResult.needsFollowUp,
+          score: validatedResult.score,
+          keyPointsCovered: validatedResult.keyPointsCovered.length,
+          wasModified: validatedResult.needsFollowUp !== result.needsFollowUp
+        })
+        
+        return validatedResult
+      } catch (error: any) {
+        lastError = error
+        const isRetryableError = error.status === 429 || // Rate limit
+                                error.status >= 500 ||   // Server errors
+                                error.code === 'ETIMEDOUT' ||
+                                error.message?.includes('timeout') ||
+                                error.type === 'server_error' ||
+                                error.type === 'rate_limit_error'
+        
+        console.error(`❌ [LLM-Server] OpenAI API error (attempt ${attempt}/${maxRetries}):`, error.message || error)
+        
+        if (isRetryableError && attempt < maxRetries) {
+          const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
+          console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          continue
+        }
+        
+        // If not retryable or last attempt, break and throw
+        if (!isRetryableError || attempt === maxRetries) {
+          break
         }
       }
-      
-      const result = {
-        questionId: question.id,
-        candidateAnswer,
-        ...evaluation
-      }
-      
-      // Validate follow-up criteria programmatically (safety check)
-      const validatedResult = this.validateFollowUpCriteria(result, followUpDepth)
-      
-      console.log('🔍 [LLM-Server] evaluateAnswer final result:', {
-        questionId: validatedResult.questionId,
-        needsFollowUp: validatedResult.needsFollowUp,
-        score: validatedResult.score,
-        keyPointsCovered: validatedResult.keyPointsCovered.length,
-        wasModified: validatedResult.needsFollowUp !== result.needsFollowUp
-      })
-      
-      return validatedResult
-    } catch (error) {
-      console.error('Error evaluating answer:', error)
-      throw error
     }
+
+    // All retries failed - throw error
+    console.error('❌ [LLM-Server] All retry attempts failed')
+    throw lastError || new Error('Failed to evaluate answer after retries')
   }
 
   async generateFollowUp(question: Question, candidateAnswer: string): Promise<string> {
@@ -430,8 +459,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
       followUpQuestion: followUpQuestion.substring(0, 50) + '...'
     })
     
-    try {
-      const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
+    const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
 - This is a verbal interview - the candidate is speaking, not typing
@@ -491,58 +519,88 @@ IMPORTANT:
 - Evaluate against the follow-up question, not the original
 - Acknowledge if any progress is made and be encouraging`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Evaluate this follow-up answer: ${followUpAnswer}` }
-        ],
-        temperature: this.config.temperature || 0.3,
-        max_tokens: this.config.maxTokens || 500
-      })
+    const maxRetries = 3
+    let lastError: any = null
 
-      const content = response.choices[0]?.message?.content
-      if (!content) {
-        throw new Error('No response from LLM')
-      }
-
-      let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-      
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        evaluation = JSON.parse(content)
-      } catch (parseError) {
-        console.error('Failed to parse LLM response as JSON:', content)
-        console.error('Parse error:', parseError)
+        console.log(`🔍 [LLM-Server] Calling OpenAI API for follow-up (attempt ${attempt}/${maxRetries})`)
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model || 'gpt-4',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Evaluate this follow-up answer: ${followUpAnswer}` }
+          ],
+          temperature: this.config.temperature || 0.3,
+          max_tokens: this.config.maxTokens || 500
+        })
+
+        const content = response.choices[0]?.message?.content
+        if (!content) {
+          throw new Error('No response from LLM')
+        }
+
+        let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
         
-        // Fallback: create a basic evaluation
-        evaluation = {
-          keyPointsCovered: [],
-          score: 0,
-          needsFollowUp: false, // Always false for follow-up
-          followUpQuestion: undefined,
-          feedback: "I had trouble processing your follow-up answer. Could you please try again?"
+        try {
+          evaluation = JSON.parse(content)
+        } catch (parseError) {
+          console.error('Failed to parse LLM response as JSON:', content)
+          console.error('Parse error:', parseError)
+          
+          // Fallback: create a basic evaluation
+          evaluation = {
+            keyPointsCovered: [],
+            score: 0,
+            needsFollowUp: false, // Always false for follow-up
+            followUpQuestion: undefined,
+            feedback: "I had trouble processing your follow-up answer. Could you please try again?"
+          }
+        }
+        
+        const result = {
+          questionId: originalQuestion.id, // Use original question ID
+          candidateAnswer: followUpAnswer, // Use follow-up answer
+          ...evaluation
+        }
+        
+        console.log('🔍 [LLM-Server] evaluateFollowUpAnswer result:', {
+          questionId: result.questionId,
+          needsFollowUp: result.needsFollowUp,
+          score: result.score,
+          keyPointsCovered: result.keyPointsCovered.length,
+          isFollowUp: true
+        })
+        
+        return result
+      } catch (error: any) {
+        lastError = error
+        const isRetryableError = error.status === 429 || // Rate limit
+                                error.status >= 500 ||   // Server errors
+                                error.code === 'ETIMEDOUT' ||
+                                error.message?.includes('timeout') ||
+                                error.type === 'server_error' ||
+                                error.type === 'rate_limit_error'
+        
+        console.error(`❌ [LLM-Server] OpenAI API error for follow-up (attempt ${attempt}/${maxRetries}):`, error.message || error)
+        
+        if (isRetryableError && attempt < maxRetries) {
+          const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
+          console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          continue
+        }
+        
+        // If not retryable or last attempt, break and throw
+        if (!isRetryableError || attempt === maxRetries) {
+          break
         }
       }
-      
-      const result = {
-        questionId: originalQuestion.id, // Use original question ID
-        candidateAnswer: followUpAnswer, // Use follow-up answer
-        ...evaluation
-      }
-      
-      console.log('🔍 [LLM-Server] evaluateFollowUpAnswer result:', {
-        questionId: result.questionId,
-        needsFollowUp: result.needsFollowUp,
-        score: result.score,
-        keyPointsCovered: result.keyPointsCovered.length,
-        isFollowUp: true
-      })
-      
-      return result
-    } catch (error) {
-      console.error('Error evaluating follow-up answer:', error)
-      throw error
     }
+
+    // All retries failed - throw error
+    console.error('❌ [LLM-Server] All retry attempts failed for follow-up evaluation')
+    throw lastError || new Error('Failed to evaluate follow-up answer after retries')
   }
 
   // Intent detection - separate from evaluation

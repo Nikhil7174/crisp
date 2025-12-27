@@ -14,6 +14,7 @@ import {
   Empty,
   Tabs,
   Collapse,
+  Rate,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -117,6 +118,17 @@ interface InterviewDetails {
   cheating_incidents?: any[];
   security_agent_connected?: boolean;
   security_events?: SecurityEvent[];
+  candidate_feedback?: {
+    id: number;
+    rating: number;
+    overall_experience?: string;
+    technical_questions_quality?: string;
+    interview_platform_rating?: number;
+    suggestions?: string;
+    would_recommend?: boolean;
+    created_at: string;
+    updated_at: string;
+  } | null;
   created_at: string;
   finalEvaluation?: FinalEvaluationSummary | null;
 }
@@ -1032,6 +1044,135 @@ export const InterviewDetails: React.FC = () => {
                       ))}
                     </div>
                   </div>
+                )}
+              </Card>
+            ),
+          },
+          {
+            key: 'candidateFeedback',
+            label: 'Candidate Feedback',
+            children: (
+              <Card
+                title="Candidate Feedback"
+                style={{ marginTop: spacing.xl }}
+              >
+                {interview.candidate_feedback ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+                    {/* Overall Rating */}
+                    <div>
+                      <Text strong style={{ fontSize: 16, display: 'block', marginBottom: spacing.sm }}>
+                        Overall Interview Experience
+                      </Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
+                        <Rate
+                          value={interview.candidate_feedback.rating}
+                          disabled
+                          style={{ fontSize: 24 }}
+                        />
+                        <Text style={{ fontSize: 16 }}>
+                          {interview.candidate_feedback.rating} out of 5
+                        </Text>
+                      </div>
+                    </div>
+
+                    {/* Overall Experience */}
+                    <div>
+                      <Text strong style={{ fontSize: 14, display: 'block', marginBottom: spacing.sm }}>
+                        Overall Experience
+                      </Text>
+                      <Paragraph style={{
+                        background: colors.background.secondary,
+                        padding: spacing.md,
+                        borderRadius: 8,
+                        border: `1px solid ${colors.neutral[200]}`,
+                        margin: 0,
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {interview.candidate_feedback.overall_experience || ''}
+                      </Paragraph>
+                    </div>
+
+                    {/* Technical Questions Quality */}
+                    <div>
+                      <Text strong style={{ fontSize: 14, display: 'block', marginBottom: spacing.sm }}>
+                        Technical Questions Quality
+                      </Text>
+                      <Paragraph style={{
+                        background: colors.background.secondary,
+                        padding: spacing.md,
+                        borderRadius: 8,
+                        border: `1px solid ${colors.neutral[200]}`,
+                        margin: 0,
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {interview.candidate_feedback.technical_questions_quality || ''}
+                      </Paragraph>
+                    </div>
+
+                    {/* Platform Rating */}
+                    <div>
+                      <Text strong style={{ fontSize: 14, display: 'block', marginBottom: spacing.sm }}>
+                        Interview Platform Rating
+                      </Text>
+                      {interview.candidate_feedback.interview_platform_rating ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
+                          <Rate
+                            value={interview.candidate_feedback.interview_platform_rating}
+                            disabled
+                            style={{ fontSize: 20 }}
+                          />
+                          <Text>
+                            {interview.candidate_feedback.interview_platform_rating} out of 5
+                          </Text>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Would Recommend */}
+                    <div>
+                      <Text strong style={{ fontSize: 14, display: 'block', marginBottom: spacing.sm }}>
+                        Would Recommend Platform
+                      </Text>
+                      {interview.candidate_feedback.would_recommend !== undefined && interview.candidate_feedback.would_recommend !== null ? (
+                        <Tag color={interview.candidate_feedback.would_recommend ? 'green' : 'red'} style={{ fontSize: 14, padding: '4px 12px' }}>
+                          {interview.candidate_feedback.would_recommend ? 'Yes, would recommend' : 'No, would not recommend'}
+                        </Tag>
+                      ) : null}
+                    </div>
+
+                    {/* Suggestions */}
+                    <div>
+                      <Text strong style={{ fontSize: 14, display: 'block', marginBottom: spacing.sm }}>
+                        Suggestions for Improvement
+                      </Text>
+                      <Paragraph style={{
+                        background: colors.background.secondary,
+                        padding: spacing.md,
+                        borderRadius: 8,
+                        border: `1px solid ${colors.neutral[200]}`,
+                        margin: 0,
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {interview.candidate_feedback.suggestions || ''}
+                      </Paragraph>
+                    </div>
+
+                    {/* Timestamp */}
+                    <div style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTop: `1px solid ${colors.neutral[200]}` }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Submitted on {dayjs(interview.candidate_feedback.created_at).format('MMM D, YYYY HH:mm:ss')}
+                      </Text>
+                    </div>
+                  </div>
+                ) : (
+                  <Empty
+                    description="No feedback submitted"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  >
+                    <Text type="secondary">
+                      The candidate has not submitted feedback for this interview.
+                    </Text>
+                  </Empty>
                 )}
               </Card>
             ),

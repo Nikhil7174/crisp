@@ -56,4 +56,16 @@ router.post('/final-evaluation', (req: Request, res: Response, next) => {
     }
 });
 
+// Candidate feedback endpoint - optional authentication
+router.post('/feedback', (req: Request, res: Response, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        authMiddleware(req, res, () => {
+            interviewController.saveCandidateFeedback(req, res);
+        });
+    } else {
+        interviewController.saveCandidateFeedback(req, res);
+    }
+});
+
 export default router;
