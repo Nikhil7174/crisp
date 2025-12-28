@@ -277,8 +277,26 @@ export class InterviewerController {
 
             const topics = parseJsonField(interviewLink.topics, []);
             const machineQuestions = parseJsonField(interviewLink.machine_questions, []);
-            const generatedQuestions = parseJsonField(interviewLink.generated_questions, []);
+            let generatedQuestions = parseJsonField(interviewLink.generated_questions, []);
             const questionSource = interviewLink.question_source || 'auto';
+
+            const hasManualQuestions = generatedQuestions && generatedQuestions.length > 0 && 
+                generatedQuestions.some((q: any) => q.id && q.id.toString().includes('manual-'));
+            
+            if (questionSource === 'auto' && (!generatedQuestions || generatedQuestions.length === 0 || hasManualQuestions)) {
+                if (hasManualQuestions) {
+                    await this.dbService.updateInterviewLinkQuestions(linkIdNum, []);
+                }
+                try {
+                    const questions = await this.questionGenerationService.generateInterviewQuestions(interviewLink);
+                    if (questions && questions.length > 0) {
+                        await this.dbService.updateInterviewLinkQuestions(linkIdNum, questions);
+                        generatedQuestions = questions;
+                    }
+                } catch (error) {
+                    console.error('Error auto-generating questions:', error);
+                }
+            }
 
             const manualTheoreticalQuestions = questionSource === 'manual'
                 ? (generatedQuestions || []).filter((question: any) => question.type !== 'machine_coding')
@@ -307,8 +325,8 @@ export class InterviewerController {
                     machineQuestions,
                     manualTheoreticalQuestions,
                     manualCodingQuestions,
-                    generatedQuestions: interviewLink.generated_questions,
-                    generated_questions: interviewLink.generated_questions,
+                    generatedQuestions: generatedQuestions && generatedQuestions.length > 0 ? JSON.stringify(generatedQuestions) : interviewLink.generated_questions,
+                    generated_questions: generatedQuestions && generatedQuestions.length > 0 ? JSON.stringify(generatedQuestions) : interviewLink.generated_questions,
                 }
             });
 
@@ -417,19 +435,11 @@ export class InterviewerController {
                 return;
             }
 
-            // Auto-generate questions for the interview link
             try {
-                console.log('🎯 Auto-generating questions for interview link ID:', link.id);
                 const questions = await this.questionGenerationService.generateInterviewQuestions(link);
-                
-                // Save the generated questions to the database
                 await this.dbService.updateInterviewLinkQuestions(link.id, questions);
-                
-                console.log(`✅ Auto-generated and saved ${questions.length} questions for interview link ${link.id}`);
             } catch (questionError) {
-                console.error('❌ Error auto-generating questions:', questionError);
-                // Don't fail the interview link creation if question generation fails
-                // The user can still generate questions manually later
+                console.error('Error auto-generating questions:', questionError);
             }
 
             res.status(201).json({
@@ -584,6 +594,25 @@ export class InterviewerController {
                 ? undefined
                 : (typeof machineQuestions === 'string' ? machineQuestions : JSON.stringify(machineQuestions));
 
+            const existingTopics = existingLink.topics ? 
+                (typeof existingLink.topics === 'string' ? existingLink.topics : JSON.stringify(existingLink.topics)) : 
+                null;
+            const existingMachineQuestions = existingLink.machine_questions ? 
+                (typeof existingLink.machine_questions === 'string' ? existingLink.machine_questions : JSON.stringify(existingLink.machine_questions)) : 
+                null;
+            
+            const topicsChanged = topics !== undefined && 
+                JSON.stringify(normalizedTopics) !== existingTopics;
+            const machineQuestionsChanged = machineQuestions !== undefined && 
+                JSON.stringify(normalizedMachineQuestions) !== existingMachineQuestions;
+            const maxQuestionsChanged = maxInterviewQuestions !== undefined && 
+                maxInterviewQuestions !== existingLink.max_interview_questions;
+            const maxMachineCodingChanged = maxMachineCodingQuestions !== undefined && 
+                maxMachineCodingQuestions !== existingLink.max_machine_coding_questions;
+            const questionSourceChanged = questionSource !== undefined && 
+                questionSource !== (existingLink.question_source || 'auto');
+            
+            // Update the link first
             const updatedLink = await this.dbService.updateInterviewLink(linkId, {
                 title,
                 description,
@@ -602,6 +631,9 @@ export class InterviewerController {
             });
 
             if (questionSource === 'manual') {
+                if (topicsChanged || machineQuestionsChanged || maxQuestionsChanged || maxMachineCodingChanged || questionSourceChanged) {
+                    await this.dbService.updateInterviewLinkQuestions(linkId, []);
+                }
                 const combinedManualQuestions: GeneratedQuestion[] = [
                     ...(Array.isArray(manualTheoreticalQuestions) ? manualTheoreticalQuestions : []),
                     ...(Array.isArray(manualCodingQuestions) ? manualCodingQuestions : []),
@@ -618,11 +650,31 @@ export class InterviewerController {
                 }));
 
                 await this.dbService.updateInterviewLinkQuestions(linkId, normalizedManualQuestions);
+            } else if (questionSource === 'auto') {
+                const shouldRegenerate = questionSourceChanged || topicsChanged || machineQuestionsChanged || maxQuestionsChanged || maxMachineCodingChanged;
+                
+                if (shouldRegenerate) {
+                    await this.dbService.updateInterviewLinkQuestions(linkId, []);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    const linkForGeneration = await this.dbService.getInterviewLinkById(linkId);
+                    if (linkForGeneration) {
+                        linkForGeneration.generated_questions = null;
+                        const generatedQuestions = await this.questionGenerationService.generateInterviewQuestions(linkForGeneration);
+                        await this.dbService.updateInterviewLinkQuestions(linkId, generatedQuestions);
+                    }
+                }
             }
+
+            const finalLink = await this.dbService.getInterviewLinkById(linkId);
 
             res.json({
                 success: true,
-                data: updatedLink,
+                data: finalLink ? {
+                    ...updatedLink,
+                    generated_questions: finalLink.generated_questions,
+                    generatedQuestions: finalLink.generated_questions
+                } : updatedLink,
                 message: 'Interview link updated successfully'
             });
 

@@ -16,6 +16,7 @@ import {
   QuestionCircleOutlined,
   ClockCircleOutlined,
   SearchOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { API_BASE_URL } from '../../constants/api';
 import { colors, spacing } from '../../styles';
@@ -75,6 +76,9 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
   useEffect(() => {
     if (visible && linkId) {
       loadQuestions();
+    } else if (!visible) {
+      setQuestions([]);
+      setFilteredQuestions([]);
     }
   }, [visible, linkId]);
 
@@ -94,7 +98,6 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
   const generateQuestions = async () => {
     try {
       setLoading(true);
-      console.log('Generating questions for link ID:', linkId);
       
       if (!token) {
         message.error('No authentication token found');
@@ -109,16 +112,11 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
         },
       });
 
-      console.log('Generate questions response status:', response.status);
       if (response.ok) {
-        const result = await response.json();
-        console.log('Generate questions result:', result);
         message.success('Questions generated successfully!');
-        // Reload questions to show the newly generated ones
         await loadQuestions();
       } else {
         const errorData = await response.json();
-        console.error('Generate questions error:', errorData);
         message.error(errorData.message || 'Failed to generate questions');
       }
     } catch (error) {
@@ -132,27 +130,24 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      console.log('Loading questions for link ID:', linkId);
-      console.log('Token from useAuth:', token ? 'Token exists' : 'No token found');
-      console.log('API URL:', `${API_BASE_URL}/interviewer/interview-link/${linkId}`);
       
       if (!token) {
         message.error('No authentication token found');
         return;
       }
       
-      const response = await fetch(`${API_BASE_URL}/interviewer/interview-link/${linkId}`, {
+      const cacheBuster = `?t=${Date.now()}`;
+      const response = await fetch(`${API_BASE_URL}/interviewer/interview-link/${linkId}${cacheBuster}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       });
 
-      console.log('Load questions response status:', response.status);
       if (response.ok) {
         const result = await response.json();
-        console.log('Load questions result:', result);
         if (result.success && result.data.generated_questions) {
           const existingQuestions = JSON.parse(result.data.generated_questions);
           setQuestions(existingQuestions);
@@ -299,6 +294,9 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
       width={1000}
       style={{ maxWidth: '90vw' }}
       footer={[
+        <Button key="refresh" onClick={loadQuestions} loading={loading} icon={<ReloadOutlined />}>
+          Refresh
+        </Button>,
         <Button key="close" onClick={onClose}>
           Close
         </Button>,

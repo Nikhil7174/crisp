@@ -177,28 +177,21 @@ export class QuestionGenerationService {
     
     // Fetch one question for each topic+difficulty combination
     for (const mq of questionsToFetch) {
-      console.log(`🔍 Fetching machine coding question: ${mq.topic} (${mq.difficulty})`);
-      
-      const question = await prisma.machineCodingQuestion.findFirst({
+      const questions = await prisma.machineCodingQuestion.findMany({
         where: {
           topic: mq.topic,
           difficulty: mq.difficulty,
-          solution: { not: null } // Only questions with solutions
+          solution: { not: null }
         },
-        orderBy: {
-          id: 'asc' // Consistent ordering
-        }
+        take: 10
       });
 
-      if (question) {
+      if (questions.length > 0) {
+        const question = questions[Math.floor(Math.random() * questions.length)];
         selectedQuestions.push(this.transformDatabaseQuestion(question));
-        console.log(`✅ Found: ${question.question_text.substring(0, 50)}...`);
-      } else {
-        console.warn(`⚠️ No ${mq.difficulty} ${mq.topic} question found in database`);
       }
     }
 
-    console.log(`📊 Selected ${selectedQuestions.length} machine coding questions`);
     return selectedQuestions;
   }
 
@@ -435,21 +428,17 @@ export class QuestionGenerationService {
    * Check if we have enough questions in the database for a topic
    */
   private async hasEnoughQuestionsInDB(topic: string, requiredCount: number): Promise<boolean> {
-    // Get all questions for the topic
-    const questions = await prisma.theoreticalQuestion.findMany({
-      where: {
-        topic: topic
-      },
-      select: {
-        question_text: true
-      }
-    });
+    // Use case-insensitive query for PostgreSQL
+    const questions = await prisma.$queryRaw<Array<{ question_text: string }>>`
+      SELECT DISTINCT question_text
+      FROM theoretical_questions
+      WHERE LOWER(topic) = LOWER(${topic})
+    `;
     
     // Count unique questions by text
-    const uniqueQuestions = new Set(questions.map(q => q.question_text));
-    const uniqueCount = uniqueQuestions.size;
+    const uniqueCount = questions.length;
     
-    console.log(`📊 Topic ${topic}: ${questions.length} total questions, ${uniqueCount} unique questions, need ${requiredCount}`);
+    console.log(`📊 Topic "${topic}": ${uniqueCount} unique questions found, need ${requiredCount}`);
     
     return uniqueCount >= requiredCount;
   }
@@ -458,22 +447,27 @@ export class QuestionGenerationService {
    * Get questions from database for a specific topic
    */
   private async getQuestionsFromDB(topic: string, count: number, difficulty?: string): Promise<GeneratedQuestion[]> {
-    const whereClause: any = {
-      topic: topic
-    };
-
+    // Use case-insensitive query for PostgreSQL
+    let questions: any[];
+    
     if (difficulty) {
-      whereClause.difficulty = difficulty;
+      questions = await prisma.$queryRaw<Array<any>>`
+        SELECT *
+        FROM theoretical_questions
+        WHERE LOWER(topic) = LOWER(${topic})
+          AND LOWER(difficulty) = LOWER(${difficulty})
+        ORDER BY RANDOM()
+        LIMIT ${count * 3}
+      `;
+    } else {
+      questions = await prisma.$queryRaw<Array<any>>`
+        SELECT *
+        FROM theoretical_questions
+        WHERE LOWER(topic) = LOWER(${topic})
+        ORDER BY RANDOM()
+        LIMIT ${count * 3}
+      `;
     }
-
-    // Get more questions than needed to account for duplicates
-    const questions = await prisma.theoreticalQuestion.findMany({
-      where: whereClause,
-      take: count * 3, // Get 3x more to account for duplicates
-      orderBy: {
-        id: 'asc' // For consistent ordering
-      }
-    });
 
     // Deduplicate by question text
     const uniqueQuestions = new Map<string, any>();
@@ -483,11 +477,7 @@ export class QuestionGenerationService {
       }
     }
 
-    // Take only the requested count
     const deduplicatedQuestions = Array.from(uniqueQuestions.values()).slice(0, count);
-    
-    console.log(`📚 Retrieved ${questions.length} questions, deduplicated to ${deduplicatedQuestions.length} unique questions for ${topic}`);
-
     return deduplicatedQuestions.map(q => this.transformDatabaseQuestion(q));
   }
 
