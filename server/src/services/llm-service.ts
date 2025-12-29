@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { EventEmitter } from 'events'
+import { FinalEvaluationPayload } from '../models/types'
 
 export interface Question {
   id: string
@@ -1449,35 +1450,96 @@ Respond with JSON:
    * Generate comprehensive evaluation from conversation history
    * Analyzes theoretical and coding sections separately and provides overall feedback
    */
-  async generateComprehensiveEvaluation(conversationHistory: any[]): Promise<{
-    theoreticalSection: {
+  async generateComprehensiveEvaluation(
+    payload: FinalEvaluationPayload | any[]
+  ): Promise<{
+    theoreticalSection?: {
       score: number
       feedback: string
       strengths: string[]
       areasForImprovement: string[]
+      questionBreakdown?: Array<{
+        questionId: string
+        question: string
+        score: number
+        feedback: string
+        keyPointsCovered: string[]
+        timeTaken?: number
+        hintsUsed?: number
+      }>
     }
-    codingSection: {
+    codingSection?: {
       score: number
       feedback: string
       strengths: string[]
       areasForImprovement: string[]
+      problemBreakdown?: Array<{
+        problemId: string
+        problem: string
+        score: number
+        feedback: string
+        codeReview?: {
+          strengths: string[]
+          weaknesses: string[]
+          suggestions: string[]
+        }
+        testResults?: Array<{
+          passed: boolean
+          input: string
+          expectedOutput: string
+          actualOutput: string
+        }>
+        timeComplexity?: string
+        spaceComplexity?: string
+        timeTaken?: number
+        hintsUsed?: number
+      }>
     }
     overall: {
       score: number
       feedback: string
       strengths: string[]
       areasForImprovement: string[]
+      learningRecommendations?: string[]
+    }
+    summaryStatistics?: {
+      totalQuestions: number
+      totalProblems: number
+      averageScore: number
+      totalHints: number
+      totalClarifications: number
+      totalFollowUps: number
+      averageTimePerQuestion: number
+      averageTimePerProblem: number
     }
   }> {
     try {
-      // Count hints, clarifications, and analyze conversation patterns
-      const hintCount = conversationHistory.filter(
+      // Handle both old format (array) and new format (payload)
+      let conversationHistory: any[]
+      let evaluationPayload: FinalEvaluationPayload | null = null
+      
+      if (Array.isArray(payload)) {
+        // Old format - just conversation history
+        conversationHistory = payload as any[]
+        evaluationPayload = null
+      } else if (payload && typeof payload === 'object' && 'fullConversationHistory' in payload) {
+        // New format - full payload
+        evaluationPayload = payload as FinalEvaluationPayload
+        conversationHistory = evaluationPayload.fullConversationHistory
+      } else {
+        // Fallback - treat as array
+        conversationHistory = (payload as any) || []
+        evaluationPayload = null
+      }
+
+      // Extract metrics from payload if available, otherwise from conversation history
+      const hintCount = evaluationPayload?.hintRequestCount ?? conversationHistory.filter(
         msg => msg.metadata?.type === 'hint'
       ).length
-      const clarificationCount = conversationHistory.filter(
+      const clarificationCount = evaluationPayload?.clarificationRequestCount ?? conversationHistory.filter(
         msg => msg.metadata?.type === 'clarification'
       ).length
-      const followUpCount = conversationHistory.filter(
+      const followUpCount = evaluationPayload?.followUpCount ?? conversationHistory.filter(
         msg => msg.metadata?.type === 'followup'
       ).length
 
@@ -1500,22 +1562,218 @@ Respond with JSON:
         })
         .join('\n')
 
-      const systemPrompt = `You are an expert technical interviewer analyzing a complete interview conversation history. Your task is to provide comprehensive evaluation scores and feedback for:
+      // Check which sections are present (have questions/problems)
+      const hasTheoreticalSection = evaluationPayload 
+        ? (evaluationPayload.theoreticalSection?.totalQuestions ?? 0) > 0
+        : theoreticalMessages.length > 0
+      
+      const hasCodingSection = evaluationPayload
+        ? (evaluationPayload.codingSection?.totalProblems ?? 0) > 0
+        : codingMessages.length > 0
 
-1. THEORETICAL SECTION: Evaluate how well the candidate answered theoretical questions
-   - Consider: answer quality, depth of understanding, key points covered
-   - Penalize: excessive hints/clarifications, incomplete answers, incorrect information
-   - Score range: 0-100
+      // Build detailed context from payload if available
+      let theoreticalContext = ''
+      let codingContext = ''
+      let performanceMetrics = ''
 
-2. CODING SECTION: Evaluate coding problem-solving performance
-   - Consider: code quality, problem-solving approach, time/space complexity understanding
-   - Penalize: excessive hints, poor code quality, inability to solve problems
-   - Score range: 0-100
+      if (evaluationPayload) {
+        // Theoretical section context (only if section exists)
+        if (hasTheoreticalSection && evaluationPayload.theoreticalSection && evaluationPayload.theoreticalSection.conversations.length > 0) {
+          theoreticalContext = '\n\nTHEORETICAL SECTION DETAILS:\n'
+          evaluationPayload.theoreticalSection.conversations.forEach((conv, idx) => {
+            const question = evaluationPayload!.theoreticalSection.questions.find(q => q.id === conv.questionId)
+            const hintCountForQ = conv.conversation.filter(m => m.metadata?.type === 'hint').length
+            const clarificationCountForQ = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
+            const timeTaken = conv.conversation.length > 0 
+              ? (conv.conversation[conv.conversation.length - 1].timestamp - conv.conversation[0].timestamp) / 1000
+              : 0
 
-3. OVERALL: Provide combined assessment
-   - Weight: 60% theoretical, 40% coding (or adjust based on section presence)
-   - Consider overall interview performance, communication, problem-solving skills
-   - Score range: 0-100
+            theoreticalContext += `\nQuestion ${idx + 1}:\n`
+            theoreticalContext += `- Question: ${conv.question || question?.question || 'N/A'}\n`
+            theoreticalContext += `- Difficulty: ${question?.difficulty || 'N/A'}\n`
+            theoreticalContext += `- Score: ${conv.totalScore.toFixed(1)}/100\n`
+            theoreticalContext += `- Hints used: ${hintCountForQ}\n`
+            theoreticalContext += `- Clarifications: ${clarificationCountForQ}\n`
+            theoreticalContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
+            if (conv.evaluations && conv.evaluations.length > 0) {
+              theoreticalContext += `- Key points covered: ${conv.evaluations.map(e => e.keyPointsCovered || []).flat().join(', ') || 'None'}\n`
+              theoreticalContext += `- Feedback: ${conv.evaluations[0].feedback || 'N/A'}\n`
+            }
+            theoreticalContext += `- Conversation length: ${conv.conversation.length} messages\n`
+          })
+        }
+
+        // Coding section context (only if section exists)
+        if (hasCodingSection && evaluationPayload.codingSection && evaluationPayload.codingSection.conversations.length > 0) {
+          codingContext = '\n\nCODING SECTION DETAILS:\n'
+          evaluationPayload.codingSection.conversations.forEach((conv, idx) => {
+            const hintCountForP = conv.conversation.filter(m => m.metadata?.type === 'hint').length
+            const clarificationCountForP = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
+            const timeTaken = conv.submittedAt && conv.conversation.length > 0
+              ? (new Date(conv.submittedAt).getTime() - conv.conversation[0].timestamp) / 1000
+              : 0
+
+            codingContext += `\nProblem ${idx + 1}:\n`
+            codingContext += `- Problem: ${conv.problem?.problem || 'N/A'}\n`
+            codingContext += `- Difficulty: ${conv.problem?.difficulty || 'N/A'}\n`
+            codingContext += `- Language: ${conv.problem?.language || 'N/A'}\n`
+            codingContext += `- Score: ${conv.evaluation?.score || 0}/100\n`
+            codingContext += `- Hints used: ${hintCountForP}\n`
+            codingContext += `- Clarifications: ${clarificationCountForP}\n`
+            codingContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
+            if (conv.finalCode) {
+              codingContext += `- Final code length: ${conv.finalCode.length} characters\n`
+            }
+            if (conv.timeComplexity) {
+              codingContext += `- Time complexity: ${conv.timeComplexity}\n`
+            }
+            if (conv.spaceComplexity) {
+              codingContext += `- Space complexity: ${conv.spaceComplexity}\n`
+            }
+            if (conv.evaluation?.testResults) {
+              const passedTests = conv.evaluation.testResults.filter(t => t.passed).length
+              codingContext += `- Test results: ${passedTests}/${conv.evaluation.testResults.length} passed\n`
+            }
+            if (conv.evaluation?.feedback) {
+              codingContext += `- Feedback: ${conv.evaluation.feedback}\n`
+            }
+            if (conv.codeAnalysisHistory && conv.codeAnalysisHistory.length > 0) {
+              codingContext += `- Code analysis iterations: ${conv.codeAnalysisHistory.length}\n`
+            }
+          })
+        }
+
+        // Performance metrics
+        performanceMetrics = '\n\nPERFORMANCE METRICS:\n'
+        performanceMetrics += `- Total interview duration: ${(evaluationPayload.duration / 1000 / 60).toFixed(1)} minutes\n`
+        if (hasTheoreticalSection) {
+          performanceMetrics += `- Average time per theoretical question: ${evaluationPayload.averageTimePerQuestion?.toFixed(1) || 'N/A'} seconds\n`
+          performanceMetrics += `- Theoretical section score: ${evaluationPayload.theoreticalSection?.overallScore?.toFixed(1) || 'N/A'}/100\n`
+        }
+        if (hasCodingSection) {
+          performanceMetrics += `- Average time per coding problem: ${evaluationPayload.averageTimePerCodingProblem?.toFixed(1) || 'N/A'} seconds\n`
+          performanceMetrics += `- Coding section score: ${evaluationPayload.codingSection?.overallScore?.toFixed(1) || 'N/A'}/100\n`
+        }
+        performanceMetrics += `- Total hints requested: ${hintCount}\n`
+        performanceMetrics += `- Total clarifications requested: ${clarificationCount}\n`
+        performanceMetrics += `- Total follow-up questions: ${followUpCount}\n`
+        performanceMetrics += `- Overall score: ${evaluationPayload.totalScore?.toFixed(1) || 'N/A'}/100\n`
+      }
+
+      const systemPrompt = `You are an expert technical interviewer analyzing a complete interview conversation history. Your task is to provide comprehensive evaluation scores and feedback with detailed breakdowns.
+
+IMPORTANT: Only evaluate sections that were actually part of the interview. If a section has 0 questions/problems, DO NOT include it in your response.
+
+EVALUATION RULES AND RUBRICS:
+
+${hasTheoreticalSection ? `1. THEORETICAL SECTION EVALUATION:` : ''}
+
+   SCORING RUBRIC (0-100 scale):
+   - Completeness (30 points): How many key points were covered?
+     * 25-30: All or nearly all key points covered comprehensively
+     * 18-24: Most key points covered, minor gaps
+     * 12-17: Some key points covered, significant gaps
+     * 6-11: Few key points covered, major gaps
+     * 0-5: No or incorrect key points covered
+   
+   - Accuracy (30 points): Correctness of information provided
+     * 25-30: All information accurate, demonstrates deep understanding
+     * 18-24: Mostly accurate, minor inaccuracies
+     * 12-17: Some inaccuracies, partial understanding
+     * 6-11: Multiple inaccuracies, weak understanding
+     * 0-5: Major inaccuracies, fundamental misunderstanding
+   
+   - Depth (20 points): Level of detail and explanation quality
+     * 16-20: Deep, thorough explanations with examples
+     * 12-15: Good explanations with some detail
+     * 8-11: Basic explanations, limited detail
+     * 4-7: Superficial explanations
+     * 0-3: Minimal or no explanation
+   
+   - Clarity (10 points): Communication and articulation
+     * 8-10: Clear, well-structured, easy to follow
+     * 6-7: Generally clear with minor issues
+     * 4-5: Somewhat unclear, needs improvement
+     * 2-3: Unclear, difficult to follow
+     * 0-1: Very unclear, confusing
+   
+   - Independence (10 points): Ability to answer without excessive help
+     * 8-10: No hints needed, fully independent
+     * 6-7: 1 hint, mostly independent
+     * 4-5: 2-3 hints, some dependency
+     * 2-3: 4+ hints, high dependency
+     * 0-1: Excessive hints, very dependent
+
+   QUALITY CRITERIA:
+   - Excellent (90-100): Comprehensive answers covering all key points accurately with deep understanding, minimal/no hints
+   - Good (80-89): Solid answers covering most key points, few hints needed, good understanding
+   - Acceptable (70-79): Basic answers covering some key points, some hints/clarifications, acceptable understanding
+   - Below Average (60-69): Incomplete answers, multiple hints needed, gaps in knowledge
+   - Poor (<60): Major gaps, excessive hints, significant knowledge deficiencies
+
+   PENALTY RULES:
+   - Each hint request: -2 to -5 points (depending on hint level)
+   - Each clarification request: -1 to -3 points
+   - Each follow-up question needed: -3 to -7 points (indicates incomplete initial answer)
+   - Incorrect information: -5 to -15 points per major inaccuracy
+
+${hasCodingSection ? `2. CODING SECTION EVALUATION:` : ''}
+
+   SCORING RUBRIC (0-100 scale):
+   - Correctness (35 points): Does the code solve the problem correctly?
+     * 28-35: All test cases pass, handles edge cases
+     * 21-27: Most test cases pass, minor issues
+     * 14-20: Some test cases pass, significant issues
+     * 7-13: Few test cases pass, major issues
+     * 0-6: No test cases pass or no solution
+   
+   - Code Quality (25 points): Readability, structure, best practices
+     * 20-25: Clean, well-structured, follows best practices
+     * 15-19: Generally good structure, minor issues
+     * 10-14: Acceptable structure, some issues
+     * 5-9: Poor structure, multiple issues
+     * 0-4: Very poor structure, many issues
+   
+   - Problem-Solving Approach (20 points): Strategy, algorithm selection, logic
+     * 16-20: Optimal approach, clear strategy, efficient algorithm
+     * 12-15: Good approach, reasonable strategy
+     * 8-11: Acceptable approach, some issues
+     * 4-7: Suboptimal approach, significant issues
+     * 0-3: Poor approach, major issues
+   
+   - Efficiency (10 points): Time and space complexity
+     * 8-10: Optimal or near-optimal complexity
+     * 6-7: Good complexity, acceptable trade-offs
+     * 4-5: Acceptable complexity
+     * 2-3: Suboptimal complexity
+     * 0-1: Very poor complexity
+   
+   - Independence (10 points): Ability to solve without excessive help
+     * 8-10: No hints needed, fully independent
+     * 6-7: 1 hint, mostly independent
+     * 4-5: 2-3 hints, some dependency
+     * 2-3: 4+ hints, high dependency
+     * 0-1: Excessive hints, very dependent
+
+   QUALITY CRITERIA:
+   - Excellent (90-100): Optimal solution, all tests pass, clean code, minimal/no hints
+   - Good (80-89): Correct solution, most tests pass, good code quality, few hints
+   - Acceptable (70-79): Working solution with some issues, acceptable code, some hints
+   - Below Average (60-69): Partial solution, multiple issues, multiple hints needed
+   - Poor (<60): Incomplete or incorrect solution, excessive hints, poor code quality
+
+   PENALTY RULES:
+   - Each hint request: -3 to -7 points (depending on hint level)
+   - Each failed test case: -5 to -10 points
+   - Poor time/space complexity: -5 to -15 points
+   - Code quality issues: -2 to -8 points per major issue
+
+3. OVERALL EVALUATION:
+   - Weight: ${hasTheoreticalSection && hasCodingSection ? '60% theoretical, 40% coding' : hasTheoreticalSection ? '100% theoretical' : '100% coding'} (only consider sections that exist)
+   - Consider: Overall interview performance, communication skills, problem-solving ability, technical knowledge
+   - Provide specific learning recommendations based on identified gaps
+   ${!hasTheoreticalSection ? '- NOTE: This interview did NOT include theoretical questions. Do NOT include theoreticalSection in your response.' : ''}
+   ${!hasCodingSection ? '- NOTE: This interview did NOT include coding problems. Do NOT include codingSection in your response.' : ''}
 
 METRICS TO CONSIDER:
 - Hint requests: ${hintCount} (more hints = lower score)
@@ -1525,37 +1783,90 @@ METRICS TO CONSIDER:
 - Technical depth and accuracy
 - Problem-solving approach
 - Communication clarity
+${performanceMetrics}
 
 Return ONLY valid JSON in this exact format:
-{
+${hasTheoreticalSection ? `{
   "theoreticalSection": {
     "score": <number 0-100>,
-    "feedback": "<detailed feedback string>",
+    "feedback": "<detailed feedback string explaining the score>",
     "strengths": ["<strength1>", "<strength2>", ...],
-    "areasForImprovement": ["<area1>", "<area2>", ...]
-  },
-  "codingSection": {
+    "areasForImprovement": ["<area1>", "<area2>", ...],
+    "questionBreakdown": [
+      {
+        "questionId": "<id>",
+        "question": "<question text>",
+        "score": <number 0-100>,
+        "feedback": "<specific feedback for this question>",
+        "keyPointsCovered": ["<point1>", "<point2>", ...],
+        "timeTaken": <number in seconds>,
+        "hintsUsed": <number>
+      }
+    ]
+  },` : ''}
+${hasCodingSection ? `  "codingSection": {
     "score": <number 0-100>,
-    "feedback": "<detailed feedback string>",
+    "feedback": "<detailed feedback string explaining the score>",
     "strengths": ["<strength1>", "<strength2>", ...],
-    "areasForImprovement": ["<area1>", "<area2>", ...]
-  },
+    "areasForImprovement": ["<area1>", "<area2>", ...],
+    "problemBreakdown": [
+      {
+        "problemId": "<id>",
+        "problem": "<problem text>",
+        "score": <number 0-100>,
+        "feedback": "<specific feedback for this problem>",
+        "codeReview": {
+          "strengths": ["<code strength1>", "<code strength2>", ...],
+          "weaknesses": ["<code weakness1>", "<code weakness2>", ...],
+          "suggestions": ["<suggestion1>", "<suggestion2>", ...]
+        },
+        "testResults": [
+          {
+            "passed": <boolean>,
+            "input": "<input>",
+            "expectedOutput": "<expected>",
+            "actualOutput": "<actual>"
+          }
+        ],
+        "timeComplexity": "<complexity>",
+        "spaceComplexity": "<complexity>",
+        "timeTaken": <number in seconds>,
+        "hintsUsed": <number>
+      }
+    ]
+  },` : ''}
   "overall": {
     "score": <number 0-100>,
     "feedback": "<comprehensive feedback string>",
     "strengths": ["<strength1>", "<strength2>", ...],
-    "areasForImprovement": ["<area1>", "<area2>", ...]
+    "areasForImprovement": ["<area1>", "<area2>", ...],
+    "learningRecommendations": [
+      "<specific recommendation1>",
+      "<specific recommendation2>",
+      ...
+    ]
+  },
+  "summaryStatistics": {
+    "totalQuestions": <number>,
+    "totalProblems": <number>,
+    "averageScore": <number>,
+    "totalHints": <number>,
+    "totalClarifications": <number>,
+    "totalFollowUps": <number>,
+    "averageTimePerQuestion": <number>,
+    "averageTimePerProblem": <number>
   }
 }
 
-SCORING GUIDELINES:
-- 90-100: Excellent performance, minimal/no hints needed, comprehensive answers
-- 80-89: Good performance, few hints, solid understanding
-- 70-79: Acceptable performance, some hints/clarifications, basic understanding
-- 60-69: Below average, multiple hints needed, gaps in knowledge
-- Below 60: Poor performance, excessive hints, significant knowledge gaps
-
-Be specific, constructive, and professional in all feedback.`
+IMPORTANT:
+- Be specific, constructive, and professional in all feedback
+- Provide actionable recommendations
+- Include question-wise and problem-wise breakdowns when detailed context is available
+- Base scores on the rubrics provided above
+- Consider all penalties when calculating final scores
+- ${!hasTheoreticalSection ? 'DO NOT include theoreticalSection in your response - it was not part of this interview' : ''}
+- ${!hasCodingSection ? 'DO NOT include codingSection in your response - it was not part of this interview' : ''}
+- Only include sections that actually have questions/problems (totalQuestions > 0 or totalProblems > 0)`
 
       const userPrompt = `Analyze this interview conversation history and provide comprehensive evaluation:
 
@@ -1564,13 +1875,18 @@ ${conversationSummary}
 
 STATISTICS:
 - Total messages: ${conversationHistory.length}
-- Theoretical messages: ${theoreticalMessages.length}
-- Coding messages: ${codingMessages.length}
+${hasTheoreticalSection ? `- Theoretical messages: ${theoreticalMessages.length}` : '- Theoretical section: NOT INCLUDED in this interview'}
+${hasCodingSection ? `- Coding messages: ${codingMessages.length}` : '- Coding section: NOT INCLUDED in this interview'}
 - Hint requests: ${hintCount}
 - Clarification requests: ${clarificationCount}
 - Follow-up questions: ${followUpCount}
+${theoreticalContext}
+${codingContext}
+${performanceMetrics}
 
-Provide detailed evaluation for theoretical section, coding section, and overall performance.`
+${hasTheoreticalSection ? 'Provide detailed evaluation for theoretical section.' : 'DO NOT evaluate theoretical section - it was not part of this interview.'}
+${hasCodingSection ? 'Provide detailed evaluation for coding section.' : 'DO NOT evaluate coding section - it was not part of this interview.'}
+Always provide overall performance evaluation. Include question-wise and problem-wise breakdowns when context is available.`
 
       const response = await this.openai.chat.completions.create({
         model: this.config.model || 'gpt-4o-mini',
@@ -1579,7 +1895,7 @@ Provide detailed evaluation for theoretical section, coding section, and overall
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,
-        max_tokens: 2000
+        max_tokens: 4000 // Increased for detailed breakdowns
       })
 
       const content = response.choices[0]?.message?.content
@@ -1599,36 +1915,78 @@ Provide detailed evaluation for theoretical section, coding section, and overall
         throw new Error('Invalid JSON response from LLM')
       }
 
-      // Validate structure
-      if (!evaluation.theoreticalSection || !evaluation.codingSection || !evaluation.overall) {
-        throw new Error('Invalid evaluation structure from LLM')
+      // Validate structure - overall is always required
+      if (!evaluation.overall) {
+        throw new Error('Invalid evaluation structure from LLM - overall section is required')
       }
 
-      return evaluation
+      // Only validate sections that should exist
+      if (hasTheoreticalSection && !evaluation.theoreticalSection) {
+        console.warn('⚠️ Theoretical section expected but not found in LLM response')
+      }
+      if (hasCodingSection && !evaluation.codingSection) {
+        console.warn('⚠️ Coding section expected but not found in LLM response')
+      }
+
+      // Ensure optional fields are present (may be undefined if LLM doesn't provide them or section doesn't exist)
+      const result: any = {
+        overall: {
+          ...evaluation.overall,
+          learningRecommendations: evaluation.overall.learningRecommendations || []
+        },
+        summaryStatistics: evaluation.summaryStatistics || {
+          totalQuestions: hasTheoreticalSection ? (evaluationPayload?.theoreticalSection?.totalQuestions || 0) : 0,
+          totalProblems: hasCodingSection ? (evaluationPayload?.codingSection?.totalProblems || 0) : 0,
+          averageScore: evaluationPayload?.totalScore || 0,
+          totalHints: hintCount,
+          totalClarifications: clarificationCount,
+          totalFollowUps: followUpCount,
+          averageTimePerQuestion: hasTheoreticalSection ? (evaluationPayload?.averageTimePerQuestion || 0) : 0,
+          averageTimePerProblem: hasCodingSection ? (evaluationPayload?.averageTimePerCodingProblem || 0) : 0
+        }
+      }
+
+      // Only include sections that exist
+      if (hasTheoreticalSection && evaluation.theoreticalSection) {
+        result.theoreticalSection = {
+          ...evaluation.theoreticalSection,
+          questionBreakdown: evaluation.theoreticalSection.questionBreakdown || []
+        }
+      }
+
+      if (hasCodingSection && evaluation.codingSection) {
+        result.codingSection = {
+          ...evaluation.codingSection,
+          problemBreakdown: evaluation.codingSection.problemBreakdown || []
+        }
+      }
+
+      return result
 
     } catch (error) {
       console.error('Error generating comprehensive evaluation:', error)
-      // Return fallback evaluation
-      return {
-        theoreticalSection: {
-          score: 0,
-          feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
-          strengths: [],
-          areasForImprovement: ['Evaluation could not be generated']
-        },
-        codingSection: {
-          score: 0,
-          feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
-          strengths: [],
-          areasForImprovement: ['Evaluation could not be generated']
-        },
+      // Return fallback evaluation - basic structure without section checks
+      const fallbackResult: any = {
         overall: {
           score: 0,
           feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
           strengths: [],
-          areasForImprovement: ['Evaluation could not be generated']
+          areasForImprovement: ['Evaluation could not be generated'],
+          learningRecommendations: []
+        },
+        summaryStatistics: {
+          totalQuestions: 0,
+          totalProblems: 0,
+          averageScore: 0,
+          totalHints: 0,
+          totalClarifications: 0,
+          totalFollowUps: 0,
+          averageTimePerQuestion: 0,
+          averageTimePerProblem: 0
         }
       }
+
+      return fallbackResult
     }
   }
 

@@ -594,11 +594,12 @@ export class InterviewController {
               apiKey: process.env.OPENAI_API_KEY || '',
               model: 'gpt-4o-mini',
               temperature: 0.3,
-              maxTokens: 2000,
+              maxTokens: 4000, // Increased for detailed breakdowns
             });
 
+            // Pass the full evaluation payload for enhanced evaluation with rules and context
             const llmEvaluation = await llmService.generateComprehensiveEvaluation(
-              payload.fullConversationHistory
+              payload
             );
 
             await this.dbService.updateLLMEvaluation(interviewId!, llmEvaluation);

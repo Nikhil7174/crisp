@@ -5,9 +5,6 @@ import {
   Typography,
   Button,
   Tag,
-  Row,
-  Col,
-  Statistic,
   message,
   Spin,
   Descriptions,
@@ -22,11 +19,14 @@ import {
   MessageOutlined,
   SettingOutlined,
   RobotOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { API_BASE_URL } from '../constants/api';
 import { useAuth } from '../hooks/useAuth';
 import { colors, spacing } from '../styles';
+import { DetailedFeedbackSheet } from '../components/DetailedFeedbackSheet';
+import { generateFeedbackPDF } from '../utils/pdfGenerator';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -140,23 +140,64 @@ export const InterviewDetails: React.FC = () => {
   const [interview, setInterview] = useState<InterviewDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [llmEvaluation, setLlmEvaluation] = useState<{
-    theoreticalSection: {
+    theoreticalSection?: {
       score: number;
       feedback: string;
       strengths: string[];
       areasForImprovement: string[];
+      questionBreakdown?: Array<{
+        questionId: string;
+        question: string;
+        score: number;
+        feedback: string;
+        keyPointsCovered: string[];
+        timeTaken?: number;
+        hintsUsed?: number;
+      }>;
     };
-    codingSection: {
+    codingSection?: {
       score: number;
       feedback: string;
       strengths: string[];
       areasForImprovement: string[];
+      problemBreakdown?: Array<{
+        problemId: string;
+        problem: string;
+        score: number;
+        feedback: string;
+        codeReview?: {
+          strengths: string[];
+          weaknesses: string[];
+          suggestions: string[];
+        };
+        testResults?: Array<{
+          passed: boolean;
+          input: string;
+          expectedOutput: string;
+          actualOutput: string;
+        }>;
+        timeComplexity?: string;
+        spaceComplexity?: string;
+        timeTaken?: number;
+        hintsUsed?: number;
+      }>;
     };
     overall: {
       score: number;
       feedback: string;
       strengths: string[];
       areasForImprovement: string[];
+      learningRecommendations?: string[];
+    };
+    summaryStatistics?: {
+      totalQuestions: number;
+      totalProblems: number;
+      averageScore: number;
+      totalHints: number;
+      totalClarifications: number;
+      totalFollowUps: number;
+      averageTimePerQuestion: number;
+      averageTimePerProblem: number;
     };
   } | null>(null);
   const [generatingEvaluation, setGeneratingEvaluation] = useState(false);
@@ -259,16 +300,49 @@ export const InterviewDetails: React.FC = () => {
 
     try {
       setGeneratingEvaluation(true);
+      
+      // Try to send full evaluation payload if available, otherwise fall back to conversation history
+      const payload: any = {
+        interviewId: interview.id,
+      };
+
+      // Check if we have the full evaluation structure to send
+      if (interview.finalEvaluation && 
+          interview.finalEvaluation.theoreticalSection && 
+          interview.finalEvaluation.codingSection) {
+        // Send full evaluation payload for enhanced evaluation
+        payload.fullEvaluationPayload = {
+          sessionId: interview.session_id,
+          candidateId: interview.candidate_email,
+          interviewLinkId: (interview as any).interview_link_id,
+          startTime: interview.start_time,
+          endTime: interview.end_time || new Date().toISOString(),
+          duration: interview.duration || 0,
+          fullConversationHistory: interview.finalEvaluation.fullConversationHistory,
+          theoreticalSection: interview.finalEvaluation.theoreticalSection,
+          codingSection: interview.finalEvaluation.codingSection,
+          totalScore: interview.finalEvaluation.totalScore || 0,
+          strengths: interview.finalEvaluation.strengths || [],
+          areasForImprovement: interview.finalEvaluation.areasForImprovement || [],
+          overallFeedback: interview.finalEvaluation.overallFeedback || '',
+          hintRequestCount: interview.finalEvaluation.hintRequestCount || 0,
+          clarificationRequestCount: interview.finalEvaluation.clarificationRequestCount || 0,
+          followUpCount: interview.finalEvaluation.followUpCount || 0,
+          averageTimePerQuestion: interview.finalEvaluation.averageTimePerQuestion || 0,
+          averageTimePerCodingProblem: interview.finalEvaluation.averageTimePerCodingProblem || 0,
+        };
+      } else {
+        // Fall back to conversation history only (backward compatibility)
+        payload.conversationHistory = interview.finalEvaluation.fullConversationHistory;
+      }
+
       const response = await fetch(`${API_BASE_URL}/llm/generate-comprehensive-evaluation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          conversationHistory: interview.finalEvaluation.fullConversationHistory,
-          interviewId: interview.id,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -356,181 +430,41 @@ export const InterviewDetails: React.FC = () => {
         </Descriptions>
       </Card>
 
-      {/* LLM-Generated Evaluation */}
-      <Card
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-            <span>Comprehensive Evaluation</span>
-          </div>
-        }
-        style={{ marginBottom: spacing.xl }}
-      >
-        {llmEvaluation ? (
-          <>
-            {/* Overall Evaluation */}
-            <Card
-              type="inner"
-              title="Overall Performance"
-              style={{ marginBottom: spacing.md }}
+      {/* Detailed Evaluation */}
+      {llmEvaluation ? (
+        <>
+          <div style={{ marginBottom: spacing.md, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                generateFeedbackPDF(
+                  llmEvaluation,
+                  interview.candidate_name,
+                  dayjs(interview.start_time).format('YYYY-MM-DD')
+                );
+              }}
             >
-              <Row gutter={16}>
-                <Col xs={24} sm={8}>
-                  <Statistic
-                    title="Overall Score"
-                    value={llmEvaluation.overall.score}
-                    suffix="%"
-                    valueStyle={{
-                      color:
-                        llmEvaluation.overall.score >= 70
-                          ? colors.success.main
-                          : llmEvaluation.overall.score >= 60
-                          ? colors.warning.main
-                          : colors.error.main,
-                    }}
-                  />
-                </Col>
-                <Col xs={24} sm={16}>
-                  <Paragraph>{llmEvaluation.overall.feedback}</Paragraph>
-                  {llmEvaluation.overall.strengths.length > 0 && (
-                    <div style={{ marginTop: spacing.md }}>
-                      <Text strong>Strengths: </Text>
-                      {llmEvaluation.overall.strengths.join(', ')}
-                    </div>
-                  )}
-                  {llmEvaluation.overall.areasForImprovement.length > 0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Text strong>Areas for Improvement: </Text>
-                      {llmEvaluation.overall.areasForImprovement.join(', ')}
-                    </div>
-                  )}
-                </Col>
-              </Row>
-        </Card>
-
-            <Row gutter={16}>
-              {/* Theoretical Section */}
-        <Col xs={24} sm={12}>
-                <Card
-                  type="inner"
-                  title="Theoretical Section"
-                  style={{ marginBottom: spacing.md }}
-                >
-                  <Statistic
-                    title="Score"
-                    value={llmEvaluation.theoreticalSection.score}
-                    suffix="%"
-                    valueStyle={{
-                      color:
-                        llmEvaluation.theoreticalSection.score >= 70
-                          ? colors.success.main
-                          : llmEvaluation.theoreticalSection.score >= 60
-                          ? colors.warning.main
-                          : colors.error.main,
-                    }}
-                  />
-                  <Paragraph style={{ marginTop: spacing.md }}>
-                    {llmEvaluation.theoreticalSection.feedback}
-                  </Paragraph>
-                  {llmEvaluation.theoreticalSection.strengths.length > 0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Text strong style={{ fontSize: 12 }}>Strengths:</Text>
-                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
-                        {llmEvaluation.theoreticalSection.strengths.map(
-                          (strength, idx) => (
-                            <li key={idx}>
-                              <Text style={{ fontSize: 12 }}>{strength}</Text>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                  {llmEvaluation.theoreticalSection.areasForImprovement.length >
-                    0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Text strong style={{ fontSize: 12 }}>
-                        Areas for Improvement:
-                      </Text>
-                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
-                        {llmEvaluation.theoreticalSection.areasForImprovement.map(
-                          (area, idx) => (
-                            <li key={idx}>
-                              <Text style={{ fontSize: 12 }}>{area}</Text>
-                  </li>
-                          )
-                        )}
-              </ul>
-                    </div>
-            )}
-          </Card>
-        </Col>
-
-              {/* Coding Section */}
-        <Col xs={24} sm={12}>
-                <Card
-                  type="inner"
-                  title="Coding Section"
-                  style={{ marginBottom: spacing.md }}
-                >
-                  <Statistic
-                    title="Score"
-                    value={llmEvaluation.codingSection.score}
-                    suffix="%"
-                    valueStyle={{
-                      color:
-                        llmEvaluation.codingSection.score >= 70
-                          ? colors.success.main
-                          : llmEvaluation.codingSection.score >= 60
-                          ? colors.warning.main
-                          : colors.error.main,
-                    }}
-                  />
-                  <Paragraph style={{ marginTop: spacing.md }}>
-                    {llmEvaluation.codingSection.feedback}
-                  </Paragraph>
-                  {llmEvaluation.codingSection.strengths.length > 0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Text strong style={{ fontSize: 12 }}>Strengths:</Text>
-                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
-                        {llmEvaluation.codingSection.strengths.map(
-                          (strength, idx) => (
-                            <li key={idx}>
-                              <Text style={{ fontSize: 12 }}>{strength}</Text>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                  {llmEvaluation.codingSection.areasForImprovement.length >
-                    0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Text strong style={{ fontSize: 12 }}>
-                        Areas for Improvement:
-                      </Text>
-                      <ul style={{ marginTop: spacing.xs, paddingLeft: 20 }}>
-                        {llmEvaluation.codingSection.areasForImprovement.map(
-                          (area, idx) => (
-                            <li key={idx}>
-                              <Text style={{ fontSize: 12 }}>{area}</Text>
-                  </li>
-                          )
-                        )}
-              </ul>
-                    </div>
-            )}
-          </Card>
-        </Col>
-      </Row>
-          </>
-        ) : generatingEvaluation ? (
+              Download PDF
+            </Button>
+          </div>
+          <DetailedFeedbackSheet
+            evaluation={llmEvaluation}
+            candidateName={interview.candidate_name}
+            interviewDate={dayjs(interview.start_time).format('MMM D, YYYY')}
+          />
+        </>
+      ) : generatingEvaluation ? (
+        <Card style={{ marginBottom: spacing.xl }}>
           <div style={{ textAlign: 'center', padding: spacing.xl }}>
             <Spin size="large" />
             <Paragraph type="secondary" style={{ marginTop: spacing.md }}>
-              Generating AI evaluation from conversation history...
+              Generating detailed evaluation from conversation history...
             </Paragraph>
           </div>
-        ) : (
+        </Card>
+      ) : (
+        <Card style={{ marginBottom: spacing.xl }}>
           <div style={{ textAlign: 'center', padding: spacing.xl }}>
             <RobotOutlined
               style={{ fontSize: 48, color: colors.neutral[400], marginBottom: spacing.md }}
@@ -541,8 +475,8 @@ export const InterviewDetails: React.FC = () => {
                 : 'No conversation history available for evaluation'}
             </Paragraph>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
               </>
             ),
           },
