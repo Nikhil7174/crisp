@@ -410,7 +410,7 @@ export const generateFeedbackPDF = (
         doc.text('Test Results:', 20, yPosition);
         yPosition += 5;
 
-        const testData = p.testResults.map((t, tIdx) => [
+        const testData = p.testResults.map((t) => [
           t.passed ? 'Passed' : 'Failed',
           t.input.substring(0, 30) + (t.input.length > 30 ? '...' : ''),
           t.expectedOutput.substring(0, 30) + (t.expectedOutput.length > 30 ? '...' : ''),
