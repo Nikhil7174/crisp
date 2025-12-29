@@ -365,7 +365,7 @@ export const InterviewDetails: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: spacing.xl, background: '#fafafa', minHeight: '100vh' }}>
+    <div style={{ padding: `${spacing.xl}px 60px`, background: '#fafafa', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ marginBottom: spacing.xl }}>
         <Button

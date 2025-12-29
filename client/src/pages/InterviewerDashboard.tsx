@@ -272,7 +272,7 @@ export const InterviewerDashboard: React.FC = () => {
   }, [links]);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: spacing.xl }}>
+    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: `${spacing.xl}px 60px` }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
         {/* Header */}
         <div
