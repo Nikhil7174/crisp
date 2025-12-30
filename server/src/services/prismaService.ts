@@ -504,7 +504,8 @@ export class PrismaService {
                 final_evaluation: true,
                 security_events: {
                     orderBy: { created_at: 'desc' }
-                }
+                },
+                candidate_feedback: true
             },
         });
 
@@ -570,6 +571,17 @@ export class PrismaService {
                 metadata: e.metadata ? JSON.parse(e.metadata) : null,
                 created_at: e.created_at
             })) : [],
+            candidate_feedback: interview.candidate_feedback ? {
+                id: interview.candidate_feedback.id,
+                rating: interview.candidate_feedback.rating,
+                overall_experience: interview.candidate_feedback.overall_experience,
+                technical_questions_quality: interview.candidate_feedback.technical_questions_quality,
+                interview_platform_rating: interview.candidate_feedback.interview_platform_rating,
+                suggestions: interview.candidate_feedback.suggestions,
+                would_recommend: interview.candidate_feedback.would_recommend,
+                created_at: interview.candidate_feedback.created_at,
+                updated_at: interview.candidate_feedback.updated_at
+            } : null,
             created_at: interview.created_at,
             updated_at: interview.updated_at,
             finalEvaluation,
@@ -1074,6 +1086,56 @@ export class PrismaService {
             createdAt: interview.final_evaluation.created_at,
             updatedAt: interview.final_evaluation.updated_at,
         };
+    }
+
+    // Candidate Feedback methods
+    public async saveCandidateFeedback(data: {
+        interviewId: number;
+        sessionId: string;
+        rating: number;
+        overallExperience?: string;
+        technicalQuestionsQuality?: string;
+        interviewPlatformRating?: number;
+        suggestions?: string;
+        wouldRecommend?: boolean;
+    }) {
+        return await prisma.candidateFeedback.upsert({
+            where: { interview_id: data.interviewId },
+            update: {
+                rating: data.rating,
+                overall_experience: data.overallExperience,
+                technical_questions_quality: data.technicalQuestionsQuality,
+                interview_platform_rating: data.interviewPlatformRating,
+                suggestions: data.suggestions,
+                would_recommend: data.wouldRecommend,
+            },
+            create: {
+                interview_id: data.interviewId,
+                session_id: data.sessionId,
+                rating: data.rating,
+                overall_experience: data.overallExperience,
+                technical_questions_quality: data.technicalQuestionsQuality,
+                interview_platform_rating: data.interviewPlatformRating,
+                suggestions: data.suggestions,
+                would_recommend: data.wouldRecommend,
+            },
+        });
+    }
+
+    public async getCandidateFeedbackBySessionId(sessionId: string) {
+        return await prisma.candidateFeedback.findFirst({
+            where: { session_id: sessionId },
+            include: {
+                interview: {
+                    select: {
+                        id: true,
+                        session_id: true,
+                        candidate_name: true,
+                        candidate_email: true,
+                    }
+                }
+            }
+        });
     }
 
     // Cleanup method

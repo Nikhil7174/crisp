@@ -545,22 +545,36 @@ router.post('/generate-final-coding-feedback', async (req, res) => {
   }
 })
 
-// Generate comprehensive evaluation from conversation history
+// Generate comprehensive evaluation from conversation history or full evaluation payload
 router.post('/generate-comprehensive-evaluation', async (req, res) => {
   try {
-    const { conversationHistory, interviewId } = req.body
+    const { conversationHistory, fullEvaluationPayload, interviewId } = req.body
 
-    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+    // Support both old format (conversationHistory) and new format (fullEvaluationPayload)
+    let payload: any = null
+    
+    if (fullEvaluationPayload && typeof fullEvaluationPayload === 'object' && 'fullConversationHistory' in fullEvaluationPayload) {
+      // New format - full evaluation payload
+      payload = fullEvaluationPayload
+      if (!payload.fullConversationHistory || !Array.isArray(payload.fullConversationHistory) || payload.fullConversationHistory.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Full evaluation payload must contain non-empty fullConversationHistory array' 
+        })
+      }
+    } else if (conversationHistory && Array.isArray(conversationHistory)) {
+      // Old format - just conversation history (backward compatibility)
+      if (conversationHistory.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Conversation history cannot be empty' 
+        })
+      }
+      payload = conversationHistory
+    } else {
       return res.status(400).json({ 
         success: false, 
-        error: 'Conversation history array is required' 
-      })
-    }
-
-    if (conversationHistory.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Conversation history cannot be empty' 
+        error: 'Either conversationHistory (array) or fullEvaluationPayload (object) is required' 
       })
     }
 
@@ -580,7 +594,7 @@ router.post('/generate-comprehensive-evaluation', async (req, res) => {
       }
     }
 
-    const evaluation = await llmService.generateComprehensiveEvaluation(conversationHistory)
+    const evaluation = await llmService.generateComprehensiveEvaluation(payload)
     
     // Store the evaluation in database if interviewId is provided
     if (interviewId) {

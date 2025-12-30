@@ -84,6 +84,7 @@ model Interview {
   questions                InterviewQuestion[]
   final_evaluation         FinalEvaluation?
   security_events          SecurityEvent[]
+  candidate_feedback       CandidateFeedback?
   interview_link           InterviewLink?      @relation("InterviewLinkInterviews", fields: [interview_link_id], references: [id])
   user                     User?               @relation("InterviewUser", fields: [user_id], references: [id])
 
@@ -246,6 +247,24 @@ model SecurityEvent {
   @@index([session_id])
   @@index([interview_link_id])
   @@map("SecurityEvent")
+}
+
+model CandidateFeedback {
+  id                Int       @id @default(autoincrement())
+  interview_id      Int       @unique
+  session_id        String
+  rating            Int       // 1-5 rating
+  overall_experience String? // Text feedback
+  technical_questions_quality String?
+  interview_platform_rating Int? // 1-5 rating for platform
+  suggestions       String?
+  would_recommend   Boolean?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  interview         Interview @relation(fields: [interview_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@map("candidate_feedback")
 }
 
 enum UserType {
