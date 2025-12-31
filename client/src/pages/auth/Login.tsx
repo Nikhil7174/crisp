@@ -5,7 +5,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppDispatch } from '../../store';
-import { setError } from '../../store/slices/authSlice';
+import { setError, setLoading } from '../../store/slices/authSlice';
 
 const { Title, Text } = Typography;
 
@@ -20,9 +20,15 @@ export const Login: React.FC = () => {
   const userTypeContext = (location.state as any)?.userType;
   const returnTo = (location.state as any)?.returnTo;
 
-  // Clear any existing errors when component mounts
   useEffect(() => {
     dispatch(setError(null));
+    dispatch(setLoading(false));
+  }, [dispatch]);
+
+  useEffect(() => {
+    return () => {
+      dispatch(setLoading(false));
+    };
   }, [dispatch]);
 
   // Redirect if already authenticated
