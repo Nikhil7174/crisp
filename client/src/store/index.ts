@@ -9,16 +9,22 @@ import uiReducer from './slices/uiSlice';
 import userReducer from './slices/userSlice';
 import authReducer from './slices/authSlice';
 
+const authPersistConfig = {
+  key: 'auth',
+  storage,
+  whitelist: ['user', 'token', 'isAuthenticated'], 
+};
+
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'auth'], // Persist user data and auth
+  whitelist: ['user'],
 };
 
 const rootReducer = combineReducers({
   ui: uiReducer,
   user: userReducer,
-  auth: authReducer,
+  auth: persistReducer(authPersistConfig, authReducer),
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
