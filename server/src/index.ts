@@ -18,8 +18,6 @@ import interviewerRoutes from './routes/interviewerRoutes';
 import llmRoutes from './routes/llmRoutes';
 import configRoutes from './routes/configRoutes';
 
-// Import database initialization
-import { initializeDatabase } from './lib/databaseInit';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,16 +62,10 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Initialize database and start server
-initializeDatabase()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🔑 OpenAI API Key loaded: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
-    });
-  })
-  .catch((error) => {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  });
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔑 OpenAI API Key loaded: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
+  console.log(`💡 Run migrations separately: npm run db:migrate:deploy`);
+});
