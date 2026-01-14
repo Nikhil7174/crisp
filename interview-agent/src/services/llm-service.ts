@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { EventEmitter } from 'events'
-import { FinalEvaluationPayload } from '../models/types'
+import { FinalEvaluationPayload } from '../models/types.js'
 
 export interface Question {
   id: string

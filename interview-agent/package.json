@@ -1,0 +1,31 @@
+{
+  "name": "interview-agent",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js start",
+    "dev": "tsx watch src/index.ts dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "LiveKit Interview Agent - Long-lived process for handling interview sessions",
+  "dependencies": {
+    "@livekit/agents": "^1.0.32",
+    "@livekit/agents-plugin-deepgram": "^1.0.33",
+    "@livekit/agents-plugin-openai": "^1.0.32",
+    "@livekit/agents-plugin-silero": "^1.0.32",
+    "@prisma/client": "^6.17.1",
+    "dotenv": "^16.4.7",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
+

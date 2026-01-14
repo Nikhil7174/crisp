@@ -17,10 +17,22 @@ import authRoutes from './routes/authRoutes';
 import interviewerRoutes from './routes/interviewerRoutes';
 import llmRoutes from './routes/llmRoutes';
 import configRoutes from './routes/configRoutes';
-
+// Note: livekitRoutes removed - agent is now a separate process
+// import livekitRoutes from './routes/livekitRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});
 
 // Middleware
 app.use(helmet());
@@ -42,6 +54,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/interviewer-dashboard', interviewerDashboardRoutes);
 app.use('/api/llm', llmRoutes);
 app.use('/api/config', configRoutes);
+// Note: /api/livekit routes removed - agent is now a separate process
+// app.use('/api/livekit', livekitRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

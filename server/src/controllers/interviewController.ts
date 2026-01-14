@@ -212,7 +212,39 @@ export class InterviewController {
 
       // Session saving removed - no longer needed without sessions table
 
-      // Return with proper separation for security agent app
+      // Create LiveKit room and spawn agent
+      const roomName = `interview-${sessionId}`;
+      const candidateName = candidateData.name || candidateData.email || 'Candidate';
+      
+      // Import LiveKit token generation
+      const { AccessToken } = await import('livekit-server-sdk');
+      
+      const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
+      const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
+      const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+      
+      // Generate LiveKit access token for the candidate
+      let livekitToken = '';
+      try {
+        const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+          identity: candidateName,
+          name: candidateName,
+        });
+        at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+        livekitToken = await at.toJwt();
+        console.log(`✅ LiveKit token generated for ${candidateName} in room ${roomName}`);
+      } catch (tokenError) {
+        console.error('⚠️ Failed to generate LiveKit token:', tokenError);
+        throw new Error('Failed to generate LiveKit access token');
+      }
+      
+      // Note: Questions are stored in the database via the session
+      // The LiveKit agent process (running separately) will pick up jobs when rooms are created
+      // The agent will load questions from the database or receive them via API
+      // Make sure the interview-agent process is running: cd crisp/interview-agent && npm start
+      console.log(`ℹ️  LiveKit room created: ${roomName}. Agent will connect when process is running.`);
+      
+      // Return with proper separation for security agent app + LiveKit info
       const responseData = {
         success: true,
         sessionId,
@@ -222,6 +254,10 @@ export class InterviewController {
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         // Also include combined for backward compatibility
         questions: allQuestions,
+        // LiveKit room information
+        roomName,
+        wsUrl: LIVEKIT_URL,
+        token: livekitToken,
         message: 'Interview session started successfully'
       };
 
