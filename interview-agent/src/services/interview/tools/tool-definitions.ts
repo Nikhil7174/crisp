@@ -3,6 +3,12 @@
  * These tools replace the intent detection + separate API call pattern
  */
 
+/**
+ * NODE-DRIVEN ARCHITECTURE:
+ * ask_next_question and skip_question are REMOVED from LLM tools
+ * These are now controlled by Node in onUserTurnCompleted()
+ * LLM can only use: evaluate_answer, provide_hint, provide_clarification, analyze_code, submit_solution
+ */
 export const toolDefinitions = [
   {
     type: 'function',
@@ -55,23 +61,7 @@ export const toolDefinitions = [
       },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'skip_question',
-      description: 'Skips the current question when the candidate explicitly says they don\'t know the answer or want to skip. Use this when the candidate says things like "I don\'t know", "skip this", "next question", etc.',
-      parameters: {
-        type: 'object',
-        properties: {
-          reason: {
-            type: 'string',
-            description: 'Brief reason for skipping (e.g., "candidate doesn\'t know")',
-          },
-        },
-        required: [],
-      },
-    },
-  },
+  // skip_question REMOVED - Node controls this in onUserTurnCompleted()
   {
     type: 'function',
     function: {
@@ -118,12 +108,16 @@ export const toolDefinitions = [
 
 /**
  * Tool names enum for type safety
+ * NOTE: ASK_NEXT_QUESTION and SKIP_QUESTION are Node-controlled, not LLM tools
  */
 export enum ToolName {
+  // Flow control tools (Node-controlled, not available to LLM)
+  ASK_NEXT_QUESTION = 'ask_next_question', // Used by Node only
+  SKIP_QUESTION = 'skip_question', // Used by Node only
+  // LLM-available tools
   PROVIDE_HINT = 'provide_hint',
   PROVIDE_CLARIFICATION = 'provide_clarification',
   EVALUATE_ANSWER = 'evaluate_answer',
-  SKIP_QUESTION = 'skip_question',
   ANALYZE_CODE = 'analyze_code',
   SUBMIT_SOLUTION = 'submit_solution',
 }

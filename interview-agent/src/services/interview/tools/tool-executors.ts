@@ -40,6 +40,61 @@ async function retryWithBackoff<T>(
 }
 
 /**
+ * Ask next question (orchestrator provides the fixed question)
+ */
+async function askNextQuestion(
+  interviewId: string,
+  stateProvider: StateProvider,
+  orchestrator: Orchestrator
+): Promise<ToolResult> {
+  const state = stateProvider.getState(interviewId);
+  
+  if (!state) {
+    console.error(`❌ [askNextQuestion] Interview state not found for ${interviewId}`);
+    return {
+      success: false,
+      message: 'Interview state not found',
+      shouldSpeak: false,
+    };
+  }
+
+  console.log(`\n📝 [askNextQuestion] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   📊 Current State: ${state.currentState}`);
+  console.log(`   📍 Current Question Index: ${state.currentQuestionIndex}`);
+  console.log(`   📋 Total Questions: ${state.totalQuestions}`);
+
+  // Get next question from orchestrator (uses stored questions)
+  const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
+
+  if (shouldMoveToCoding) {
+    return {
+      success: true,
+      message: "Great job on the theoretical questions! Now let's move to the coding section.",
+      shouldSpeak: true,
+      data: { phase: 'coding' },
+    };
+  }
+
+  if (!question) {
+    return {
+      success: false,
+      message: 'No more questions available',
+      shouldSpeak: true,
+    };
+  }
+
+  // Question is already added to conversation history by orchestrator
+  // Just return it for TTS to speak
+  return {
+    success: true,
+    message: question.question,
+    shouldSpeak: true,
+    data: { question },
+  };
+}
+
+/**
  * Provide hint for current question/problem
  */
 async function provideHint(
@@ -51,6 +106,7 @@ async function provideHint(
   const state = stateProvider.getState(interviewId);
   
   if (!state) {
+    console.error(`❌ [provideHint] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -61,7 +117,12 @@ async function provideHint(
   // Increment hint counter
   const hintsProvided = stateProvider.incrementHints(interviewId);
 
-  console.log(`[ToolExecutor] Providing hint #${hintsProvided} for interview ${interviewId}`);
+  console.log(`\n💡 [provideHint] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   🎯 Current Question ID: ${state.currentQuestionId || 'N/A'}`);
+  console.log(`   📊 Current State: ${state.currentState}`);
+  console.log(`   🔢 Hint #${hintsProvided}`);
+  console.log(`   📝 Context: ${params.context || 'none provided'}`);
 
   let hintMessage = '';
 
@@ -99,6 +160,7 @@ async function provideClarification(
   const state = stateProvider.getState(interviewId);
   
   if (!state) {
+    console.error(`❌ [provideClarification] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -109,7 +171,12 @@ async function provideClarification(
   // Increment clarification counter
   const clarificationsGiven = stateProvider.incrementClarifications(interviewId);
 
-  console.log(`[ToolExecutor] Providing clarification #${clarificationsGiven} for interview ${interviewId}`);
+  console.log(`\n❓ [provideClarification] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   🎯 Current Question ID: ${state.currentQuestionId || 'N/A'}`);
+  console.log(`   📊 Current State: ${state.currentState}`);
+  console.log(`   🔢 Clarification #${clarificationsGiven}`);
+  console.log(`   📝 Request: "${params.clarification_request}"`);
 
   let clarificationMessage = '';
 
@@ -144,6 +211,7 @@ async function provideClarification(
 
 /**
  * Evaluate candidate's answer to theoretical question
+ * Enforces follow-up rules: max 1 per original question, no nested follow-ups
  */
 async function evaluateAnswer(
   params: EvaluateAnswerParams, 
@@ -155,6 +223,7 @@ async function evaluateAnswer(
   const state = stateProvider.getState(interviewId);
   
   if (!state) {
+    console.error(`❌ [evaluateAnswer] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -163,6 +232,7 @@ async function evaluateAnswer(
   }
 
   if (!state.currentQuestionId) {
+    console.warn(`⚠️ [evaluateAnswer] No active question to evaluate for ${interviewId}`);
     return {
       success: false,
       message: 'No active question to evaluate',
@@ -170,19 +240,41 @@ async function evaluateAnswer(
     };
   }
 
-  console.log(`[ToolExecutor] Evaluating answer for question ${state.currentQuestionId}`);
+  console.log(`\n✅ [evaluateAnswer] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   🎯 Question ID: ${state.currentQuestionId}`);
+  console.log(`   📝 Answer length: ${params.answer.length} characters`);
+  console.log(`   📄 Answer preview: "${params.answer.substring(0, 100)}${params.answer.length > 100 ? '...' : ''}"`);
+
+  // Get the full question object from orchestrator
+  const question = orchestrator.getCurrentQuestion();
+  if (!question) {
+    console.error(`❌ [evaluateAnswer] Question not found for ID: ${state.currentQuestionId}`);
+    return {
+      success: false,
+      message: 'Question not found',
+      shouldSpeak: true,
+    };
+  }
+
+  // Ensure question has required fields for evaluation
+  const questionForEvaluation = {
+    id: question.id,
+    question: question.question,
+    expectedAnswer: (question as any).expectedAnswer || question.question, // Fallback to question text if not available
+    keyPoints: (question as any).keyPoints || [], // Default to empty array if not available
+  };
 
   // Call LLM service to evaluate answer with retry
   const evaluation = await retryWithBackoff(async () => {
     return await llmService.evaluateAnswer(
-      { id: state.currentQuestionId, question: 'Current question' }, // Simplified for now
+      questionForEvaluation,
       params.answer,
-      0, // followUpDepth
+      0,
       state.maxTheoreticalQuestions
     );
   }).catch(error => {
     console.error('[ToolExecutor] All retry attempts failed for evaluation:', error);
-    // Return fallback evaluation
     return {
       questionId: state.currentQuestionId!,
       candidateAnswer: params.answer,
@@ -213,28 +305,53 @@ async function evaluateAnswer(
 
   let responseMessage = evaluation.feedback;
 
-  // If needs follow-up, ask it
-  if (evaluation.needsFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion) {
-    responseMessage += ` ${evaluation.followUpQuestion}`;
-    
-    stateProvider.addConversationMessage(interviewId, {
-      role: 'assistant',
-      content: evaluation.followUpQuestion,
-      metadata: { type: 'follow_up_question' },
-    });
+  // Check if follow-up is allowed
+  const canAskFollowUp = stateProvider.canAskFollowUp(interviewId, state.currentQuestionId!);
+  
+  if (evaluation.needsFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion && canAskFollowUp) {
+    // Ask follow-up
+    const followUpAsked = stateProvider.askFollowUp(
+      interviewId,
+      evaluation.followUpQuestion,
+      state.currentQuestionId!
+    );
+
+    if (followUpAsked) {
+      responseMessage += ` ${evaluation.followUpQuestion}`;
+      
+      stateProvider.addConversationMessage(interviewId, {
+        role: 'assistant',
+        content: evaluation.followUpQuestion,
+        metadata: { 
+          type: 'follow_up_question',
+          parentQuestionId: state.currentQuestionId,
+        },
+      });
+      
+      console.log(`[ToolExecutor] Follow-up asked for question ${state.currentQuestionId}`);
+    } else {
+      console.log(`[ToolExecutor] Follow-up blocked - already asked for question ${state.currentQuestionId}`);
+      responseMessage += " Let's move to the next question.";
+    }
   } else {
-    // Move to next question after 3 seconds
-    setTimeout(() => {
-      // This will be handled by orchestrator's askNextQuestion method
-      console.log(`[ToolExecutor] Moving to next question for interview ${interviewId}`);
-    }, 3000);
+    if (evaluation.needsFollowUp && !canAskFollowUp) {
+      console.log(`[ToolExecutor] Follow-up blocked - ${state.currentQuestionIsFollowUp ? 'current is follow-up' : 'already asked'}`);
+    }
+    // Don't add "Let's move to the next question" - Node will handle this
+    // responseMessage += " Let's move to the next question.";
   }
+
+  // NODE-DRIVEN: Signal that Node should move to next question (unless follow-up was asked)
+  const shouldMoveNext = !(evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion);
 
   return {
     success: true,
     message: responseMessage,
     shouldSpeak: true,
-    data: { evaluation },
+    data: { 
+      evaluation,
+      shouldAskNextQuestion: shouldMoveNext, // Node will use this to inject next question
+    },
   };
 }
 
@@ -250,6 +367,7 @@ async function skipQuestion(
   const state = stateProvider.getState(interviewId);
   
   if (!state) {
+    console.error(`❌ [skipQuestion] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -257,7 +375,11 @@ async function skipQuestion(
     };
   }
 
-  console.log(`[ToolExecutor] Skipping question for interview ${interviewId}. Reason: ${params.reason || 'not specified'}`);
+  console.log(`\n⏭️ [skipQuestion] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   🎯 Current Question ID: ${state.currentQuestionId || 'N/A'}`);
+  console.log(`   📍 Current Question Index: ${state.currentQuestionIndex}`);
+  console.log(`   📝 Reason: ${params.reason || 'not specified'}`);
 
   const skipMessage = 'No problem, let\'s move on to the next question.';
 
@@ -268,15 +390,12 @@ async function skipQuestion(
     metadata: { type: 'skip', reason: params.reason },
   });
 
-  // Move to next question after 2 seconds
-  setTimeout(() => {
-    console.log(`[ToolExecutor] Moving to next question after skip for interview ${interviewId}`);
-  }, 2000);
-
+  // Signal that we should ask the next question
   return {
     success: true,
     message: skipMessage,
     shouldSpeak: true,
+    data: { shouldAskNextQuestion: true },
   };
 }
 
@@ -448,6 +567,7 @@ async function evaluateSolution(code: string, problemId: string, explanation?: s
 /**
  * Create tool executors with access to orchestrator and state provider
  * This factory function is used by the LiveKit agent to create tool handlers
+ * Note: Questions are stored in the orchestrator, so we don't need them here
  */
 export function createToolExecutors(
   orchestrator: Orchestrator,
@@ -455,12 +575,17 @@ export function createToolExecutors(
 ): Record<string, (params: any) => Promise<any>> {
   const llmService = createLLMService({
     apiKey: process.env.OPENAI_API_KEY || '',
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini',
     temperature: 0.7,
     maxTokens: 2000,
   });
 
   return {
+    [ToolName.ASK_NEXT_QUESTION]: async () => {
+      const interviewId = orchestrator.getInterviewId();
+      return await askNextQuestion(interviewId, stateProvider, orchestrator);
+    },
+    
     [ToolName.PROVIDE_HINT]: async (params: ProvideHintParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await provideHint(params, interviewId, stateProvider, orchestrator);

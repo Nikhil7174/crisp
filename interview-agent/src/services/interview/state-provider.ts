@@ -11,6 +11,11 @@ export interface InterviewState {
   totalQuestions: number;
   questionsAsked: number;
   
+  // Follow-up tracking (max 1 per original question)
+  followUpTracker: Map<string, { hasFollowUp: boolean; followUpAsked: boolean }>;
+  currentQuestionIsFollowUp: boolean;
+  parentQuestionId: string | null;
+  
   // Coding problem tracking
   currentProblemId: string | null;
   currentProblemIndex: number;
@@ -84,6 +89,10 @@ export class StateProvider extends EventEmitter {
       currentQuestionId: null,
       totalQuestions: config.totalQuestions,
       questionsAsked: 0,
+      
+      followUpTracker: new Map(),
+      currentQuestionIsFollowUp: false,
+      parentQuestionId: null,
       
       currentProblemId: null,
       currentProblemIndex: 0,
@@ -286,8 +295,54 @@ export class StateProvider extends EventEmitter {
     state.currentQuestionIndex++;
     state.currentQuestionId = questionId;
     state.questionsAsked++;
+    state.currentQuestionIsFollowUp = false;
+    state.parentQuestionId = null;
 
     this.emit('questionChanged', { interviewId, questionId, index: state.currentQuestionIndex });
+  }
+
+  /**
+   * Ask follow-up question (max 1 per original question)
+   */
+  askFollowUp(interviewId: string, followUpQuestion: string, parentQuestionId: string): boolean {
+    const state = this.states.get(interviewId);
+    if (!state) return false;
+
+    // Check if parent question already has a follow-up
+    const tracker = state.followUpTracker.get(parentQuestionId);
+    if (tracker?.followUpAsked) {
+      console.log(`[StateProvider] Follow-up already asked for question ${parentQuestionId}`);
+      return false;
+    }
+
+    // Mark follow-up as asked
+    state.followUpTracker.set(parentQuestionId, {
+      hasFollowUp: true,
+      followUpAsked: true,
+    });
+
+    state.currentQuestionIsFollowUp = true;
+    state.parentQuestionId = parentQuestionId;
+
+    this.emit('followUpAsked', { interviewId, followUpQuestion, parentQuestionId });
+    return true;
+  }
+
+  /**
+   * Check if follow-up can be asked for a question
+   */
+  canAskFollowUp(interviewId: string, questionId: string): boolean {
+    const state = this.states.get(interviewId);
+    if (!state) return false;
+
+    // Cannot ask follow-up if current question is already a follow-up
+    if (state.currentQuestionIsFollowUp) {
+      return false;
+    }
+
+    // Check if this question already has a follow-up
+    const tracker = state.followUpTracker.get(questionId);
+    return !tracker?.followUpAsked;
   }
 
   /**

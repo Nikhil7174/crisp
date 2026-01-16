@@ -46,6 +46,8 @@ export interface Evaluation {
 export class Orchestrator extends EventEmitter {
   private interviewId: string;
   private stateProvider: StateProvider;
+  private questions: Question[] = [];
+  private codingProblems: CodingProblem[] = [];
 
   constructor(interviewId: string, stateProvider: StateProvider) {
     super();
@@ -53,9 +55,36 @@ export class Orchestrator extends EventEmitter {
     this.stateProvider = stateProvider;
     console.log(`[Orchestrator ${this.interviewId}] Created`);
   }
+
+  /**
+   * Store questions and coding problems for this interview
+   */
+  setQuestions(questions: Question[], codingProblems: CodingProblem[]): void {
+    this.questions = questions;
+    this.codingProblems = codingProblems;
+    console.log(`[Orchestrator ${this.interviewId}] Stored ${questions.length} questions and ${codingProblems.length} coding problems`);
+  }
   
   getInterviewId(): string {
     return this.interviewId;
+  }
+
+  /**
+   * Get question by ID
+   */
+  getQuestionById(questionId: string): Question | null {
+    return this.questions.find(q => q.id === questionId) || null;
+  }
+
+  /**
+   * Get current question from state
+   */
+  getCurrentQuestion(): Question | null {
+    const state = this.stateProvider.getState(this.interviewId);
+    if (!state || !state.currentQuestionId) {
+      return null;
+    }
+    return this.getQuestionById(state.currentQuestionId);
   }
 
   /**
@@ -97,18 +126,18 @@ export class Orchestrator extends EventEmitter {
    * Ask next theoretical question (updates state only)
    * Returns the question data for the LiveKit agent to speak
    */
-  askNextQuestion(questions: Question[]): { question: Question | null; shouldMoveToCoding: boolean } {
+  askNextQuestion(): { question: Question | null; shouldMoveToCoding: boolean } {
     const state = this.stateProvider.getState(this.interviewId);
     if (!state) {
       return { question: null, shouldMoveToCoding: false };
     }
 
-    if (state.currentQuestionIndex >= questions.length) {
+    if (state.currentQuestionIndex >= this.questions.length) {
       // No more questions, move to coding
       return { question: null, shouldMoveToCoding: true };
     }
 
-    const question = questions[state.currentQuestionIndex];
+    const question = this.questions[state.currentQuestionIndex];
     console.log(`[Orchestrator ${this.interviewId}] Moving to question ${state.currentQuestionIndex + 1}: ${question.id}`);
 
     // Update state
@@ -136,18 +165,18 @@ export class Orchestrator extends EventEmitter {
    * Present next coding problem (updates state only)
    * Returns the problem data for the LiveKit agent to speak
    */
-  presentNextProblem(codingProblems: CodingProblem[]): { problem: CodingProblem | null; shouldWrapUp: boolean } {
+  presentNextProblem(): { problem: CodingProblem | null; shouldWrapUp: boolean } {
     const state = this.stateProvider.getState(this.interviewId);
     if (!state) {
       return { problem: null, shouldWrapUp: false };
     }
 
-    if (state.currentProblemIndex >= codingProblems.length) {
+    if (state.currentProblemIndex >= this.codingProblems.length) {
       // No more problems, wrap up
       return { problem: null, shouldWrapUp: true };
     }
 
-    const problem = codingProblems[state.currentProblemIndex];
+    const problem = this.codingProblems[state.currentProblemIndex];
     console.log(`[Orchestrator ${this.interviewId}] Moving to problem ${state.currentProblemIndex + 1}: ${problem.id}`);
 
     // Update state
@@ -231,7 +260,7 @@ export class Orchestrator extends EventEmitter {
   /**
    * Get context for LLM instructions based on current state
    */
-  getContextForInstructions(questions: Question[], codingProblems: CodingProblem[]): string {
+  getContextForInstructions(): string {
     const state = this.stateProvider.getState(this.interviewId);
     if (!state) {
       return 'You are conducting a technical interview.';
@@ -240,14 +269,14 @@ export class Orchestrator extends EventEmitter {
     let instructions = 'You are conducting a technical interview. ';
 
     if (state.currentState === 'theoretical' && state.currentQuestionId) {
-      const question = questions.find(q => q.id === state.currentQuestionId);
+      const question = this.questions.find(q => q.id === state.currentQuestionId);
       if (question) {
         instructions += `Current question: "${question.question}". `;
         instructions += `Listen to the candidate's answer and evaluate it. `;
         instructions += `If they ask for a hint, provide one. If they ask for clarification, clarify the question. `;
       }
     } else if (state.currentState === 'coding' && state.currentProblemId) {
-      const problem = codingProblems.find(p => p.id === state.currentProblemId);
+      const problem = this.codingProblems.find(p => p.id === state.currentProblemId);
       if (problem) {
         instructions += `Current coding problem: "${problem.title}". `;
         instructions += `Help the candidate work through the problem. Provide hints if needed. `;

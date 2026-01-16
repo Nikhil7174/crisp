@@ -7,6 +7,18 @@ import { SecurityService } from '../services/securityService';
 import { QuestionGenerationService } from '../services/questionGenerationService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults, FinalEvaluationPayload } from '../models/types';
 
+/**
+ * In-memory store for interview questions
+ * Keyed by sessionId or roomName (interview-${sessionId})
+ * This allows the agent process to fetch questions via API
+ */
+const interviewQuestionsStore = new Map<string, {
+  questions: InterviewQuestion[];
+  codingProblems: InterviewQuestion[];
+  sessionId: string;
+  maxTheoreticalQuestions?: number;
+}>();
+
 export class InterviewController {
   private openaiService: OpenAIService;
   private dbService: PrismaService;
@@ -91,8 +103,8 @@ export class InterviewController {
   }
 
   async startInterview(req: Request, res: Response): Promise<void> {
+    const { candidateData, linkToken } = req.body;
     try {
-      const { candidateData, linkToken } = req.body;
       const userId = (req as any).user?.userId; // Optional, only if authenticated
 
       if (!candidateData) {
@@ -238,9 +250,38 @@ export class InterviewController {
         throw new Error('Failed to generate LiveKit access token');
       }
       
-      // Note: Questions are stored in the database via the session
+      // Store questions in memory for the agent to fetch via API
+      try {
+        interviewQuestionsStore.set(sessionId, {
+          questions: mappedTheoretical,
+          codingProblems: mappedCoding,
+          sessionId,
+          maxTheoreticalQuestions: link.max_interview_questions || 10,
+        });
+        // Also store by roomName for easier lookup
+        interviewQuestionsStore.set(roomName, {
+          questions: mappedTheoretical,
+          codingProblems: mappedCoding,
+          sessionId,
+          maxTheoreticalQuestions: link.max_interview_questions || 10,
+        });
+        console.log(`📚 [QuestionsStore] Stored ${mappedTheoretical.length} questions and ${mappedCoding.length} coding problems for session ${sessionId} (room: ${roomName})`);
+        console.log(`📚 [QuestionsStore] Store size: ${interviewQuestionsStore.size} entries`);
+      } catch (storeError) {
+        console.error('❌ [QuestionsStore] Failed to store questions:', storeError);
+        console.error('❌ [QuestionsStore] Error details:', {
+          sessionId,
+          roomName,
+          theoreticalCount: mappedTheoretical.length,
+          codingCount: mappedCoding.length,
+          error: storeError instanceof Error ? storeError.message : String(storeError),
+          stack: storeError instanceof Error ? storeError.stack : undefined,
+        });
+        throw new Error('Failed to store interview questions');
+      }
+      
       // The LiveKit agent process (running separately) will pick up jobs when rooms are created
-      // The agent will load questions from the database or receive them via API
+      // The agent will fetch questions from this API endpoint
       // Make sure the interview-agent process is running: cd crisp/interview-agent && npm start
       console.log(`ℹ️  LiveKit room created: ${roomName}. Agent will connect when process is running.`);
       
@@ -264,7 +305,15 @@ export class InterviewController {
       res.json(responseData);
 
     } catch (error) {
-      console.error('Start interview error:', error);
+      console.error('❌ [StartInterview] Start interview error:', error);
+      console.error('❌ [StartInterview] Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        candidateData: candidateData ? { name: candidateData.name, email: candidateData.email } : null,
+        linkToken: linkToken ? 'provided' : 'missing',
+        hasCandidateData: !!candidateData,
+        hasLinkToken: !!linkToken,
+      });
       res.status(500).json({
         error: 'Failed to start interview',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -273,6 +322,76 @@ export class InterviewController {
   }
 
   // Note: submitAnswer method removed - answers are only stored locally until interview completion
+
+  /**
+   * Get questions for an interview session
+   * Used by the LiveKit agent process to fetch questions
+   */
+  async getInterviewQuestions(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId, roomName } = req.query;
+      
+      console.log(`📥 [QuestionsAPI] Request received - sessionId: ${sessionId}, roomName: ${roomName}`);
+      console.log(`📥 [QuestionsAPI] Store size: ${interviewQuestionsStore.size} entries`);
+      
+      if (!sessionId && !roomName) {
+        console.error('❌ [QuestionsAPI] Missing parameters - sessionId and roomName both undefined');
+        res.status(400).json({
+          success: false,
+          error: 'sessionId or roomName is required'
+        });
+        return;
+      }
+
+      // Try to find by sessionId first, then roomName
+      const identifier = (sessionId as string) || (roomName as string);
+      console.log(`🔍 [QuestionsAPI] Looking up identifier: ${identifier}`);
+      
+      // Try both identifiers
+      let questionsData = interviewQuestionsStore.get(identifier);
+      if (!questionsData && sessionId && roomName) {
+        // Try the other identifier
+        const alternateIdentifier = identifier === sessionId ? (roomName as string) : (sessionId as string);
+        console.log(`🔍 [QuestionsAPI] Trying alternate identifier: ${alternateIdentifier}`);
+        questionsData = interviewQuestionsStore.get(alternateIdentifier);
+      }
+
+      if (!questionsData) {
+        console.error(`❌ [QuestionsAPI] Questions not found for identifier: ${identifier}`);
+        console.error(`❌ [QuestionsAPI] Available keys in store:`, Array.from(interviewQuestionsStore.keys()));
+        res.status(404).json({
+          success: false,
+          error: 'Questions not found for this interview session',
+          sessionId: sessionId as string,
+          roomName: roomName as string,
+          identifier,
+          storeSize: interviewQuestionsStore.size,
+        });
+        return;
+      }
+
+      console.log(`✅ [QuestionsAPI] Found questions: ${questionsData.questions.length} questions, ${questionsData.codingProblems.length} coding problems`);
+      res.json({
+        success: true,
+        questions: questionsData.questions,
+        codingProblems: questionsData.codingProblems,
+        sessionId: questionsData.sessionId,
+        maxTheoreticalQuestions: questionsData.maxTheoreticalQuestions,
+      });
+    } catch (error) {
+      console.error('❌ [QuestionsAPI] Get interview questions error:', error);
+      console.error('❌ [QuestionsAPI] Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        query: req.query,
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get interview questions',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 
   /**
    * Validate coding question answer
