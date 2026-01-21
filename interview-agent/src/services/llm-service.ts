@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { EventEmitter } from 'events'
 import { FinalEvaluationPayload } from '../models/types.js'
+import * as openai from '@livekit/agents-plugin-openai'
+import { llm } from '@livekit/agents'
 
 export interface Question {
   id: string
@@ -48,17 +50,130 @@ export interface LLMConfig {
   model?: string
   temperature?: number
   maxTokens?: number
+  // Optional: Use LiveKit LLM instead of direct OpenAI client
+  useLiveKitLLM?: boolean
+  liveKitLLM?: openai.LLM // Pass existing LiveKit LLM instance to reuse
 }
 
 export class LLMService extends EventEmitter {
-  private openai: OpenAI
+  private openai?: OpenAI
+  private liveKitLLM?: openai.LLM
   private config: LLMConfig
   private conversationHistory: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+  private useLiveKitLLM: boolean
 
   constructor(config: LLMConfig) {
     super()
     this.config = config
-    this.openai = new OpenAI({ apiKey: config.apiKey })
+    this.useLiveKitLLM = config.useLiveKitLLM ?? false
+
+    if (config.liveKitLLM) {
+      // Reuse existing LiveKit LLM instance
+      this.liveKitLLM = config.liveKitLLM
+      this.useLiveKitLLM = true
+    } else if (this.useLiveKitLLM) {
+      // Create new LiveKit LLM instance
+      this.liveKitLLM = new openai.LLM({
+        model: config.model || 'gpt-4o-mini',
+        temperature: config.temperature || 0.3,
+      })
+    } else {
+      // Fallback to direct OpenAI client (original behavior)
+      this.openai = new OpenAI({ apiKey: config.apiKey })
+    }
+  }
+
+  /**
+   * Extract text content from a LiveKit ChatChunk
+   * Handles different possible chunk structures
+   */
+  /**
+     * Extract text content from a LiveKit ChatChunk
+     * Handles different possible chunk structures
+     */
+  private extractChunkText(chunk: any): string {
+    if (typeof chunk === 'string') {
+      return chunk
+    }
+
+    if (!chunk || typeof chunk !== 'object') {
+      return ''
+    }
+
+    // 1. Handle OpenAI/LiveKit standard structure (choices array)
+    if (chunk.choices && Array.isArray(chunk.choices) && chunk.choices.length > 0) {
+      const choice = chunk.choices[0]
+      if (choice.delta && choice.delta.content) {
+        return typeof choice.delta.content === 'string' ? choice.delta.content : ''
+      }
+      return ''
+    }
+
+    // 2. Handle 'delta' property
+    if ('delta' in chunk) {
+      const delta = chunk.delta
+      if (typeof delta === 'string') {
+        return delta
+      }
+      if (typeof delta === 'object' && delta !== null && 'content' in delta) {
+        return typeof delta.content === 'string' ? delta.content : ''
+      }
+    }
+
+    // 3. Handle 'content' property
+    if ('content' in chunk) {
+      return typeof chunk.content === 'string' ? chunk.content : ''
+    }
+
+    // 4. Handle 'text' property
+    if ('text' in chunk) {
+      return typeof chunk.text === 'string' ? chunk.text : ''
+    }
+
+    // 5. Handle usage chunks (ignore them silently to avoid logs)
+    if ('usage' in chunk || 'id' in chunk) {
+      return ''
+    }
+
+    return ''
+  }
+  /**
+   * Helper method to call LLM (either LiveKit LLM or direct OpenAI)
+   * This allows us to reuse the same LLM instance for both conversation and evaluation
+   */
+  private async callLLM(systemPrompt: string, userMessage: string, maxTokens?: number): Promise<string> {
+    if (this.useLiveKitLLM && this.liveKitLLM) {
+      // Use LiveKit LLM (standalone mode)
+      const chatCtx = new llm.ChatContext()
+      chatCtx.addMessage({ role: 'system', content: systemPrompt })
+      chatCtx.addMessage({ role: 'user', content: userMessage })
+
+      // Collect streamed response
+      let fullContent = ''
+      const stream = await this.liveKitLLM.chat({ chatCtx })
+      for await (const chunk of stream) {
+        const chunkText = this.extractChunkText(chunk)
+        if (chunkText) {
+          fullContent += chunkText
+        }
+      }
+      return fullContent
+    } else {
+      // Use direct OpenAI client (original behavior)
+      if (!this.openai) {
+        throw new Error('OpenAI client not initialized. Provide apiKey or useLiveKitLLM=true')
+      }
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: this.config.temperature || 0.3,
+        max_tokens: maxTokens || this.config.maxTokens || 500
+      })
+      return response.choices[0]?.message?.content || ''
+    }
   }
 
   // Validate follow-up criteria programmatically
@@ -109,9 +224,9 @@ export class LLMService extends EventEmitter {
   }
 
   async evaluateAnswer(
-    question: Question, 
-    candidateAnswer: string, 
-    followUpDepth: number = 0, 
+    question: Question,
+    candidateAnswer: string,
+    followUpDepth: number = 0,
     maxTheoreticalQuestions: number = 10,
     originalAnswer?: string,
     followUpQuestion?: string
@@ -121,7 +236,7 @@ export class LLMService extends EventEmitter {
       followUpDepth,
       candidateAnswerLength: candidateAnswer.length
     })
-    
+
     const systemPrompt = `You are a human technical interviewer conducting a voice interview. You're evaluating a candidate's answer naturally, like a real person would.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
@@ -229,18 +344,9 @@ Candidate's follow-up answer: ${candidateAnswer}
 
 Evaluate the candidate's COMPLETE understanding by considering BOTH answers together.`;
         }
-        
-        const response = await this.openai.chat.completions.create({
-          model: this.config.model || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
-          temperature: this.config.temperature || 0.3,
-          max_tokens: this.config.maxTokens || 500
-        })
 
-        const content = response.choices[0]?.message?.content
+        const content = await this.callLLM(systemPrompt, userMessage, this.config.maxTokens || 500)
+
         if (!content) {
           throw new Error('No response from LLM')
         }
@@ -248,13 +354,13 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
         console.log('LLM Response content:', content)
 
         let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-        
+
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
           console.error('Failed to parse LLM response as JSON:', content)
           console.error('Parse error:', parseError)
-          
+
           // Fallback: create a basic evaluation
           evaluation = {
             keyPointsCovered: [],
@@ -264,16 +370,16 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
             feedback: "I had trouble processing your answer. Could you please try again?"
           }
         }
-        
+
         const result = {
           questionId: question.id,
           candidateAnswer,
           ...evaluation
         }
-        
+
         // Validate follow-up criteria programmatically (safety check)
         const validatedResult = this.validateFollowUpCriteria(result, followUpDepth)
-        
+
         console.log('🔍 [LLM-Server] evaluateAnswer final result:', {
           questionId: validatedResult.questionId,
           needsFollowUp: validatedResult.needsFollowUp,
@@ -281,26 +387,26 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
           keyPointsCovered: validatedResult.keyPointsCovered.length,
           wasModified: validatedResult.needsFollowUp !== result.needsFollowUp
         })
-        
+
         return validatedResult
       } catch (error: any) {
         lastError = error
         const isRetryableError = error.status === 429 || // Rate limit
-                                error.status >= 500 ||   // Server errors
-                                error.code === 'ETIMEDOUT' ||
-                                error.message?.includes('timeout') ||
-                                error.type === 'server_error' ||
-                                error.type === 'rate_limit_error'
-        
+          error.status >= 500 ||   // Server errors
+          error.code === 'ETIMEDOUT' ||
+          error.message?.includes('timeout') ||
+          error.type === 'server_error' ||
+          error.type === 'rate_limit_error'
+
         console.error(`❌ [LLM-Server] OpenAI API error (attempt ${attempt}/${maxRetries}):`, error.message || error)
-        
+
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
           console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
-        
+
         // If not retryable or last attempt, break and throw
         if (!isRetryableError || attempt === maxRetries) {
           break
@@ -328,17 +434,8 @@ Generate a follow-up question that:
 
 Respond with just the follow-up question text.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Generate a follow-up question.` }
-        ],
-        temperature: this.config.temperature || 0.7,
-        max_tokens: this.config.maxTokens || 200
-      })
-
-      return response.choices[0]?.message?.content || 'Could you tell me more about that?'
+      const content = await this.callLLM(systemPrompt, 'Generate a follow-up question.', this.config.maxTokens || 200)
+      return content || 'Could you tell me more about that?'
     } catch (error) {
       console.error('Error generating follow-up:', error)
       return 'Could you elaborate on that point?'
@@ -348,10 +445,10 @@ Respond with just the follow-up question text.`
   async analyzeCode(code: string, problem: string, language: string = 'javascript', previousCode: string = ''): Promise<CodeAnalysis> {
     try {
       const hasPreviousCode = previousCode && previousCode.trim().length > 0
-      const previousCodeSection = hasPreviousCode ? 
-        `\n\nCode from ~1 minute ago (for comparison):\n\`\`\`${language}\n${previousCode}\n\`\`\`` : 
+      const previousCodeSection = hasPreviousCode ?
+        `\n\nCode from ~1 minute ago (for comparison):\n\`\`\`${language}\n${previousCode}\n\`\`\`` :
         '\n\n(No previous code - first analysis)'
-      
+
       const systemPrompt = `You are an AI code reviewer analyzing a candidate's code progress.
 
 Problem: ${problem}
@@ -399,17 +496,8 @@ Respond in JSON format with these exact fields:
 
       const userContent = `Current code:\n\`\`\`${language}\n${code}\n\`\`\`${previousCodeSection}\n\nAnalyze the current code and determine if candidate is stuck by comparing it with previous code.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
-        temperature: this.config.temperature || 0.2,
-        max_tokens: this.config.maxTokens || 800
-      })
+      const content = await this.callLLM(systemPrompt, userContent, this.config.maxTokens || 800)
 
-      const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('No response from LLM')
       }
@@ -448,14 +536,34 @@ Respond naturally and professionally. Keep responses concise but helpful.`
         ...conversationHistory.map(msg => ({ role: msg.role, content: msg.content }))
       ]
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: messages as any,
-        temperature: this.config.temperature || 0.7,
-        max_tokens: this.config.maxTokens || 300
-      })
+      // Build messages for LiveKit or OpenAI
+      if (this.useLiveKitLLM && this.liveKitLLM) {
+        const chatCtx = new llm.ChatContext()
+        messages.forEach(msg => {
+          chatCtx.addMessage({ role: msg.role as any, content: msg.content })
+        })
 
-      return response.choices[0]?.message?.content || 'I understand. Please continue.'
+        let fullContent = ''
+        const stream = await this.liveKitLLM.chat({ chatCtx })
+        for await (const chunk of stream) {
+          const chunkText = this.extractChunkText(chunk)
+          if (chunkText) {
+            fullContent += chunkText
+          }
+        }
+        return fullContent || 'I understand. Please continue.'
+      } else {
+        if (!this.openai) {
+          throw new Error('OpenAI client not initialized. Provide apiKey or useLiveKitLLM=true')
+        }
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model || 'gpt-4',
+          messages: messages as any,
+          temperature: this.config.temperature || 0.7,
+          max_tokens: this.config.maxTokens || 300
+        })
+        return response.choices[0]?.message?.content || 'I understand. Please continue.'
+      }
     } catch (error) {
       console.error('Error generating response:', error)
       return 'I understand. Please continue.'
@@ -464,7 +572,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
 
   addToConversation(role: 'user' | 'assistant', content: string): void {
     this.conversationHistory.push({ role, content })
-    
+
     // Keep only last 20 messages to manage context length
     if (this.conversationHistory.length > 20) {
       this.conversationHistory = this.conversationHistory.slice(-20)
@@ -493,7 +601,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
       followUpAnswerLength: followUpAnswer.length,
       followUpQuestion: followUpQuestion.substring(0, 50) + '...'
     })
-    
+
     const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
@@ -560,29 +668,24 @@ IMPORTANT:
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔍 [LLM-Server] Calling OpenAI API for follow-up (attempt ${attempt}/${maxRetries})`)
-        const response = await this.openai.chat.completions.create({
-          model: this.config.model || 'gpt-4',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Evaluate this follow-up answer: ${followUpAnswer}` }
-          ],
-          temperature: this.config.temperature || 0.3,
-          max_tokens: this.config.maxTokens || 500
-        })
+        const content = await this.callLLM(
+          systemPrompt,
+          `Evaluate this follow-up answer: ${followUpAnswer}`,
+          this.config.maxTokens || 500
+        )
 
-        const content = response.choices[0]?.message?.content
         if (!content) {
           throw new Error('No response from LLM')
         }
 
         let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-        
+
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
           console.error('Failed to parse LLM response as JSON:', content)
           console.error('Parse error:', parseError)
-          
+
           // Fallback: create a basic evaluation
           evaluation = {
             keyPointsCovered: [],
@@ -592,13 +695,13 @@ IMPORTANT:
             feedback: "I had trouble processing your follow-up answer. Could you please try again?"
           }
         }
-        
+
         const result = {
           questionId: originalQuestion.id, // Use original question ID
           candidateAnswer: followUpAnswer, // Use follow-up answer
           ...evaluation
         }
-        
+
         console.log('🔍 [LLM-Server] evaluateFollowUpAnswer result:', {
           questionId: result.questionId,
           needsFollowUp: result.needsFollowUp,
@@ -606,26 +709,26 @@ IMPORTANT:
           keyPointsCovered: result.keyPointsCovered.length,
           isFollowUp: true
         })
-        
+
         return result
       } catch (error: any) {
         lastError = error
         const isRetryableError = error.status === 429 || // Rate limit
-                                error.status >= 500 ||   // Server errors
-                                error.code === 'ETIMEDOUT' ||
-                                error.message?.includes('timeout') ||
-                                error.type === 'server_error' ||
-                                error.type === 'rate_limit_error'
-        
+          error.status >= 500 ||   // Server errors
+          error.code === 'ETIMEDOUT' ||
+          error.message?.includes('timeout') ||
+          error.type === 'server_error' ||
+          error.type === 'rate_limit_error'
+
         console.error(`❌ [LLM-Server] OpenAI API error for follow-up (attempt ${attempt}/${maxRetries}):`, error.message || error)
-        
+
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
           console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
-        
+
         // If not retryable or last attempt, break and throw
         if (!isRetryableError || attempt === maxRetries) {
           break
@@ -711,7 +814,7 @@ IMPORTANT:
       // Handle both old format (array) and new format (payload)
       let conversationHistory: any[]
       let evaluationPayload: FinalEvaluationPayload | null = null
-      
+
       if (Array.isArray(payload)) {
         // Old format - just conversation history
         conversationHistory = payload as any[]
@@ -757,10 +860,10 @@ IMPORTANT:
         .join('\n')
 
       // Check which sections are present (have questions/problems)
-      const hasTheoreticalSection = evaluationPayload 
+      const hasTheoreticalSection = evaluationPayload
         ? (evaluationPayload.theoreticalSection?.totalQuestions ?? 0) > 0
         : theoreticalMessages.length > 0
-      
+
       const hasCodingSection = evaluationPayload
         ? (evaluationPayload.codingSection?.totalProblems ?? 0) > 0
         : codingMessages.length > 0
@@ -778,7 +881,7 @@ IMPORTANT:
             const question = evaluationPayload!.theoreticalSection.questions.find(q => q.id === conv.questionId)
             const hintCountForQ = conv.conversation.filter(m => m.metadata?.type === 'hint').length
             const clarificationCountForQ = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
-            const timeTaken = conv.conversation.length > 0 
+            const timeTaken = conv.conversation.length > 0
               ? (conv.conversation[conv.conversation.length - 1].timestamp - conv.conversation[0].timestamp) / 1000
               : 0
 
@@ -1082,17 +1185,8 @@ ${hasTheoreticalSection ? 'Provide detailed evaluation for theoretical section.'
 ${hasCodingSection ? 'Provide detailed evaluation for coding section.' : 'DO NOT evaluate coding section - it was not part of this interview.'}
 Always provide overall performance evaluation. Include question-wise and problem-wise breakdowns when context is available.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 4000 // Increased for detailed breakdowns
-      })
+      const content = await this.callLLM(systemPrompt, userPrompt, 4000)
 
-      const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('No response from LLM')
       }
@@ -1186,7 +1280,15 @@ Always provide overall performance evaluation. Include question-wise and problem
 
 }
 
-export function createLLMService(config: LLMConfig): LLMService {
+export function createLLMService(config: LLMConfig, liveKitLLM?: openai.LLM): LLMService {
+  // If LiveKit LLM is provided, use it instead of creating a new OpenAI client
+  if (liveKitLLM) {
+    return new LLMService({
+      ...config,
+      liveKitLLM,
+      useLiveKitLLM: true,
+    })
+  }
   return new LLMService(config)
 }
 

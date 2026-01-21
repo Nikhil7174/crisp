@@ -48,7 +48,7 @@ export const toolDefinitions = [
     type: 'function',
     function: {
       name: 'evaluate_answer',
-      description: 'Evaluates the candidate\'s answer to a theoretical question. Use this when the candidate provides a substantive answer to the current question.',
+      description: 'Evaluates the candidate\'s answer to a theoretical question. Use this when the candidate provides a substantive answer to the current question. This is a LIGHT evaluation - just check if the answer could be more explained or missed some key points.',
       parameters: {
         type: 'object',
         properties: {
@@ -58,6 +58,44 @@ export const toolDefinitions = [
           },
         },
         required: ['answer'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_interview_state',
+      description: 'Updates the interview state in the orchestrator. Use this to track if next question should be asked, how many followups have been asked, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          shouldAskNextQuestion: {
+            type: 'boolean',
+            description: 'Whether the next question should be asked after this response',
+          },
+          followUpsAsked: {
+            type: 'number',
+            description: 'Number of follow-up questions that have been asked for the current question (max 2)',
+          },
+          followUpDepth: {
+            type: 'number',
+            description: 'Current follow-up depth for the current question (0 = original question, 1 = first follow-up, 2 = second follow-up). Maximum is 2.',
+          },
+          needsFollowUp: {
+            type: 'boolean',
+            description: 'Whether a follow-up question is needed based on the answer',
+          },
+          answerNeedsMoreExplanation: {
+            type: 'boolean',
+            description: 'Whether the answer could be more explained',
+          },
+          missedKeyPoints: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of key points that were missed in the answer',
+          },
+        },
+        required: ['shouldAskNextQuestion'],
       },
     },
   },
@@ -118,6 +156,7 @@ export enum ToolName {
   PROVIDE_HINT = 'provide_hint',
   PROVIDE_CLARIFICATION = 'provide_clarification',
   EVALUATE_ANSWER = 'evaluate_answer',
+  UPDATE_INTERVIEW_STATE = 'update_interview_state',
   ANALYZE_CODE = 'analyze_code',
   SUBMIT_SOLUTION = 'submit_solution',
 }
@@ -149,6 +188,15 @@ export interface AnalyzeCodeParams {
 export interface SubmitSolutionParams {
   code: string;
   explanation?: string;
+}
+
+export interface UpdateInterviewStateParams {
+  shouldAskNextQuestion: boolean;
+  followUpsAsked?: number;
+  followUpDepth?: number;
+  needsFollowUp?: boolean;
+  answerNeedsMoreExplanation?: boolean;
+  missedKeyPoints?: string[];
 }
 
 /**

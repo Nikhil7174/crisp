@@ -10,6 +10,7 @@ import {
   SkipQuestionParams,
   AnalyzeCodeParams,
   SubmitSolutionParams,
+  UpdateInterviewStateParams,
 } from './tool-definitions.js';
 
 /**
@@ -210,15 +211,109 @@ async function provideClarification(
 }
 
 /**
+ * Update interview state in orchestrator
+ */
+async function updateInterviewState(
+  params: UpdateInterviewStateParams,
+  interviewId: string,
+  stateProvider: StateProvider,
+  orchestrator: Orchestrator
+): Promise<ToolResult> {
+  const state = stateProvider.getState(interviewId);
+  
+  if (!state) {
+    console.error(`❌ [updateInterviewState] Interview state not found for ${interviewId}`);
+    return {
+      success: false,
+      message: 'Interview state not found',
+      shouldSpeak: false,
+    };
+  }
+
+  console.log(`\n📊 [updateInterviewState] Executing tool`);
+  console.log(`   🆔 Interview ID: ${interviewId}`);
+  console.log(`   📋 Parameters:`, JSON.stringify(params, null, 2));
+
+  // Get current follow-up depth for the question
+  const currentQuestionId = state.currentQuestionId;
+  let followUpDepth = params.followUpDepth;
+  
+  if (currentQuestionId) {
+    // Get current depth from state (this is the source of truth)
+    const currentDepth = stateProvider.getFollowUpDepth(interviewId, currentQuestionId);
+    
+    // If followUpDepth provided in params, it means LLM wants to track a follow-up was asked
+    // The LLM should set followUpDepth to (currentDepth + 1) after speaking a follow-up
+    if (params.followUpDepth !== undefined && params.followUpDepth > currentDepth) {
+      // LLM is tracking that a follow-up was asked - update state
+      const newDepth = params.followUpDepth;
+      if (newDepth <= 2) {
+        // Track the follow-up by calling askFollowUp (this increments depth in state)
+        // We need to extract the follow-up question from conversation or use a placeholder
+        // Since LLM already spoke it, we just need to track it in state
+        const tracker = state.followUpTracker.get(currentQuestionId) || { followUpDepth: 0, maxDepth: 2 };
+        if (newDepth > tracker.followUpDepth) {
+          // Increment depth to match what LLM specified
+          tracker.followUpDepth = newDepth;
+          state.followUpTracker.set(currentQuestionId, tracker);
+          console.log(`📝 [updateInterviewState] Follow-up tracked - depth updated to ${newDepth}/2`);
+        }
+        followUpDepth = newDepth;
+      } else {
+        console.log(`⚠️ [updateInterviewState] Invalid followUpDepth ${newDepth} - max is 2, using current depth ${currentDepth}`);
+        followUpDepth = currentDepth;
+      }
+    } else {
+      // Use current depth from state
+      followUpDepth = currentDepth;
+    }
+    
+    // Check if we can ask follow-up (max depth 2)
+    const canAskFollowUp = stateProvider.canAskFollowUp(interviewId, currentQuestionId);
+    
+    // If LLM wants to ask follow-up but can't, override it
+    if (params.needsFollowUp && !canAskFollowUp) {
+      console.log(`⚠️ [updateInterviewState] Cannot ask follow-up - max depth (2) reached for question ${currentQuestionId}`);
+      params.needsFollowUp = false;
+    }
+    
+    // If shouldAskNextQuestion is true, we're moving to next question
+    if (params.shouldAskNextQuestion) {
+      console.log(`✅ [updateInterviewState] Moving to next question`);
+    }
+  }
+
+  return {
+    success: true,
+    message: '', // No message to speak, just state update
+    shouldSpeak: false,
+    data: {
+      shouldAskNextQuestion: params.shouldAskNextQuestion,
+      followUpsAsked: followUpDepth || 0,
+      followUpDepth: followUpDepth || 0,
+      needsFollowUp: params.needsFollowUp || false,
+      answerNeedsMoreExplanation: params.answerNeedsMoreExplanation || false,
+      missedKeyPoints: params.missedKeyPoints || [],
+      maxFollowUpDepth: 2,
+      canAskFollowUp: currentQuestionId ? stateProvider.canAskFollowUp(interviewId, currentQuestionId) : false,
+      // IMPORTANT: Return current depth so LLM knows the state
+      currentFollowUpDepth: currentQuestionId ? stateProvider.getFollowUpDepth(interviewId, currentQuestionId) : 0,
+    },
+  };
+}
+
+/**
  * Evaluate candidate's answer to theoretical question
- * Enforces follow-up rules: max 1 per original question, no nested follow-ups
+ * LIGHT EVALUATION: Just checks if answer could be more explained or missed key points
+ * Uses conversational LLM instead of isolated API call
  */
 async function evaluateAnswer(
   params: EvaluateAnswerParams, 
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator,
-  llmService: any
+  llmService: any,
+  chatCtx?: any // Conversational LLM context
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
   
@@ -240,11 +335,10 @@ async function evaluateAnswer(
     };
   }
 
-  console.log(`\n✅ [evaluateAnswer] Executing tool`);
+  console.log(`\n✅ [evaluateAnswer] Executing LIGHT evaluation tool`);
   console.log(`   🆔 Interview ID: ${interviewId}`);
   console.log(`   🎯 Question ID: ${state.currentQuestionId}`);
   console.log(`   📝 Answer length: ${params.answer.length} characters`);
-  console.log(`   📄 Answer preview: "${params.answer.substring(0, 100)}${params.answer.length > 100 ? '...' : ''}"`);
 
   // Get the full question object from orchestrator
   const question = orchestrator.getCurrentQuestion();
@@ -257,33 +351,126 @@ async function evaluateAnswer(
     };
   }
 
-  // Ensure question has required fields for evaluation
-  const questionForEvaluation = {
-    id: question.id,
-    question: question.question,
-    expectedAnswer: (question as any).expectedAnswer || question.question, // Fallback to question text if not available
-    keyPoints: (question as any).keyPoints || [], // Default to empty array if not available
-  };
+  // LIGHT EVALUATION: Use conversational LLM to check if answer needs more explanation or missed key points
+  // The conversational LLM will evaluate in context and provide feedback
+  // We'll use the chat context if available, otherwise fall back to isolated call
+  let evaluation: any;
+  
+  if (chatCtx && llmService.useLiveKitLLM) {
+    // Use conversational LLM for evaluation
+    console.log(`💬 [evaluateAnswer] Using conversational LLM for evaluation`);
+    
+    const evaluationPrompt = `Evaluate this answer to the current question. This is a LIGHT evaluation - just check:
+1. Could the answer be more explained? (answerNeedsMoreExplanation: true/false)
+2. Did the answer miss any key points? (missedKeyPoints: array of missed points)
+3. Does this need a follow-up question? (needsFollowUp: true/false, only if answer is significantly incomplete)
 
-  // Call LLM service to evaluate answer with retry
-  const evaluation = await retryWithBackoff(async () => {
-    return await llmService.evaluateAnswer(
-      questionForEvaluation,
-      params.answer,
-      0,
-      state.maxTheoreticalQuestions
-    );
-  }).catch(error => {
-    console.error('[ToolExecutor] All retry attempts failed for evaluation:', error);
-    return {
-      questionId: state.currentQuestionId!,
-      candidateAnswer: params.answer,
-      score: 50,
-      keyPointsCovered: [],
-      needsFollowUp: false,
-      feedback: "I'm having trouble processing your answer right now. Let's move on to the next question.",
+Current Question: ${question.question}
+Key Points: ${((question as any).keyPoints || []).join(', ')}
+Candidate's Answer: ${params.answer}
+
+Provide a brief, conversational feedback and indicate if follow-up is needed.`;
+
+    try {
+      // Use the conversational LLM context
+      const chatCtxCopy = chatCtx; // Use the existing chat context
+      chatCtxCopy.addMessage({
+        role: 'user',
+        content: evaluationPrompt,
+      });
+
+      const stream = await llmService.liveKitLLM?.chat({ chatCtx: chatCtxCopy });
+      let evaluationText = '';
+      if (stream) {
+        for await (const chunk of stream) {
+          const chunkText = typeof chunk === 'string' ? chunk : chunk.content || '';
+          evaluationText += chunkText;
+        }
+      }
+
+      // Parse the evaluation (simplified - in production, use structured output)
+      const needsFollowUp = evaluationText.toLowerCase().includes('follow-up') || 
+                           evaluationText.toLowerCase().includes('needs more');
+      const answerNeedsMoreExplanation = evaluationText.toLowerCase().includes('could be more') ||
+                                        evaluationText.toLowerCase().includes('needs more explanation');
+      
+      // Extract missed key points (simplified)
+      const missedKeyPoints: string[] = [];
+      const keyPoints = (question as any).keyPoints || [];
+      for (const point of keyPoints) {
+        if (!params.answer.toLowerCase().includes(point.toLowerCase().substring(0, 10))) {
+          missedKeyPoints.push(point);
+        }
+      }
+
+      evaluation = {
+        questionId: state.currentQuestionId!,
+        candidateAnswer: params.answer,
+        score: missedKeyPoints.length === 0 && !answerNeedsMoreExplanation ? 85 : 65,
+        keyPointsCovered: keyPoints.filter((p: string) => !missedKeyPoints.includes(p)),
+        needsFollowUp: needsFollowUp && missedKeyPoints.length > 0,
+        feedback: evaluationText || "Good answer! Let's continue.",
+        answerNeedsMoreExplanation,
+        missedKeyPoints,
+      };
+    } catch (error) {
+      console.error('[ToolExecutor] Conversational LLM evaluation failed:', error);
+      // Fallback to basic evaluation
+      evaluation = {
+        questionId: state.currentQuestionId!,
+        candidateAnswer: params.answer,
+        score: 70,
+        keyPointsCovered: [],
+        needsFollowUp: false,
+        feedback: "Thanks for your answer. Let's continue.",
+        answerNeedsMoreExplanation: false,
+        missedKeyPoints: [],
+      };
+    }
+  } else {
+    // Fallback to isolated evaluation (lighter version)
+    console.log(`🔍 [evaluateAnswer] Using isolated LLM for evaluation (fallback)`);
+    
+    const questionForEvaluation = {
+      id: question.id,
+      question: question.question,
+      expectedAnswer: (question as any).expectedAnswer || question.question,
+      keyPoints: (question as any).keyPoints || [],
     };
-  });
+
+    const fullEvaluation = await retryWithBackoff(async () => {
+      return await llmService.evaluateAnswer(
+        questionForEvaluation,
+        params.answer,
+        0,
+        state.maxTheoreticalQuestions
+      );
+    }).catch(error => {
+      console.error('[ToolExecutor] All retry attempts failed for evaluation:', error);
+      return {
+        questionId: state.currentQuestionId!,
+        candidateAnswer: params.answer,
+        score: 50,
+        keyPointsCovered: [],
+        needsFollowUp: false,
+        feedback: "I'm having trouble processing your answer right now. Let's move on to the next question.",
+      };
+    });
+
+    // Convert to light evaluation format
+    const keyPoints = (question as any).keyPoints || [];
+    const missedKeyPoints = keyPoints.filter((p: string) => 
+      !fullEvaluation.keyPointsCovered.some((covered: string) => 
+        covered.toLowerCase().includes(p.toLowerCase().substring(0, 10))
+      )
+    );
+
+    evaluation = {
+      ...fullEvaluation,
+      answerNeedsMoreExplanation: fullEvaluation.score < 70,
+      missedKeyPoints,
+    };
+  }
 
   // Add evaluation to state
   stateProvider.addEvaluation(interviewId, {
@@ -303,54 +490,29 @@ async function evaluateAnswer(
     },
   });
 
-  let responseMessage = evaluation.feedback;
-
-  // Check if follow-up is allowed
+  // Get current follow-up depth
+  const currentFollowUpDepth = stateProvider.getFollowUpDepth(interviewId, state.currentQuestionId!);
   const canAskFollowUp = stateProvider.canAskFollowUp(interviewId, state.currentQuestionId!);
-  
-  if (evaluation.needsFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion && canAskFollowUp) {
-    // Ask follow-up
-    const followUpAsked = stateProvider.askFollowUp(
-      interviewId,
-      evaluation.followUpQuestion,
-      state.currentQuestionId!
-    );
 
-    if (followUpAsked) {
-      responseMessage += ` ${evaluation.followUpQuestion}`;
-      
-      stateProvider.addConversationMessage(interviewId, {
-        role: 'assistant',
-        content: evaluation.followUpQuestion,
-        metadata: { 
-          type: 'follow_up_question',
-          parentQuestionId: state.currentQuestionId,
-        },
-      });
-      
-      console.log(`[ToolExecutor] Follow-up asked for question ${state.currentQuestionId}`);
-    } else {
-      console.log(`[ToolExecutor] Follow-up blocked - already asked for question ${state.currentQuestionId}`);
-      responseMessage += " Let's move to the next question.";
-    }
-  } else {
-    if (evaluation.needsFollowUp && !canAskFollowUp) {
-      console.log(`[ToolExecutor] Follow-up blocked - ${state.currentQuestionIsFollowUp ? 'current is follow-up' : 'already asked'}`);
-    }
-    // Don't add "Let's move to the next question" - Node will handle this
-    // responseMessage += " Let's move to the next question.";
-  }
-
-  // NODE-DRIVEN: Signal that Node should move to next question (unless follow-up was asked)
-  const shouldMoveNext = !(evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion);
-
+  // Return evaluation result - LLM will decide whether to ask follow-up based on depth
+  // The LLM should check the followUpDepth and only ask if < 2
   return {
     success: true,
-    message: responseMessage,
+    message: evaluation.feedback, // Just feedback, LLM will add follow-up if needed
     shouldSpeak: true,
     data: { 
       evaluation,
-      shouldAskNextQuestion: shouldMoveNext, // Node will use this to inject next question
+      currentFollowUpDepth,
+      maxFollowUpDepth: 2,
+      canAskFollowUp,
+      // If follow-up is needed and allowed, include the question for LLM to speak
+      followUpQuestion: (evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion) 
+        ? evaluation.followUpQuestion 
+        : undefined,
+      // LLM should use update_interview_state after speaking follow-up
+      shouldAskNextQuestion: !(evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion),
+      answerNeedsMoreExplanation: evaluation.answerNeedsMoreExplanation,
+      missedKeyPoints: evaluation.missedKeyPoints || [],
     },
   };
 }
@@ -571,9 +733,12 @@ async function evaluateSolution(code: string, problemId: string, explanation?: s
  */
 export function createToolExecutors(
   orchestrator: Orchestrator,
-  stateProvider: StateProvider
+  stateProvider: StateProvider,
+  llmService?: any,
+  chatCtx?: any // Conversational LLM context for evaluation
 ): Record<string, (params: any) => Promise<any>> {
-  const llmService = createLLMService({
+  // Create LLM service if not provided
+  const service = llmService || createLLMService({
     apiKey: process.env.OPENAI_API_KEY || '',
     model: 'gpt-4o-mini',
     temperature: 0.7,
@@ -598,7 +763,12 @@ export function createToolExecutors(
     
     [ToolName.EVALUATE_ANSWER]: async (params: EvaluateAnswerParams) => {
       const interviewId = orchestrator.getInterviewId();
-      return await evaluateAnswer(params, interviewId, stateProvider, orchestrator, llmService);
+      return await evaluateAnswer(params, interviewId, stateProvider, orchestrator, service, chatCtx);
+    },
+    
+    [ToolName.UPDATE_INTERVIEW_STATE]: async (params: UpdateInterviewStateParams) => {
+      const interviewId = orchestrator.getInterviewId();
+      return await updateInterviewState(params, interviewId, stateProvider, orchestrator);
     },
     
     [ToolName.SKIP_QUESTION]: async (params: SkipQuestionParams) => {

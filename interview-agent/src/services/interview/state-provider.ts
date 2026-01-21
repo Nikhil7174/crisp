@@ -11,8 +11,8 @@ export interface InterviewState {
   totalQuestions: number;
   questionsAsked: number;
   
-  // Follow-up tracking (max 1 per original question)
-  followUpTracker: Map<string, { hasFollowUp: boolean; followUpAsked: boolean }>;
+  // Follow-up tracking (max 2 follow-ups per original question)
+  followUpTracker: Map<string, { followUpDepth: number; maxDepth: number }>;
   currentQuestionIsFollowUp: boolean;
   parentQuestionId: string | null;
   
@@ -90,7 +90,7 @@ export class StateProvider extends EventEmitter {
       totalQuestions: config.totalQuestions,
       questionsAsked: 0,
       
-      followUpTracker: new Map(),
+      followUpTracker: new Map(), // Tracks follow-up depth per question (max 2)
       currentQuestionIsFollowUp: false,
       parentQuestionId: null,
       
@@ -302,47 +302,68 @@ export class StateProvider extends EventEmitter {
   }
 
   /**
-   * Ask follow-up question (max 1 per original question)
+   * Ask follow-up question (max 2 follow-ups per original question)
    */
   askFollowUp(interviewId: string, followUpQuestion: string, parentQuestionId: string): boolean {
     const state = this.states.get(interviewId);
     if (!state) return false;
 
-    // Check if parent question already has a follow-up
-    const tracker = state.followUpTracker.get(parentQuestionId);
-    if (tracker?.followUpAsked) {
-      console.log(`[StateProvider] Follow-up already asked for question ${parentQuestionId}`);
+    const MAX_FOLLOW_UP_DEPTH = 2;
+
+    // Get or create tracker for parent question
+    const tracker = state.followUpTracker.get(parentQuestionId) || { followUpDepth: 0, maxDepth: MAX_FOLLOW_UP_DEPTH };
+    
+    // Check if we've reached max depth
+    if (tracker.followUpDepth >= MAX_FOLLOW_UP_DEPTH) {
+      console.log(`[StateProvider] Max follow-up depth (${MAX_FOLLOW_UP_DEPTH}) reached for question ${parentQuestionId}`);
       return false;
     }
 
-    // Mark follow-up as asked
-    state.followUpTracker.set(parentQuestionId, {
-      hasFollowUp: true,
-      followUpAsked: true,
-    });
+    // Increment follow-up depth
+    tracker.followUpDepth++;
+    state.followUpTracker.set(parentQuestionId, tracker);
 
     state.currentQuestionIsFollowUp = true;
     state.parentQuestionId = parentQuestionId;
 
-    this.emit('followUpAsked', { interviewId, followUpQuestion, parentQuestionId });
+    console.log(`[StateProvider] Follow-up asked for question ${parentQuestionId} (depth: ${tracker.followUpDepth}/${MAX_FOLLOW_UP_DEPTH})`);
+    this.emit('followUpAsked', { interviewId, followUpQuestion, parentQuestionId, depth: tracker.followUpDepth });
     return true;
   }
 
   /**
-   * Check if follow-up can be asked for a question
+   * Check if follow-up can be asked for a question (max depth 2)
    */
   canAskFollowUp(interviewId: string, questionId: string): boolean {
     const state = this.states.get(interviewId);
     if (!state) return false;
+
+    const MAX_FOLLOW_UP_DEPTH = 2;
 
     // Cannot ask follow-up if current question is already a follow-up
     if (state.currentQuestionIsFollowUp) {
       return false;
     }
 
-    // Check if this question already has a follow-up
+    // Check if this question has reached max follow-up depth
     const tracker = state.followUpTracker.get(questionId);
-    return !tracker?.followUpAsked;
+    if (tracker) {
+      return tracker.followUpDepth < MAX_FOLLOW_UP_DEPTH;
+    }
+
+    // No follow-ups asked yet, can ask
+    return true;
+  }
+
+  /**
+   * Get current follow-up depth for a question
+   */
+  getFollowUpDepth(interviewId: string, questionId: string): number {
+    const state = this.states.get(interviewId);
+    if (!state) return 0;
+
+    const tracker = state.followUpTracker.get(questionId);
+    return tracker?.followUpDepth || 0;
   }
 
   /**
