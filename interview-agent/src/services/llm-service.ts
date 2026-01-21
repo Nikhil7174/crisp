@@ -80,9 +80,9 @@ export class LLMService extends EventEmitter {
       }
     }
 
-    // Rule 2: Only ask follow-up if score < 60
-    if (evaluation.needsFollowUp && evaluation.score >= 60) {
-      console.log('🚫 [LLM-Server] Blocking follow-up: score >= 60 (score:', evaluation.score, ')')
+    // Rule 2: Only ask follow-up if score < 70
+    if (evaluation.needsFollowUp && evaluation.score >= 70) {
+      console.log('🚫 [LLM-Server] Blocking follow-up: score >= 70 (score:', evaluation.score, ')')
       return {
         ...evaluation,
         needsFollowUp: false,
@@ -108,14 +108,21 @@ export class LLMService extends EventEmitter {
     return evaluation
   }
 
-  async evaluateAnswer(question: Question, candidateAnswer: string, followUpDepth: number = 0, maxTheoreticalQuestions: number = 10): Promise<Evaluation> {
+  async evaluateAnswer(
+    question: Question, 
+    candidateAnswer: string, 
+    followUpDepth: number = 0, 
+    maxTheoreticalQuestions: number = 10,
+    originalAnswer?: string,
+    followUpQuestion?: string
+  ): Promise<Evaluation> {
     console.log('🔍 [LLM-Server] evaluateAnswer called with:', {
       questionId: question.id,
       followUpDepth,
       candidateAnswerLength: candidateAnswer.length
     })
     
-    const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
+    const systemPrompt = `You are a human technical interviewer conducting a voice interview. You're evaluating a candidate's answer naturally, like a real person would.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
 - This is a verbal interview - the candidate is speaking, not typing
@@ -131,64 +138,78 @@ QUESTION: ${question.question}
 EXPECTED ANSWER: ${question.expectedAnswer}
 KEY POINTS TO COVER: ${question.keyPoints.join(', ')}
 
-EVALUATION CRITERIA:
-1. Score (0-100): Based on how many key points they covered and accuracy
-2. Key Points Covered: List specific points they mentioned correctly
-3. Needs Follow-up: ONLY set to true if ALL these conditions are met:
-   - Score is BELOW 60
-   - They missed MULTIPLE important key points (not just few minor details)
-   - A follow-up could significantly improve their understanding
-4. Follow-up Question: Only if needsFollowUp is true - ask about the most important missed points
-5. Feedback: Constructive, encouraging, and specific
+${followUpDepth > 0 && originalAnswer ? `IMPORTANT - FOLLOW-UP CONTEXT:
+This is a FOLLOW-UP question. The candidate already answered the original question.
 
-SCORING GUIDE:
-- 90-100: Covered all key points accurately with good detail
-- 80-89: Covered most key points well, minor gaps
-- 70-79: Covered main points, some important details missing
-- 60-69: Partial understanding, but acceptable - covered some key points
-- 50-59: Basic understanding but missing key concepts
-- 0-49: Major gaps or incorrect information
+ORIGINAL QUESTION: ${question.question}
+CANDIDATE'S ORIGINAL ANSWER: ${originalAnswer}
+FOLLOW-UP QUESTION THAT WAS ASKED: ${followUpQuestion || 'N/A'}
+CANDIDATE'S FOLLOW-UP ANSWER: ${candidateAnswer}
 
-FOLLOW-UP DECISION RULES (STRICTLY ENFORCE):
-✓ Ask follow-up ONLY if: score < 60 AND multiple key points missed
-✗ DO NOT ask follow-up if: score >= 60 (even if they missed some details)
-✗ DO NOT ask follow-up if: they covered most key points (even with minor gaps)
+When evaluating this follow-up answer, you MUST consider BOTH answers together:
+- The original answer + the follow-up answer = their complete response
+- Don't penalize them for not repeating what they already said in the original answer
+- If they covered WHERE in the original answer and HAVING in the follow-up, that's a complete answer!
+- Evaluate the COMBINED understanding, not just the follow-up answer in isolation
+- A good follow-up answer that completes the original answer should score well (70+)
+
+Example: If original answer covered "WHERE filters rows" and follow-up answer covers "HAVING filters groups after aggregation", together they have a complete answer about both clauses.` : ''}
+
+YOUR EVALUATION APPROACH (Think like a human interviewer):
+1. Score (0-100): How well did they answer? Be fair but thorough
+2. Key Points Covered: What did they actually mention correctly?
+3. Needs Follow-up: Would a real interviewer ask a follow-up here?
+   - YES if: Score < 70 AND they missed important parts of the answer
+   - NO if: They gave a decent answer (even if not perfect)
+4. Follow-up Question: If needed, ask naturally about what they missed
+5. Feedback: Sound like a real person - be conversational, encouraging, but also probe deeper if needed
+
+SCORING GUIDE (Think like a human):
+- 90-100: Excellent answer - covered everything well
+- 80-89: Good answer - got most of it right
+- 70-79: Decent answer - covered main points, some gaps
+- 60-69: Partial answer - got some parts right but missed important details
+- 50-59: Weak answer - only answered part of the question, missing key concepts
+- 0-49: Poor answer - major gaps or incorrect information
+
+FOLLOW-UP DECISION (Human logic):
+✓ Ask follow-up if: Score < 70 AND they clearly missed important parts
+✗ Don't ask follow-up if: Score >= 70 OR they gave a reasonable answer (even if not perfect)
+
+FEEDBACK STYLE (Be human):
+- Sound natural and conversational
+- Acknowledge what they got right
+- Gently point out what's missing
+- If they're vague or unclear, probe deeper: "Can you elaborate on that?" or "I'd like to understand better..."
+- Be encouraging but don't let them off easy - if the answer is weak, let them know
+- Use natural language, not robotic phrases
 
 EXAMPLES:
 
 Example 1 - Good Answer (no follow-up):
 {
-  "keyPointsCovered": ["function scope", "hoisting", "block scope", "reassignment"],
+  "keyPointsCovered": ["WHERE filters before grouping", "HAVING filters after aggregation"],
   "score": 85,
   "needsFollowUp": false,
-  "feedback": "Excellent! You covered the main differences between var, let, and const including scope and hoisting behavior."
+  "feedback": "Good! You covered the main difference - WHERE filters rows before grouping, and HAVING filters groups after aggregation. That's the key distinction."
 }
 
-Example 2 - Decent Answer (no follow-up even with gaps):
+Example 2 - Weak Answer (follow-up needed):
 {
-  "keyPointsCovered": ["function scope", "block scope", "reassignment"],
-  "score": 65,
-  "needsFollowUp": false,
-  "feedback": "Good job! You covered the main differences including scope and reassignment. You got the key concepts right."
-}
-
-Example 3 - Weak Answer (follow-up needed):
-{
-  "keyPointsCovered": ["scope"],
-  "score": 45,
+  "keyPointsCovered": ["WHERE filters rows"],
+  "score": 55,
   "needsFollowUp": true,
-  "followUpQuestion": "You mentioned scope, but can you explain the specific differences between var, let, and const in terms of scope, hoisting, and reassignment?",
-  "feedback": "You're on the right track mentioning scope! Let's dive deeper into the specific differences between these three variable declarations."
+  "followUpQuestion": "You mentioned WHERE filters rows, which is correct. But can you explain what HAVING does and when you'd use it versus WHERE?",
+  "feedback": "Okay, you're right that WHERE filters rows. But the question asks about both WHERE and HAVING - can you tell me about HAVING as well?"
 }
 
 NOTE: If needsFollowUp is false, omit the followUpQuestion field entirely (don't include it as null).
 
 IMPORTANT: 
 - Return ONLY valid JSON, no other text
-- Be generous with scores for partial understanding
-- STRICTLY: needsFollowUp = false if score >= 60
-- Only ask follow-ups when the answer is significantly incomplete (score < 60)
-- Keep feedback encouraging and constructive`
+- Think like a human interviewer - be fair but thorough
+- STRICTLY: needsFollowUp = false if score >= 70
+- Make feedback sound natural and conversational, not robotic`
 
     const maxRetries = 3
     let lastError: any = null
@@ -196,11 +217,24 @@ IMPORTANT:
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔍 [LLM-Server] Calling OpenAI API (attempt ${attempt}/${maxRetries})`)
+        // Build user message with context
+        let userMessage = `Candidate's answer: ${candidateAnswer}`;
+        if (followUpDepth > 0 && originalAnswer) {
+          userMessage = `This is a follow-up answer. Here's the full context:
+
+Original question: ${question.question}
+Candidate's original answer: ${originalAnswer}
+Follow-up question asked: ${followUpQuestion || 'N/A'}
+Candidate's follow-up answer: ${candidateAnswer}
+
+Evaluate the candidate's COMPLETE understanding by considering BOTH answers together.`;
+        }
+        
         const response = await this.openai.chat.completions.create({
           model: this.config.model || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Candidate's answer: ${candidateAnswer}` }
+            { role: 'user', content: userMessage }
           ],
           temperature: this.config.temperature || 0.3,
           max_tokens: this.config.maxTokens || 500

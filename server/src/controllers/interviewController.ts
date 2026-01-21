@@ -17,6 +17,7 @@ const interviewQuestionsStore = new Map<string, {
   codingProblems: InterviewQuestion[];
   sessionId: string;
   maxTheoreticalQuestions?: number;
+  role?: string; // Role for persona selection
 }>();
 
 export class InterviewController {
@@ -257,6 +258,7 @@ export class InterviewController {
           codingProblems: mappedCoding,
           sessionId,
           maxTheoreticalQuestions: link.max_interview_questions || 10,
+          role: link.role || 'Backend Engineer', // Include role for persona
         });
         // Also store by roomName for easier lookup
         interviewQuestionsStore.set(roomName, {
@@ -264,6 +266,7 @@ export class InterviewController {
           codingProblems: mappedCoding,
           sessionId,
           maxTheoreticalQuestions: link.max_interview_questions || 10,
+          role: link.role || 'Backend Engineer', // Include role for persona
         });
         console.log(`📚 [QuestionsStore] Stored ${mappedTheoretical.length} questions and ${mappedCoding.length} coding problems for session ${sessionId} (room: ${roomName})`);
         console.log(`📚 [QuestionsStore] Store size: ${interviewQuestionsStore.size} entries`);
@@ -377,6 +380,7 @@ export class InterviewController {
         codingProblems: questionsData.codingProblems,
         sessionId: questionsData.sessionId,
         maxTheoreticalQuestions: questionsData.maxTheoreticalQuestions,
+        role: questionsData.role || 'Backend Engineer', // Include role in response
       });
     } catch (error) {
       console.error('❌ [QuestionsAPI] Get interview questions error:', error);

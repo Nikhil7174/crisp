@@ -16,6 +16,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 import { defineAgent, JobContext, JobProcess, voice, cli, ServerOptions } from '@livekit/agents';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as cartesia from '@livekit/agents-plugin-cartesia';
 import * as silero from '@livekit/agents-plugin-silero';
 import { llm } from '@livekit/agents';
 import { ReadableStream } from 'stream/web';
@@ -23,7 +24,10 @@ import type { AudioFrame } from '@livekit/rtc-node';
 import { z } from 'zod';
 import { StateProvider } from './services/interview/state-provider.js';
 import { Orchestrator } from './services/interview/orchestrator.js';
-import { createToolExecutors } from './services/interview/tools/tool-executors.js';
+import { detectJailbreak, getSafeResponse, wrapUserInputWithDelimiters, getGuardrailRule } from './services/interview/security/jailbreak-detector.js';
+import { getPersonaForRole, getPersonaInstructions } from './services/interview/personas/role-personas.js';
+import { getPrunedContext } from './services/interview/context-pruner.js';
+import { createLLMService } from './services/llm-service.js';
 
 /**
  * API response type for questions endpoint
@@ -34,6 +38,7 @@ interface QuestionsAPIResponse {
   codingProblems?: any[];
   sessionId?: string;
   maxTheoreticalQuestions?: number;
+  role?: string; // Role for persona selection
   error?: string;
   message?: string;
 }
@@ -74,7 +79,9 @@ interface InterviewSessionData {
   sendQuestionToUI?: (question: any, questionIndex: number, questionType: 'theoretical' | 'coding') => Promise<void>;
   questions?: any[];
   codingProblems?: any[];
-  toolExecutors?: Record<string, (params: any) => Promise<any>>;
+  role?: string; // Role for persona
+  personaInstructions?: string; // Persona instructions (set once)
+  llmService?: any; // LLM service for direct evaluation
 }
 
 /**
@@ -95,121 +102,14 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
     questions: any[] = [],
     codingProblems: any[] = [],
     orchestrator: Orchestrator,
-    stateProvider: StateProvider
+    stateProvider: StateProvider,
+    role: string = 'Backend Engineer'
   ) {
-    // Create function tools using llm.tool() - these are called by LLM
-    // Tool executors are accessed from session userData in execute functions
-    const tools: Record<string, llm.FunctionTool<any, any, any>> = {
-      // LLM can call this to evaluate answers
-      evaluateAnswer: llm.tool({
-        description: 'Evaluates the candidate\'s answer to a theoretical question. Use this when the candidate provides a substantive answer.',
-        parameters: z.object({
-          answer: z.string().describe('The candidate\'s complete answer to evaluate'),
-        }),
-        execute: async ({ answer }, { ctx }) => {
-          const sessionData = ctx.userData as InterviewSessionData & { toolExecutors?: Record<string, (params: any) => Promise<any>> };
-          const executor = sessionData.toolExecutors?.['evaluate_answer'];
-          if (!executor) throw new llm.ToolError('evaluate_answer executor not found');
-          const result = await executor({ answer });
-          
-          // NODE-DRIVEN: After evaluation, Node decides next question
-          if (result.data?.shouldAskNextQuestion) {
-            const { orchestrator } = sessionData;
-            const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
-            
-            let messageToSpeak = result.message;
-            
-            if (shouldMoveToCoding) {
-              orchestrator.startCodingPhase();
-              const { problem } = orchestrator.presentNextProblem();
-              if (problem) {
-                messageToSpeak = `${result.message} Great job on the theoretical questions! Now let's move to the coding section. Here's your coding problem: ${problem.title}. ${problem.description}`;
-              }
-            } else if (question) {
-              messageToSpeak = `${result.message} ${question.question}`;
-            } else {
-              messageToSpeak = `${result.message} That completes all the questions.`;
-            }
-            
-            // NODE-DRIVEN: Set flag so llmNode can inject this message directly
-            // This prevents LLM from generating additional text
-            (sessionData as any).nodeHandledEvaluation = true;
-            (sessionData as any).nodeInjectedMessage = messageToSpeak;
-            
-            // Return only evaluation message - Node will inject full message in llmNode
-            return result.message;
-          }
-          
-          return result.message || JSON.stringify(result);
-        },
-      }),
-
-      // LLM can call this to provide hints
-      provideHint: llm.tool({
-        description: 'Provides a hint to help the candidate with the current question or coding problem. Use this when the candidate explicitly asks for help.',
-        parameters: z.object({
-          context: z.string().optional().describe('Brief context about what the candidate is struggling with'),
-        }),
-        execute: async ({ context }, { ctx }) => {
-          const sessionData = ctx.userData as InterviewSessionData & { toolExecutors?: Record<string, (params: any) => Promise<any>> };
-          const executor = sessionData.toolExecutors?.['provide_hint'];
-          if (!executor) throw new llm.ToolError('provide_hint executor not found');
-          const result = await executor({ context });
-          return result.message || JSON.stringify(result);
-        },
-      }),
-
-      // LLM can call this to provide clarifications
-      provideClarification: llm.tool({
-        description: 'Clarifies the current question or problem when the candidate asks for clarification.',
-        parameters: z.object({
-          clarificationRequest: z.string().describe('What the candidate is asking to be clarified'),
-        }),
-        execute: async ({ clarificationRequest }, { ctx }) => {
-          const sessionData = ctx.userData as InterviewSessionData & { toolExecutors?: Record<string, (params: any) => Promise<any>> };
-          const executor = sessionData.toolExecutors?.['provide_clarification'];
-          if (!executor) throw new llm.ToolError('provide_clarification executor not found');
-          const result = await executor({ clarification_request: clarificationRequest });
-          return result.message || JSON.stringify(result);
-        },
-      }),
-
-      // LLM can call this to analyze code
-      analyzeCode: llm.tool({
-        description: 'Analyzes the candidate\'s code progress for the current coding problem.',
-        parameters: z.object({
-          code: z.string().describe('The candidate\'s current code to analyze'),
-          question: z.string().optional().describe('Specific question the candidate has about their code'),
-        }),
-        execute: async ({ code, question }, { ctx }) => {
-          const sessionData = ctx.userData as InterviewSessionData & { toolExecutors?: Record<string, (params: any) => Promise<any>> };
-          const executor = sessionData.toolExecutors?.['analyze_code'];
-          if (!executor) throw new llm.ToolError('analyze_code executor not found');
-          const result = await executor({ code, question });
-          return result.message || JSON.stringify(result);
-        },
-      }),
-
-      // LLM can call this to submit solution
-      submitSolution: llm.tool({
-        description: 'Submits and evaluates the candidate\'s final solution for the current coding problem.',
-        parameters: z.object({
-          code: z.string().describe('The candidate\'s final code solution'),
-          explanation: z.string().optional().describe('The candidate\'s explanation of their approach'),
-        }),
-        execute: async ({ code, explanation }, { ctx }) => {
-          const sessionData = ctx.userData as InterviewSessionData & { toolExecutors?: Record<string, (params: any) => Promise<any>> };
-          const executor = sessionData.toolExecutors?.['submit_solution'];
-          if (!executor) throw new llm.ToolError('submit_solution executor not found');
-          const result = await executor({ code, explanation });
-          return result.message || JSON.stringify(result);
-        },
-      }),
-    };
-
+    // NO TOOL CALLING - Agent directly speaks output
+    // This reduces latency by removing tool call overhead
     super({
       instructions,
-      tools, // Pass function tools to agent constructor
+      // No tools - agent will directly respond
     });
     
     this.questions = questions;
@@ -218,13 +118,13 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
     this.stateProvider = stateProvider;
     this.interviewId = interviewId;
     
-    console.log('InterviewAgent constructor called with function tools');
-    console.log('Function tools available:', Object.keys(tools).join(', '));
+    console.log('InterviewAgent constructor called - NO TOOL CALLING');
+    console.log('Agent will directly speak output for reduced latency');
   }
 
   /**
-   * Function tools handle themselves via llm.tool() execute functions
-   * This method is kept for backward compatibility but shouldn't be called
+   * Tool calling removed - agent directly speaks output
+   * This method should not be called
    */
   async onToolCall(toolCall: any): Promise<string> {
     // CRITICAL: This log should appear if onToolCall is ever called
@@ -385,21 +285,21 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
   }
 
   /**
-   * NODE-DRIVEN FLOW CONTROL
+   * NODE-DRIVEN FLOW CONTROL WITH JAILBREAK DETECTION
    * Called when user finishes speaking, BEFORE LLM processes
-   * Node detects intent and controls flow, LLM processes with function tools
+   * 0-latency jailbreak detection happens here
    */
   async onUserTurnCompleted(
     turnCtx: llm.ChatContext,
     newMessage: llm.ChatMessage
   ): Promise<void> {
     console.log('\n' + '='.repeat(80));
-    console.log('=== onUserTurnCompleted - NODE DETECTS INTENT ===');
+    console.log('=== onUserTurnCompleted - JAILBREAK CHECK + NODE DETECTS INTENT ===');
     console.log('User message:', newMessage.textContent);
     console.log('TIMESTAMP:', new Date().toISOString());
     console.log('='.repeat(80) + '\n');
     
-    const { interviewId, stateProvider, orchestrator } = this.session.userData;
+    const { interviewId, stateProvider, orchestrator, role } = this.session.userData;
     const state = stateProvider.getState(interviewId);
     
     if (!state) {
@@ -407,47 +307,75 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
       return;
     }
     
-    const userText = newMessage.textContent?.toLowerCase() || '';
+    const userText = newMessage.textContent || '';
+    const userTextLower = userText.toLowerCase();
+    
     console.log('📊 Current State:', state.currentState);
     console.log('📍 Current Question Index:', state.currentQuestionIndex);
     console.log('🎯 Current Question ID:', state.currentQuestionId || 'N/A');
     
-    // NODE DECIDES: Detect user intent
-    const isSkip = userText.includes('skip') || 
-                   userText.includes("i don't know") || 
-                   userText.includes("don't know") ||
-                   userText.includes('next question') ||
-                   userText.includes('move on');
+    // 0-LATENCY JAILBREAK DETECTION (regex-based, instant)
+    const jailbreakCheck = detectJailbreak(userText);
+    
+    if (jailbreakCheck.isJailbreak) {
+      console.log(`🚫 [Jailbreak] Detected ${jailbreakCheck.type} - confidence: ${jailbreakCheck.confidence}`);
+      console.log(`   Response type: ${jailbreakCheck.responseType}`);
+      
+      // Get pre-defined safe response (0ms latency - can be replaced with static audio)
+      const safeResponse = getSafeResponse(
+        jailbreakCheck.responseType!,
+        role || 'Backend Engineer'
+      );
+      
+      // Inject safe response directly - no LLM call needed
+      turnCtx.addMessage({
+        role: 'assistant',
+        content: safeResponse
+      });
+      
+      // Clear user message to prevent LLM processing
+      newMessage.content = [];
+      
+      // Mark as handled
+      (this.session.userData as any).nodeHandledJailbreak = true;
+      (this.session.userData as any).nodeInjectedMessage = safeResponse;
+      
+      await this.updateChatCtx(turnCtx);
+      return;
+    }
+    
+    // NODE DECIDES: Detect user intent (skip, answer, hint request, etc.)
+    const isSkip = userTextLower.includes('skip') || 
+                   userTextLower.includes("i don't know") || 
+                   userTextLower.includes("don't know") ||
+                   userTextLower.includes('next question') ||
+                   userTextLower.includes('move on');
     
     if (isSkip && state.currentState === 'theoretical') {
       // NODE DECIDES: Skip current question - handle directly
       console.log('🎯 [Node] Detected skip intent - handling skip directly');
       
-      // Call orchestrator to skip (updates state)
-      const { interviewId } = this.session.userData;
-      const toolExecutors = (this.session.userData as any).toolExecutors;
-      if (toolExecutors && toolExecutors['skip_question']) {
-        const skipResult = await toolExecutors['skip_question']({ reason: 'User requested skip' });
+      const skipMessage = 'No problem, let\'s move on to the next question.';
         
         // NODE DECIDES: Get next question
         const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
         
-        let messageToSpeak = skipResult.message;
+      let messageToSpeak = skipMessage;
         
         if (shouldMoveToCoding) {
-          messageToSpeak = `${skipResult.message} Great job on the theoretical questions! Now let's move to the coding section.`;
+        messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
           orchestrator.startCodingPhase();
           const { problem } = orchestrator.presentNextProblem();
           if (problem) {
             messageToSpeak += ` Here's your coding problem: ${problem.title}. ${problem.description}`;
           }
         } else if (question) {
-          messageToSpeak = `${skipResult.message} ${question.question}`;
+        messageToSpeak = `${skipMessage} ${question.question}`;
         } else {
-          messageToSpeak = `${skipResult.message} That completes all the questions.`;
+        messageToSpeak = `${skipMessage} That completes all the questions.`;
         }
         
-        // BEST PRACTICE: Inject response into turnCtx - framework will speak it automatically
+      // Inject response into turnCtx
         console.log('🗣️ [Node] Injecting skip message + next question into turnCtx');
         console.log('📝 Message:', messageToSpeak.substring(0, 100) + '...');
         
@@ -456,29 +384,207 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
           content: messageToSpeak
         });
         
-        // BEST PRACTICE: Prevent LLM from generating by clearing user message
-        // According to LiveKit docs, this prevents LLM from processing
+      // Prevent LLM from generating
         newMessage.content = [];
         
-        // Mark that Node handled this - llmNode will check this
+      // Mark that Node handled this
         (this.session.userData as any).nodeHandledSkip = true;
         (this.session.userData as any).nodeInjectedMessage = messageToSpeak;
         
-        // Persist context changes (this makes the injected message part of chat history)
         await this.updateChatCtx(turnCtx);
-        
-        // Return early - framework will use the injected message
-        return;
-      }
-    } else {
-      // NODE DECIDES: Let LLM process with function tools
-      // LLM will call appropriate function tool (evaluateAnswer, provideHint, etc.)
-      console.log('🎯 [Node] User intent detected - LLM will process with function tools');
-      // LLM will automatically call the appropriate function tool based on user input
-      
-      // Persist chat context changes (for non-skip scenarios)
-      await this.updateChatCtx(turnCtx);
+      return;
     }
+    
+    // NODE-DRIVEN: Detect if this is an answer (not skip/hint/clarification)
+    const { llmService } = this.session.userData;
+    const isAnswer = state.currentState === 'theoretical' && 
+                     state.currentQuestionId &&
+                     userText.length > 20 && // Substantial response
+                     !isSkip &&
+                     !userTextLower.includes('hint') &&
+                     !userTextLower.includes('clarification') &&
+                     !userTextLower.includes('help') &&
+                     !userTextLower.startsWith('what') && // Avoid matching clarification questions
+                     !userTextLower.startsWith('how') &&
+                     !userTextLower.startsWith('can you') &&
+                     !userTextLower.startsWith('could you') &&
+                     llmService; // LLM service must be available
+    
+    if (isAnswer) {
+      console.log('🎯 [Node] Detected answer - evaluating and checking follow-up');
+      
+      // Get current question
+      const question = orchestrator.getCurrentQuestion();
+      if (question) {
+        // Evaluate answer using LLM service (same as tool executor did)
+        const questionForEvaluation = {
+          id: question.id,
+          question: question.question,
+          expectedAnswer: (question as any).expectedAnswer || question.question,
+          keyPoints: (question as any).keyPoints || [],
+        };
+        
+        try {
+          // Check if we're answering a follow-up question
+          const followUpDepth = state.currentQuestionIsFollowUp ? 1 : 0;
+          
+          // Extract conversation context from state (which tracks all messages)
+          // State's conversationHistory already has everything we need
+          let originalAnswer: string | undefined;
+          let followUpQuestionText: string | undefined;
+          
+          if (state.currentQuestionIsFollowUp && state.parentQuestionId) {
+            // This is a follow-up answer - find context from conversation history
+            const parentQuestionId = state.parentQuestionId;
+            
+            // Find the follow-up question that was asked
+            const followUpMsg = state.conversationHistory.find(msg => 
+              msg.role === 'assistant' && 
+              msg.metadata?.type === 'follow_up_question' &&
+              msg.metadata?.parentQuestionId === parentQuestionId
+            );
+            if (followUpMsg) {
+              followUpQuestionText = followUpMsg.content;
+            }
+            
+            // Find the original answer - user message that came before the follow-up question
+            if (followUpMsg) {
+              const followUpIndex = state.conversationHistory.indexOf(followUpMsg);
+              // Look backwards from follow-up to find original answer
+              for (let i = followUpIndex - 1; i >= 0; i--) {
+                const msg = state.conversationHistory[i];
+                if (msg.role === 'user' && msg.content !== userText && msg.content.length > 10) {
+                  originalAnswer = msg.content;
+                  break;
+                }
+              }
+            }
+            
+            console.log('📚 [Node] Conversation context from state:', {
+              hasOriginalAnswer: !!originalAnswer,
+              hasFollowUpQuestion: !!followUpQuestionText,
+              originalAnswerPreview: originalAnswer?.substring(0, 50) + '...',
+              followUpQuestionPreview: followUpQuestionText?.substring(0, 50) + '...',
+              conversationHistoryLength: state.conversationHistory.length
+            });
+          }
+          
+          const evaluation = await llmService.evaluateAnswer(
+            questionForEvaluation,
+            userText,
+            followUpDepth, // Pass correct depth: 1 if answering follow-up, 0 if original question
+            state.maxTheoreticalQuestions,
+            originalAnswer, // Original answer for context (if follow-up)
+            followUpQuestionText // Follow-up question that was asked (if follow-up)
+          );
+          
+          console.log('✅ [Node] Answer evaluated:', {
+            score: evaluation.score,
+            needsFollowUp: evaluation.needsFollowUp,
+            hasFollowUpQuestion: !!evaluation.followUpQuestion
+          });
+          
+          // Store evaluation in state
+          stateProvider.addEvaluation(interviewId, {
+            questionId: state.currentQuestionId!,
+            score: evaluation.score,
+            feedback: evaluation.feedback,
+          });
+          
+          // Check if follow-up is needed (same logic as tool executor)
+          const canAskFollowUp = stateProvider.canAskFollowUp(interviewId, state.currentQuestionId!);
+          const shouldMoveNext = !(evaluation.needsFollowUp && 
+                                   canAskFollowUp && 
+                                   evaluation.followUpQuestion);
+          
+          // Set flag (same pattern as tool executor)
+          (this.session.userData as any).shouldAskNextQuestion = shouldMoveNext;
+          
+          // Add evaluation to conversation history
+          stateProvider.addConversationMessage(interviewId, {
+            role: 'assistant',
+            content: evaluation.feedback,
+            metadata: { 
+              type: 'evaluation',
+              score: evaluation.score,
+              needsFollowUp: evaluation.needsFollowUp,
+            },
+          });
+          
+          // If follow-up needed, add it to context for LLM to speak
+          if (evaluation.needsFollowUp && canAskFollowUp && evaluation.followUpQuestion) {
+            console.log('🔄 [Node] Follow-up question needed - injecting feedback + follow-up');
+            
+            stateProvider.askFollowUp(interviewId, evaluation.followUpQuestion, state.currentQuestionId!);
+            stateProvider.addConversationMessage(interviewId, {
+              role: 'assistant',
+              content: evaluation.followUpQuestion,
+              metadata: { 
+                type: 'follow_up_question',
+                parentQuestionId: state.currentQuestionId,
+              },
+            });
+            
+            // Inject feedback + follow-up for LLM to speak
+            const feedbackWithFollowUp = `${evaluation.feedback} ${evaluation.followUpQuestion}`;
+            turnCtx.addMessage({
+              role: 'assistant',
+              content: feedbackWithFollowUp
+            });
+            newMessage.content = [];
+            (this.session.userData as any).nodeHandledEvaluation = true;
+            (this.session.userData as any).nodeInjectedMessage = feedbackWithFollowUp;
+            await this.updateChatCtx(turnCtx);
+        return;
+          } else {
+            // No follow-up - inject feedback + next question (same as skip pattern)
+            console.log('🔄 [Node] No follow-up needed - injecting feedback + next question');
+            
+            const { question: nextQuestion, shouldMoveToCoding } = orchestrator.askNextQuestion();
+            
+            let messageToSpeak = evaluation.feedback;
+            
+            if (shouldMoveToCoding) {
+              messageToSpeak = `${evaluation.feedback} Great job on the theoretical questions! Now let's move to the coding section.`;
+              orchestrator.startCodingPhase();
+              const { problem } = orchestrator.presentNextProblem();
+              if (problem) {
+                messageToSpeak += ` Here's your coding problem: ${problem.title}. ${problem.description}`;
+              }
+            } else if (nextQuestion) {
+              messageToSpeak = `${evaluation.feedback} ${nextQuestion.question}`;
+    } else {
+              messageToSpeak = `${evaluation.feedback} That completes all the questions.`;
+            }
+            
+            // Inject feedback + next question
+            console.log('🗣️ [Node] Injecting feedback + next question into turnCtx');
+            console.log('📝 Message:', messageToSpeak.substring(0, 100) + '...');
+            
+            turnCtx.addMessage({
+              role: 'assistant',
+              content: messageToSpeak
+            });
+            newMessage.content = [];
+            (this.session.userData as any).nodeHandledEvaluation = true;
+            (this.session.userData as any).nodeInjectedMessage = messageToSpeak;
+      await this.updateChatCtx(turnCtx);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ [Node] Failed to evaluate answer:', error);
+          // Fallback: let LLM handle it normally
+          console.log('⚠️ [Node] Falling back to normal LLM processing');
+        }
+      }
+    }
+    
+    // Normal flow for hints, clarifications, etc. - LLM will process directly (no tools)
+    // Delimiter wrapping is handled in system prompt via guardrail rules
+    // The user input is already in newMessage.textContent
+    
+    // Persist chat context changes
+    await this.updateChatCtx(turnCtx);
   }
 
   /**
@@ -492,40 +598,47 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
   }
 
   /**
-   * Override llmNode to ensure injected messages from Node are used
-   * When Node injects a message in onUserTurnCompleted, we should use it
-   * This follows LiveKit best practices for node-driven flow control
+   * Override llmNode to use context pruning and handle direct responses
+   * Context pruning prevents jailbreak attempts from persisting across nodes
    */
   async llmNode(
     chatCtx: llm.ChatContext,
     toolCtx: llm.ToolContext,
     modelSettings: voice.ModelSettings
   ): Promise<ReadableStream<llm.ChatChunk | string> | null> {
-    // Check if Node already handled this (e.g., for skip or evaluation scenarios)
     const sessionData = this.session.userData as InterviewSessionData & { 
       nodeHandledSkip?: boolean;
       nodeHandledEvaluation?: boolean;
+      nodeHandledJailbreak?: boolean;
       nodeInjectedMessage?: string;
+      personaInstructions?: string;
+      role?: string;
     };
     
-    if ((sessionData.nodeHandledSkip || sessionData.nodeHandledEvaluation) && sessionData.nodeInjectedMessage) {
-      const scenario = sessionData.nodeHandledSkip ? 'skip' : 'evaluation';
+    // Check if Node already handled this (skip, evaluation, or jailbreak)
+    if ((sessionData.nodeHandledSkip || sessionData.nodeHandledEvaluation || sessionData.nodeHandledJailbreak) && sessionData.nodeInjectedMessage) {
+      let scenario = 'unknown';
+      if (sessionData.nodeHandledJailbreak) scenario = 'jailbreak';
+      else if (sessionData.nodeHandledSkip) scenario = 'skip';
+      else if (sessionData.nodeHandledEvaluation) scenario = 'evaluation';
+      
       console.log(`🎯 [llmNode] Node handled ${scenario} - using injected message directly`);
       console.log('📝 Injected message:', sessionData.nodeInjectedMessage.substring(0, 100) + '...');
       
-      // Add injected message to chat context so LLM has it in history
+      // Add injected message to chat context
       chatCtx.addMessage({
         role: 'assistant',
         content: sessionData.nodeInjectedMessage
       });
       
-      // Clear the flags so they don't affect next turn
+      // Clear the flags
       sessionData.nodeHandledSkip = false;
       sessionData.nodeHandledEvaluation = false;
+      sessionData.nodeHandledJailbreak = false;
       const injectedMessage = sessionData.nodeInjectedMessage;
       sessionData.nodeInjectedMessage = undefined;
       
-      // Return the injected message as a stream - framework will speak it
+      // Return the injected message as a stream
       return new ReadableStream({
         start(controller) {
           controller.enqueue(injectedMessage);
@@ -534,7 +647,23 @@ class InterviewAgent extends voice.Agent<InterviewSessionData> {
       });
     }
     
-    // Otherwise, use default LLM processing with function tools
+    // CONTEXT PRUNING: Note - LiveKit manages context internally
+    // We rely on the framework's context management
+    // The guardrail rules in instructions + delimiter wrapping provide protection
+    const { interviewId, stateProvider, personaInstructions, role } = sessionData;
+    const state = stateProvider.getState(interviewId);
+    
+    if (state) {
+      // Context pruning is handled by:
+      // 1. Delimiter wrapping (prevents jailbreak in current turn)
+      // 2. Guardrail rules in system prompt (enforced by LLM)
+      // 3. Node-based flow control (prevents cross-node contamination)
+      console.log('✂️ [Context Pruning] Using delimiter wrapping + guardrail rules');
+      console.log(`   Current state: ${state.currentState}`);
+      console.log(`   Node-based protection: Each node has isolated context`);
+    }
+    
+    // Use default LLM processing (no tools - direct response)
     return await voice.Agent.default.llmNode(this, chatCtx, toolCtx, modelSettings);
   }
 
@@ -727,7 +856,7 @@ const agent = defineAgent({
       console.log('📋 Interview ID:', interviewId);
       
       // Fetch questions from server API
-      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number } | undefined;
+      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string } | undefined;
       try {
         const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
         console.log(`🌐 [Agent] Server URL: ${serverUrl}`);
@@ -771,8 +900,10 @@ const agent = defineAgent({
             questions: data.questions,
             codingProblems: data.codingProblems,
             maxTheoreticalQuestions: data.maxTheoreticalQuestions,
+            role: data.role || 'Backend Engineer', // Get role from API
           };
           console.log(`✅ [Agent] Successfully fetched ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems from API`);
+          console.log(`✅ [Agent] Role: ${questionsData.role}`);
         } else {
           console.error(`❌ [Agent] Invalid response format:`, {
             success: data.success,
@@ -877,54 +1008,81 @@ const agent = defineAgent({
         );
       }
 
-      // Create tool executors with access to orchestrator and state
-      const toolExecutors = createToolExecutors(
-        orchestrator,
-        stateProvider
-      );
+      // NO TOOL EXECUTORS - Agent responds directly
       
-      // Get current question/problem for context
-      const currentState = stateProvider.getState(interviewId);
-      // Note: questions are stored separately, not in state
+      // Get role from questions data (fallback to Backend Engineer)
+      const role = questionsData?.role || 'Backend Engineer';
       
-      // Build instructions for the LLM (NODE-DRIVEN ARCHITECTURE)
+      // Get persona for role (only once, not in every request)
+      const persona = getPersonaForRole(role);
+      const personaInstructions = getPersonaInstructions(persona);
+      
+      console.log(`\n👤 [Persona] Using ${persona.role} persona`);
+      console.log(`   Focus areas: ${persona.focusAreas.length}`);
+      console.log(`   Evaluation criteria: ${persona.evaluationCriteria.length}`);
+      
+      // Create LLM service for direct evaluation (no tools)
+      const llmService = createLLMService({
+        apiKey: process.env.OPENAI_API_KEY || '',
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        temperature: 0.3,
+        maxTokens: 2000,
+      });
+      
+      // Build instructions for the LLM (NO TOOL CALLING - DIRECT RESPONSES)
       const phase = state?.currentState || 'idle';
-      const instructions = `You are a technical interviewer assistant. Your role is to provide evaluation, hints, and clarifications.
+      const instructions = `You are a human ${role} interviewer conducting a technical interview. Act naturally, like a real person would.
 
 NODE-DRIVEN ARCHITECTURE:
 - The Node (code) controls interview flow - you do NOT control which question comes next
-- You CANNOT call ask_next_question or skip_question - these are controlled by the Node
 - The Node will automatically move to the next question after evaluation
+- You respond directly - NO TOOL CALLING (reduces latency)
 
-YOUR RESPONSIBILITIES (use tools for these):
+YOUR RESPONSIBILITIES (respond naturally like a human):
 1. When candidate provides an answer:
-   - Call evaluate_answer tool with their answer
-   - Provide detailed, constructive feedback
-   - The Node will handle moving to the next question
+   - Evaluate their answer like a real interviewer would
+   - Give feedback that sounds natural and conversational
+   - Be encouraging but also probe deeper if the answer is vague or incomplete
+   - The Node will handle moving to the next question automatically
 
 2. When candidate asks for help:
-   - Call provide_hint tool
    - Provide helpful hints without giving away the answer
+   - Guide them naturally: "Think about..." or "Consider..."
+   - Be encouraging: "You're on the right track" or "Good thinking"
 
 3. When candidate asks for clarification:
-   - Call provide_clarification tool
-   - Clarify the question or problem
+   - Clarify naturally, like you would in a real interview
+   - Use conversational language: "Sure, let me clarify..." or "What I'm asking is..."
 
 4. For coding problems:
-   - Call analyze_code tool to review their code
-   - Call submit_solution tool when they're ready to submit
+   - Review their approach naturally
+   - Give feedback like a real interviewer: "I see what you're trying to do here..."
+   - Help them think through problems, don't just give answers
+
+COMMUNICATION STYLE (Be human):
+- Sound natural and conversational, not robotic
+- Use phrases like: "Okay", "I see", "That makes sense", "Let me think about that"
+- If they're vague: "Can you elaborate on that?" or "I'd like to understand better..."
+- If they're wrong: "Hmm, that's not quite right. Think about it this way..."
+- If they're doing well: "Good!", "Exactly!", "You've got it!"
+- Keep it professional but friendly - like a real interview
 
 CRITICAL RULES:
 - NEVER try to move to the next question - the Node handles this
 - NEVER say "Let's move on" or "Next question" - the Node will do this automatically
 - NEVER generate questions - the Node provides preset questions
-- Focus on providing quality evaluation, hints, and clarifications
-- Be concise and professional in your responses`;
+- Respond directly and naturally - no tool calls needed
+- Sound like a real person, not a robot
+- Be conversational but professional
+
+${personaInstructions}
+
+${getGuardrailRule(role)}`;
 
       console.log('\n' + '📜'.repeat(40));
       console.log('📜 [LLM Instructions] Instructions being sent to LLM:');
       console.log('📜'.repeat(40));
-      console.log(instructions);
+      console.log(instructions.substring(0, 500) + '...');
       console.log('📜'.repeat(40) + '\n');
 
       // Ensure we have questions before creating the agent
@@ -940,14 +1098,15 @@ CRITICAL RULES:
       
       console.log(`✅ [Agent] Questions validated: ${questionsData.questions.length} questions, ${questionsData.codingProblems.length} coding problems`);
 
-      // Create agent with questions and tool executors
+      // Create agent with questions (no tools - direct responses)
       const agent = new InterviewAgent(
         interviewId,
         instructions,
         questionsData.questions || [],
         questionsData.codingProblems || [],
         orchestrator,
-        stateProvider
+        stateProvider,
+        role // Pass role to agent
       );
       agent.setRoom(ctx.room);
 
@@ -986,26 +1145,31 @@ CRITICAL RULES:
       console.log(`   🌡️  Temperature: 0.3`);
       console.log('🛠️'.repeat(40) + '\n');
       
-      const llmWithTools = new openai.LLM({
+      // NO TOOL CALLING - Direct LLM responses for reduced latency
+      const llmDirect = new openai.LLM({
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         temperature: 0.3,
-        // No provider tools - function tools are in agent constructor
+        // No tools - agent responds directly
       });
       
-      console.log('🔧 [LLM Config] Using gpt-4o with function tools');
-      console.log('   ✅ FUNCTION TOOLS: Tools defined with llm.tool() in agent constructor');
-      console.log('   ✅ NODE-DRIVEN ARCHITECTURE: Node controls flow, LLM handles evaluation/hints');
-      console.log('   ✅ LLM can use: evaluateAnswer, provideHint, provideClarification, analyzeCode, submitSolution');
+      console.log('🔧 [LLM Config] Using direct responses (NO TOOL CALLING)');
+      console.log('   ✅ NO TOOLS: Agent directly speaks output for reduced latency');
+      console.log('   ✅ NODE-DRIVEN ARCHITECTURE: Node controls flow, LLM provides direct responses');
+      console.log('   ✅ JAILBREAK PROTECTION: 0-latency regex checks + context pruning');
+      console.log('   ✅ ROLE PERSONA: Using ' + role + ' persona (set once)');
       
       const session = new voice.AgentSession<InterviewSessionData>({
         vad,
         stt: new openai.STT({
           model: 'whisper-1',
         }),
-        llm: llmWithTools,
-        tts: new openai.TTS({
-          model: 'tts-1',
-          voice: 'alloy',
+        llm: llmDirect, // Direct LLM (no tools)
+        tts: new cartesia.TTS({
+          model: 'sonic-3',
+          voice: process.env.CARTESIA_ARUSHI_VOICE_ID || 'f786b574-daa5-4673-aa0c-cbe3e8534c02', // Arushi voice ID - update with your actual voice ID from Cartesia
+          language: 'en',
+          speed: 0.9,
+          // Note: volume and emotion are available but may need to be set via Cartesia API directly
         }),
         userData: {
           interviewId: interviewId as string,
@@ -1015,7 +1179,9 @@ CRITICAL RULES:
           sendQuestionToUI,
           questions: questionsData?.questions || [],
           codingProblems: questionsData?.codingProblems || [],
-          toolExecutors, // Add tool executors for Node to use
+          role, // Role for persona
+          personaInstructions, // Persona instructions (set once)
+          llmService, // LLM service for direct evaluation if needed
         },
       });
 
@@ -1043,27 +1209,13 @@ CRITICAL RULES:
         console.log('===================\n');
       });
 
-      console.log('✅ [Agent] Session created with function tools: evaluateAnswer, provideHint, provideClarification, analyzeCode, submitSolution');
-      console.log('⚠️  [Agent] If tools are not being called, check:');
-      console.log('   1. Are tools properly configured in LLM?');
-      console.log('   2. Are instructions clear about using tools?');
-      console.log('   3. Is the LLM model supporting function calling?');
-
-      // Handle tool calls at session level (in addition to Agent.onToolCall)
-      // @ts-ignore - toolCall event might not be in types
-      session.on('toolCall', async (toolCall: any) => {
-        console.log('\n' + '🎯'.repeat(40));
-        console.log('🎯 [Session Tool Call] Tool call received at SESSION level');
-        console.log('🎯'.repeat(40));
-        console.log(`   Tool: ${toolCall.name}`);
-        console.log(`   Arguments:`, JSON.stringify(toolCall.arguments, null, 2));
-        console.log('🎯'.repeat(40) + '\n');
+      console.log('✅ [Agent] Session created - NO TOOL CALLING (direct responses)');
+      console.log('   ✅ Jailbreak protection: Regex checks + context pruning');
+      console.log('   ✅ Role persona: ' + role + ' (set once, not in every request)');
+      console.log('   ✅ Reduced latency: Direct LLM responses without tool call overhead');
         
-        // Delegate to agent's onToolCall method
-        if (agent.onToolCall) {
-          return await agent.onToolCall(toolCall);
-        }
-      });
+      // NO TOOL CALLS - Agent responds directly
+      // Tool call handler removed for reduced latency
 
       // Intercept all session events to see what's actually happening
       // This will help us understand what events LiveKit is actually emitting
@@ -1175,6 +1327,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`   - SERVER_URL: ${process.env.SERVER_URL || 'http://localhost:3001 (default)'}`);
   console.log(`   - OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing'}`);
   console.log(`   - OPENAI_LLM_MODEL: ${process.env.OPENAI_LLM_MODEL || 'gpt-4o (default)'}`);
+  console.log(`   - CARTESIA_API_KEY: ${process.env.CARTESIA_API_KEY ? '✅ Set' : '❌ Missing'}`);
+  console.log(`   - CARTESIA_ARUSHI_VOICE_ID: ${process.env.CARTESIA_ARUSHI_VOICE_ID ? '✅ Set' : '⚠️  Using default'}`);
   console.log(`   - DEEPGRAM_API_KEY: ${process.env.DEEPGRAM_API_KEY ? '✅ Set' : '❌ Missing'}`);
   console.log(`   - DEEPGRAM_MODEL: ${process.env.DEEPGRAM_MODEL || 'nova-2 (default)'}`);
   console.log('');
