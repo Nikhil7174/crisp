@@ -21,7 +21,12 @@ export interface InterviewState {
   currentProblemIndex: number;
   totalProblems: number;
   
-  // Hints and clarifications
+  // Hints and clarifications tracking (max 2 per question, similar to follow-ups)
+  hintTracker: Map<string, { hintDepth: number; maxDepth: number }>;
+  clarificationTracker: Map<string, { clarificationDepth: number; maxDepth: number }>;
+  genericTracker: Map<string, { genericDepth: number; maxDepth: number }>;
+  
+  // Legacy: Global counters (kept for backward compatibility)
   hintsProvided: number;
   clarificationsGiven: number;
   
@@ -98,8 +103,12 @@ export class StateProvider extends EventEmitter {
       currentProblemIndex: 0,
       totalProblems: config.totalProblems,
       
-      hintsProvided: 0,
-      clarificationsGiven: 0,
+      hintTracker: new Map(), // Tracks hint depth per question (max 2)
+      clarificationTracker: new Map(), // Tracks clarification depth per question (max 2)
+      genericTracker: new Map(), // Tracks generic/off-topic depth per question (max 2)
+      
+      hintsProvided: 0, // Legacy: Global counter
+      clarificationsGiven: 0, // Legacy: Global counter
       
       evaluations: [],
       codeAnalysisResults: [],
@@ -364,6 +373,39 @@ export class StateProvider extends EventEmitter {
 
     const tracker = state.followUpTracker.get(questionId);
     return tracker?.followUpDepth || 0;
+  }
+
+  /**
+   * Get current hint depth for a question
+   */
+  getHintDepth(interviewId: string, questionId: string): number {
+    const state = this.states.get(interviewId);
+    if (!state) return 0;
+
+    const tracker = state.hintTracker.get(questionId);
+    return tracker?.hintDepth || 0;
+  }
+
+  /**
+   * Get current clarification depth for a question
+   */
+  getClarificationDepth(interviewId: string, questionId: string): number {
+    const state = this.states.get(interviewId);
+    if (!state) return 0;
+
+    const tracker = state.clarificationTracker.get(questionId);
+    return tracker?.clarificationDepth || 0;
+  }
+
+  /**
+   * Get current generic depth for a question
+   */
+  getGenericDepth(interviewId: string, questionId: string): number {
+    const state = this.states.get(interviewId);
+    if (!state) return 0;
+
+    const tracker = state.genericTracker.get(questionId);
+    return tracker?.genericDepth || 0;
   }
 
   /**
