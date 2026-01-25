@@ -68,8 +68,15 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
       // Get first question (orchestrator now has questions stored)
       const { question } = orchestrator.askNextQuestion();
+      const { sendQuestionToUI } = this.session.userData;
 
       if (question) {
+        if (sendQuestionToUI) {
+          const state = stateProvider.getState(interviewId);
+          const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
+          await sendQuestionToUI(question, questionIndex, 'theoretical');
+          // no-op
+        }
         console.log('📝 [Agent] Speaking first question:', question.question);
         await this.session.say(question.question);
       }
@@ -102,7 +109,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
     timings.sttComplete = sttCompleteTime;
     timings.onUserTurnCompletedStart = sttCompleteTime;
     (this.session.userData as any).timings = timings;
-    
+
     console.log('\n' + '='.repeat(80));
     console.log('=== onUserTurnCompleted - JAILBREAK CHECK + NODE DETECTS INTENT ===');
     console.log('User message:', newMessage.textContent);
@@ -127,10 +134,10 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
     // ⏱️ TIMING: Jailbreak Detection Start
     const jailbreakStartTime = Date.now();
-    
+
     // 0-LATENCY JAILBREAK DETECTION (regex-based, instant)
     const jailbreakCheck = detectJailbreak(userText);
-    
+
     // ⏱️ TIMING: Jailbreak Detection Complete
     const jailbreakEndTime = Date.now();
     timings.jailbreakDetection = jailbreakEndTime - jailbreakStartTime;
@@ -182,14 +189,32 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       let messageToSpeak = skipMessage;
 
       if (shouldMoveToCoding) {
-        messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
         orchestrator.startCodingPhase();
         const { problem } = orchestrator.presentNextProblem();
         if (problem) {
-          messageToSpeak += ` Here's your coding problem: ${problem.title}. ${problem.description}`;
+          // Agent should not speak the full coding problem, just announce it
+          messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section. Here's a coding question, try to solve it and explain your approach.`;
+
+          // Send coding problem to UI via data channel
+          const { sendQuestionToUI } = this.session.userData;
+          if (sendQuestionToUI) {
+            const state = stateProvider.getState(interviewId);
+            const problemIndex = state?.currentProblemIndex || 0;
+            await sendQuestionToUI(problem, problemIndex, 'coding');
+            // no-op
+          }
+        } else {
+          messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
         }
       } else if (question) {
         messageToSpeak = `${skipMessage} ${question.question}`;
+        const { sendQuestionToUI } = this.session.userData;
+        if (sendQuestionToUI) {
+          const state = stateProvider.getState(interviewId);
+          const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
+          await sendQuestionToUI(question, questionIndex, 'theoretical');
+          // no-op
+        }
       } else {
         messageToSpeak = `${skipMessage} That completes all the questions.`;
       }
@@ -335,7 +360,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       timings.llmFirstTokenToTts = ttsStartTime - timings.llmFirstToken;
       console.log(`⏱️ [TIMING] Time from LLM first token to TTS start: ${timings.llmFirstTokenToTts}ms`);
     }
-    
+
     console.log('\n' + '='.repeat(80));
     console.log('=== onAgentSpeechStarted METHOD CALLED ===');
     console.log('TIMESTAMP:', new Date().toISOString());
@@ -409,6 +434,17 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
           let nextTagDetected = false;
           let firstTokenReceived = false;
 
+          let streamClosed = false;
+          const safeEnqueue = (text: string) => {
+            if (!text || streamClosed) return;
+            try {
+              controller.enqueue(text);
+            } catch (err) {
+              streamClosed = true;
+              console.warn('⚠️ [llmNode] Attempted to enqueue after close, skipping', err);
+            }
+          };
+
           try {
             while (true) {
               const { done, value } = await reader.read();
@@ -425,7 +461,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                   timings.llmGenerationTime = llmStreamEndTime - timings.llmFirstToken;
                   console.log(`⏱️ [TIMING] LLM generation time (after first token): ${timings.llmGenerationTime}ms`);
                 }
-                
+
                 // Log the complete unfiltered response before any processing
                 console.log('\n' + '='.repeat(80));
                 console.log('📥 [LLM RAW RESPONSE] Complete unfiltered response from LLM:');
@@ -441,24 +477,24 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                   const cleaned = cleanResponseText(buffer);
                   console.log(`🧹 [LLM CLEANED RESPONSE] After cleaning: ${cleaned.length} characters`);
                   console.log(`🧹 [LLM CLEANED RESPONSE] Content: "${cleaned.substring(0, 200)}${cleaned.length > 200 ? '...' : ''}"`);
-                  controller.enqueue(cleaned);
+                  safeEnqueue(cleaned);
                 }
 
                 // Check if tag was missing and inject it into chat context
                 if (!tagFound) {
                   console.error('🚨🚨🚨 [llmNode] CRITICAL: LLM response missing tag! Injecting fallback tag into chat context.');
-                  
+
                   const { stateProvider, interviewId } = agent.session.userData;
                   const state = stateProvider.getState(interviewId);
-                  
+
                   let fallbackTag = 'OFFER_CHOICE'; // Default fallback
-                  
+
                   if (state?.currentQuestionId) {
                     const hintDepth = stateProvider.getHintDepth(interviewId, state.currentQuestionId);
                     const clarificationDepth = stateProvider.getClarificationDepth(interviewId, state.currentQuestionId);
                     const genericDepth = stateProvider.getGenericDepth(interviewId, state.currentQuestionId);
                     const followUpDepth = stateProvider.getFollowUpDepth(interviewId, state.currentQuestionId);
-                    
+
                     // Determine appropriate fallback tag based on depth states
                     // If any depth is maxed, use OFFER_CHOICE; otherwise use NEXT
                     if (hintDepth >= 2 || clarificationDepth >= 2 || genericDepth >= 2 || followUpDepth >= 2) {
@@ -466,22 +502,22 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                     } else {
                       fallbackTag = 'NEXT';
                     }
-                    
+
                     console.log(`🔧 [llmNode] Determined fallback tag: ${fallbackTag} (depths: hint=${hintDepth}, clarify=${clarificationDepth}, generic=${genericDepth}, followup=${followUpDepth})`);
-                    
+
                     // Update state with the fallback tag
                     agent.handleIntentTag(fallbackTag);
                   }
-                  
+
                   // Add separate assistant message with tag to chat context
                   const cleanedBuffer = buffer ? cleanResponseText(buffer) : '';
                   const responseWithTag = `[${fallbackTag}] ${cleanedBuffer.trim()}`;
-                  
+
                   chatCtx.addMessage({
                     role: 'assistant',
                     content: responseWithTag
                   });
-                  
+
                   console.log(`✅ [llmNode] Added tagged message to chat context: [${fallbackTag}] ${cleanedBuffer.substring(0, 100)}${cleanedBuffer.length > 100 ? '...' : ''}`);
                 }
 
@@ -501,7 +537,17 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                       const { problem } = orchestrator.presentNextProblem();
 
                       if (problem) {
-                        responseAppendix = ` Great job on the theoretical questions! Now let's move to the coding section. Here's your coding problem: ${problem.title}. ${problem.description}`;
+                        // Agent should not speak the full coding problem, just announce it
+                        responseAppendix = ` Great job on the theoretical questions! Now let's move to the coding section. Here's a coding question, try to solve it and explain your approach.`;
+
+                        // Send coding problem to UI via data channel
+                        const { sendQuestionToUI } = agent.session.userData;
+                        if (sendQuestionToUI) {
+                          const state = stateProvider.getState(interviewId);
+                          const problemIndex = state?.currentProblemIndex || 0;
+                          await sendQuestionToUI(problem, problemIndex, 'coding');
+                          // no-op
+                        }
                       } else {
                         responseAppendix = ' That completes the interview. Thank you!';
                       }
@@ -509,6 +555,13 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                       // Next theoretical question
                       responseAppendix = ` ${question.question}`;
                       console.log('📝 [llmNode] Next question from orchestrator (appended):', question.question);
+                      const { sendQuestionToUI } = agent.session.userData;
+                      if (sendQuestionToUI) {
+                        const state = stateProvider.getState(interviewId);
+                        const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
+                        await sendQuestionToUI(question, questionIndex, 'theoretical');
+                        // no-op
+                      }
                     } else {
                       // No more questions
                       responseAppendix = ' That completes all the questions. Thank you!';
@@ -518,7 +571,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                     console.log('📝 Appendix:', responseAppendix.substring(0, 150) + '...');
 
                     if (responseAppendix) {
-                      controller.enqueue(responseAppendix);
+                      safeEnqueue(responseAppendix);
                     }
 
                     // Clear the pending flag since we handled it here
@@ -528,7 +581,10 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                   }
                 }
 
-                controller.close();
+                if (!streamClosed) {
+                  streamClosed = true;
+                  controller.close();
+                }
                 break;
               }
 
@@ -546,7 +602,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                     console.log(`⏱️ [TIMING] LLM Time to First Token (TTFT): ${timings.llmTTFT}ms`);
                   }
                 }
-                
+
                 rawUnfilteredResponse += chunkText;
                 buffer += chunkText;
 
@@ -569,8 +625,12 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
                     // 3. IF [NEXT] TAG DETECTED - HANDLE IMMEDIATELY
                     if (intent === 'NEXT') {
-                      console.log('🚀 [llmNode] [NEXT] tag detected - will append next question after LLM finishes');
-                      nextTagDetected = true;
+                      if (nextTagDetected) {
+                        console.log('⚠️ [llmNode] Duplicate [NEXT] tag ignored');
+                      } else {
+                        console.log('🚀 [llmNode] [NEXT] tag detected - will append next question after LLM finishes');
+                        nextTagDetected = true;
+                      }
                     }
                   }
                   // If buffer gets too long without a tag, assume no tag and let it go
@@ -581,14 +641,17 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
                 // Once tag is processed (or ruled out), stream freely
                 if (tagProcessed && buffer.length > 0) {
-                  controller.enqueue(buffer);
+                  safeEnqueue(buffer);
                   buffer = '';
                 }
               }
             }
           } catch (error) {
             console.error('Error in LLM stream:', error);
-            controller.error(error);
+            if (!streamClosed) {
+              streamClosed = true;
+              controller.error(error);
+            }
           }
         }
       });
@@ -724,7 +787,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       timings.ttsDuration = ttsEndTime - timings.ttsStart;
       console.log(`⏱️ [TIMING] TTS duration: ${timings.ttsDuration}ms`);
     }
-    
+
     // Calculate total end-to-end latency
     if (timings.sttComplete) {
       timings.totalLatency = ttsEndTime - timings.sttComplete;
@@ -744,7 +807,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       console.log(`⏱️ [TIMING] ======================================================`);
       console.log(`${'='.repeat(80)}\n`);
     }
-    
+
     console.log('\n=== onAgentSpeechEnded ===');
 
     // Clean text logic

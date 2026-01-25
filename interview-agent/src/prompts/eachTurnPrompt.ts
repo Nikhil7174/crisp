@@ -32,13 +32,13 @@ ${actualGenericDepth >= 2
 WHAT TO USE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Vague answer              → ${actualFollowUpDepth < 2 ? '[FOLLOW_UP]' : '[NEXT]'}
-Solid answer              → [NEXT]
+Vague, incomplete, or unclear answer              → ${actualFollowUpDepth < 2 ? '[FOLLOW_UP]' : '[NEXT]'}
+Solid answer covering most of the key points              → [NEXT]
 Asks for help             → ${actualHintDepth < 2 ? '[HINT]' : '[OFFER_CHOICE]'}
-Doesn't get question      → ${actualClarificationDepth < 2 ? '[CLARIFY]' : '[OFFER_CHOICE]'}
-Off-topic                 → ${actualGenericDepth < 2 ? '[GENERIC]' : '[OFFER_CHOICE]'}
+Doesn't get question, wants clarification      → ${actualClarificationDepth < 2 ? '[CLARIFY]' : '[OFFER_CHOICE]'}
+Off-topic, personal chat, nervousness, weather, etc.                 → ${actualGenericDepth < 2 ? '[GENERIC]' : '[OFFER_CHOICE]'}
 Wants to skip             → [NEXT]
-Unsure                    → [OFFER_CHOICE]
+Unsure, want to give option to user either answer the current question or move on to next one                    → [OFFER_CHOICE]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRITICAL: Never reveal answers. [HINT] = guide thinking only. [CLARIFY] = rephrase only.
@@ -49,7 +49,7 @@ FORMAT: [TAG] Your response
 ✅ "[FOLLOW_UP] Can you be more specific about when?"
 ✅ "[HINT] Think about operation order."
 ✅ "[CLARIFY] I'm asking: does X happen before or after Y?"
-✅ "[NEXT] Exactly right!"
+✅ "[NEXT] Exactly right! So lets move on to next question" ->
 ✅ "[OFFER_CHOICE] Try answering or skip?"
 
 ❌ "[HINT] WHERE runs before GROUP BY" (reveals answer)
