@@ -28,13 +28,13 @@ export interface GeneratedQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number;
   topic: string;
-  
+
   // For theoretical questions (long-form text answers)
   expectedAnswer?: string; // Key concepts and jargon to cover
   explanation?: string; // Detailed explanation with technical concepts
   keyPoints?: string[]; // Important technical points to mention
   documentation?: string[]; // Relevant documentation links or references
-  
+
   // For machine coding questions
   language?: string;
   problemStatement?: string;
@@ -79,13 +79,13 @@ export class QuestionGenerationService {
           console.warn('⚠️ Failed to parse stored generated questions, falling back to generation', parseError);
         }
       }
-      
+
       // Parse interview metadata
       let topics = JSON.parse(interviewLink.topics || '[]');
       const machineQuestions = JSON.parse(interviewLink.machine_questions || '[]');
       const totalQuestions = interviewLink.max_interview_questions || 10;
       const maxMachineCoding = interviewLink.max_machine_coding_questions || 2;
-      
+
       // Fallback: If no topics are configured AND no machine coding questions, use default topics
       // If there are machine coding questions, it's okay to have no theoretical topics
       if ((!topics || topics.length === 0) && (!machineQuestions || machineQuestions.length === 0)) {
@@ -98,7 +98,7 @@ export class QuestionGenerationService {
       } else if (!topics || topics.length === 0) {
         console.log('ℹ️ No theoretical topics configured, but machine coding questions present - continuing without theoretical questions');
       }
-      
+
       console.log(`📊 Interview config: ${totalQuestions} total, ${maxMachineCoding} machine coding`);
       if (topics && topics.length > 0) {
         console.log(`📋 Topics: ${topics.map((t: TopicItem) => t.name).join(', ')}`);
@@ -110,7 +110,7 @@ export class QuestionGenerationService {
       } else {
         console.log('💻 Machine Coding: None');
       }
-      
+
       // Generate questions
       const questions = await this.selectQuestions({
         topics,
@@ -118,10 +118,10 @@ export class QuestionGenerationService {
         machineQuestions,
         maxMachineCoding
       });
-      
+
       console.log(`✅ Generated ${questions.length} questions`);
       return questions;
-      
+
     } catch (error) {
       console.error('❌ Error generating interview questions:', error);
       throw new Error('Failed to generate interview questions');
@@ -134,30 +134,30 @@ export class QuestionGenerationService {
    */
   private async selectQuestions(params: QuestionGenerationParams): Promise<GeneratedQuestion[]> {
     const { topics, totalQuestions, machineQuestions, maxMachineCoding } = params;
-    
+
     const selectedQuestions: GeneratedQuestion[] = [];
-    
+
     // Calculate exact number of questions requested by interviewer
     const requestedMachineCoding = machineQuestions.length;
     const requestedTheoretical = topics.reduce((sum, topic) => sum + (topic.enabled ? topic.questionCount : 0), 0);
     const totalRequested = requestedMachineCoding + requestedTheoretical;
-    
-    
+
+
     // 1. Get theoretical questions FIRST (respect exact count, but cap at total limit)
     const theoreticalCount = Math.min(requestedTheoretical, totalQuestions);
     const theoreticalQuestions = await this.getTheoreticalQuestionsByCountWithLimit(topics, theoreticalCount);
-    
+
     // 2. Get machine coding questions (respect exact count, but cap at max limit)
     const machineCodingCount = Math.min(requestedMachineCoding, maxMachineCoding);
     const machineCodingQuestions = await this.getMachineCodingQuestions(machineQuestions, machineCodingCount);
-    
+
     // 3. Combine in proper order: theoretical first, then coding
     // DO NOT shuffle - keep them separated for proper interview flow
     selectedQuestions.push(...theoreticalQuestions);
     selectedQuestions.push(...machineCodingQuestions);
-    
+
     console.log(`✅ Selected ${theoreticalQuestions.length} theoretical and ${machineCodingQuestions.length} coding questions`);
-    
+
     return selectedQuestions;
   }
 
@@ -171,10 +171,10 @@ export class QuestionGenerationService {
     }
 
     const selectedQuestions: GeneratedQuestion[] = [];
-    
+
     // Limit the number of questions to maxCount
     const questionsToFetch = machineQuestions.slice(0, maxCount);
-    
+
     // Fetch one question for each topic+difficulty combination
     for (const mq of questionsToFetch) {
       const questions = await prisma.machineCodingQuestion.findMany({
@@ -200,25 +200,25 @@ export class QuestionGenerationService {
    */
   private async getTheoreticalQuestionsByCountWithLimit(topics: TopicItem[], totalLimit: number): Promise<GeneratedQuestion[]> {
     const questions: GeneratedQuestion[] = [];
-    
+
     for (const topic of topics) {
       if (!topic.enabled || topic.questionCount <= 0) {
         continue;
       }
-      
+
       // Check if we've reached the total limit
       if (questions.length >= totalLimit) {
         break;
       }
-      
+
       const topicCount = Math.min(topic.questionCount, totalLimit - questions.length);
       console.log(`📋 Getting ${topicCount} questions for ${topic.name}`);
-      
+
       // Check if we have enough questions in database for this topic
       console.log(`🔍 Checking if we have enough questions for ${topic.name}...`);
       const hasEnoughInDB = await this.hasEnoughQuestionsInDB(topic.name, topicCount);
       console.log(`🔍 Result: hasEnoughInDB = ${hasEnoughInDB} for ${topic.name}`);
-      
+
       if (hasEnoughInDB) {
         // Use database questions
         console.log(`📚 Using database questions for ${topic.name}`);
@@ -240,20 +240,20 @@ export class QuestionGenerationService {
    */
   private async getTheoreticalQuestionsByCount(topics: TopicItem[]): Promise<GeneratedQuestion[]> {
     const questions: GeneratedQuestion[] = [];
-    
+
     for (const topic of topics) {
       if (!topic.enabled || topic.questionCount <= 0) {
         continue;
       }
-      
+
       const topicCount = topic.questionCount;
       console.log(`📋 Getting ${topicCount} questions for ${topic.name}`);
-      
+
       // Check if we have enough questions in database for this topic
       console.log(`🔍 Checking if we have enough questions for ${topic.name}...`);
       const hasEnoughInDB = await this.hasEnoughQuestionsInDB(topic.name, topicCount);
       console.log(`🔍 Result: hasEnoughInDB = ${hasEnoughInDB} for ${topic.name}`);
-      
+
       if (hasEnoughInDB) {
         // Use database questions
         console.log(`📚 Using database questions for ${topic.name}`);
@@ -279,18 +279,18 @@ export class QuestionGenerationService {
     }
 
     const questions: GeneratedQuestion[] = [];
-    
+
     // Distribute questions across topics
     const questionsPerTopic = Math.ceil(count / topics.length);
-    
+
     for (const topic of topics) {
       if (questions.length >= count) break;
-      
+
       const topicCount = Math.min(questionsPerTopic, count - questions.length);
-      
+
       // Check if we have enough questions in database for this topic
       const hasEnoughInDB = await this.hasEnoughQuestionsInDB(topic.name, topicCount);
-      
+
       if (hasEnoughInDB) {
         // Use database questions
         console.log(`📚 Using database questions for ${topic.name}`);
@@ -353,7 +353,7 @@ export class QuestionGenerationService {
 
       const response = await this.openaiService.generateQuestions(prompt);
       return response;
-      
+
     } catch (error) {
       console.error(`❌ Error generating questions for topic ${topic}:`, error);
       return [];
@@ -414,7 +414,7 @@ export class QuestionGenerationService {
    */
   async getQuestionsByTopicAndDifficulty(topic: string, difficulty: string, limit: number = 10): Promise<GeneratedQuestion[]> {
     const questions = await prisma.theoreticalQuestion.findMany({
-      where: { 
+      where: {
         topic,
         difficulty: difficulty.toLowerCase()
       },
@@ -434,12 +434,12 @@ export class QuestionGenerationService {
       FROM theoretical_questions
       WHERE LOWER(topic) = LOWER(${topic})
     `;
-    
+
     // Count unique questions by text
     const uniqueCount = questions.length;
-    
+
     console.log(`📊 Topic "${topic}": ${uniqueCount} unique questions found, need ${requiredCount}`);
-    
+
     return uniqueCount >= requiredCount;
   }
 
@@ -449,7 +449,7 @@ export class QuestionGenerationService {
   private async getQuestionsFromDB(topic: string, count: number, difficulty?: string): Promise<GeneratedQuestion[]> {
     // Use case-insensitive query for PostgreSQL
     let questions: any[];
-    
+
     if (difficulty) {
       questions = await prisma.$queryRaw<Array<any>>`
         SELECT *
@@ -488,7 +488,7 @@ export class QuestionGenerationService {
    */
   private trimExamplesAndConstraints(text: string | null | undefined): string {
     if (!text) return '';
-    
+
     // Patterns to match:
     // - "Example 1:", "Example 2:", "Example 3:", etc. (with or without number)
     // - "Constraints:" or "Constraints"
@@ -496,14 +496,14 @@ export class QuestionGenerationService {
     const examplePattern = /(?:^|\n)\s*Example\s+\d+\s*:?\s*/i;
     const exampleSimplePattern = /(?:^|\n)\s*Example\s*:?\s*/i;
     const constraintsPattern = /(?:^|\n)\s*Constraints\s*:?\s*/i;
-    
+
     let cleaned = text;
-    
+
     // Find the earliest occurrence of any pattern
     const exampleMatch = cleaned.search(examplePattern);
     const exampleSimpleMatch = cleaned.search(exampleSimplePattern);
     const constraintsMatch = cleaned.search(constraintsPattern);
-    
+
     // Find the minimum index (earliest occurrence)
     let minIndex = cleaned.length;
     if (exampleMatch !== -1) {
@@ -515,12 +515,12 @@ export class QuestionGenerationService {
     if (constraintsMatch !== -1) {
       minIndex = Math.min(minIndex, constraintsMatch);
     }
-    
+
     // Trim from the earliest occurrence
     if (minIndex < cleaned.length) {
       cleaned = cleaned.substring(0, minIndex).trim();
     }
-    
+
     return cleaned;
   }
 
@@ -530,13 +530,13 @@ export class QuestionGenerationService {
   private transformDatabaseQuestion(dbQuestion: any): GeneratedQuestion {
     // Determine if this is a machine coding question based on the table structure
     const isMachineCoding = dbQuestion.problem_statement || dbQuestion.starter_code || dbQuestion.test_cases;
-    
+
     // Clean problem statement to remove examples and constraints (they're in separate columns)
     const rawProblemStatement = dbQuestion.problem_statement || '';
     const cleanedProblemStatement = this.trimExamplesAndConstraints(rawProblemStatement);
     const rawQuestionText = dbQuestion.question_text || '';
     const cleanedQuestionText = this.trimExamplesAndConstraints(rawQuestionText);
-    
+
     return {
       id: `db_${dbQuestion.id}`,
       question: cleanedQuestionText || cleanedProblemStatement,
@@ -553,9 +553,9 @@ export class QuestionGenerationService {
       problemStatement: cleanedProblemStatement,
       starterCode: dbQuestion.starter_code,
       // Extract starter codes for multiple languages
-      starterCodes: dbQuestion.starter_codes ? this.safeJsonParse(dbQuestion.starter_codes, undefined) : 
-                    dbQuestion.starter_code ? { [dbQuestion.language || 'javascript']: dbQuestion.starter_code } : 
-                    undefined,
+      starterCodes: dbQuestion.starter_codes ? this.safeJsonParse(dbQuestion.starter_codes, undefined) :
+        dbQuestion.starter_code ? { [dbQuestion.language || 'javascript']: dbQuestion.starter_code } :
+          undefined,
       testCases: dbQuestion.test_cases ? this.safeJsonParse(dbQuestion.test_cases, []) : [],
       constraints: dbQuestion.constraints ? this.safeJsonParse(dbQuestion.constraints, []) : [],
       examples: dbQuestion.examples ? this.transformExamples(dbQuestion.examples) : undefined,
@@ -589,7 +589,7 @@ export class QuestionGenerationService {
       }
 
       const parsed = JSON.parse(examplesJson);
-      
+
       // If it's not an array, return undefined
       if (!Array.isArray(parsed)) {
         return undefined;

@@ -4,32 +4,32 @@ export interface InterviewState {
   interviewId: string;
   sessionId?: string;
   candidateId: string;
-  
+
   // Question tracking
   currentQuestionIndex: number;
   currentQuestionId: string | null;
   totalQuestions: number;
   questionsAsked: number;
-  
+
   // Follow-up tracking (max 2 follow-ups per original question)
   followUpTracker: Map<string, { followUpDepth: number; maxDepth: number }>;
   currentQuestionIsFollowUp: boolean;
   parentQuestionId: string | null;
-  
+
   // Coding problem tracking
   currentProblemId: string | null;
   currentProblemIndex: number;
   totalProblems: number;
-  
+
   // Hints and clarifications tracking (max 2 per question, similar to follow-ups)
   hintTracker: Map<string, { hintDepth: number; maxDepth: number }>;
   clarificationTracker: Map<string, { clarificationDepth: number; maxDepth: number }>;
   genericTracker: Map<string, { genericDepth: number; maxDepth: number }>;
-  
+
   // Legacy: Global counters (kept for backward compatibility)
   hintsProvided: number;
   clarificationsGiven: number;
-  
+
   // Progress tracking
   evaluations: Array<{
     questionId: string;
@@ -37,7 +37,7 @@ export interface InterviewState {
     feedback: string;
     timestamp: Date;
   }>;
-  
+
   // Code analysis
   codeAnalysisResults: Array<{
     problemId: string;
@@ -46,12 +46,13 @@ export interface InterviewState {
     issues: string[];
     timestamp: Date;
   }>;
-  
+
   // Interview flow
-  currentState: 'idle' | 'intro' | 'theoretical' | 'coding' | 'wrap_up' | 'completed';
+  currentState: 'idle' | 'intro' | 'theoretical' | 'coding' | 'coding_intro' | 'coding_problem' | 'wrap_up' | 'completed';
+  codingSubState: 'approach' | 'complexity' | 'coding' | 'optimization' | null;
   startTime: Date;
   endTime?: Date;
-  
+
   // Conversation history
   conversationHistory: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -59,11 +60,14 @@ export interface InterviewState {
     timestamp: Date;
     metadata?: any;
   }>;
-  
+
+  // Code snapshot
+  currentCode: string | null;
+
   // Agent status
   agentSpeaking: boolean;
   userSpeaking: boolean;
-  
+
   // Configuration
   maxTheoreticalQuestions: number;
   maxCodingProblems: number;
@@ -89,50 +93,53 @@ export class StateProvider extends EventEmitter {
       interviewId: config.interviewId,
       sessionId: config.sessionId,
       candidateId: config.candidateId,
-      
+
       currentQuestionIndex: 0,
       currentQuestionId: null,
       totalQuestions: config.totalQuestions,
       questionsAsked: 0,
-      
+
       followUpTracker: new Map(), // Tracks follow-up depth per question (max 2)
       currentQuestionIsFollowUp: false,
       parentQuestionId: null,
-      
+
       currentProblemId: null,
       currentProblemIndex: 0,
       totalProblems: config.totalProblems,
-      
+
       hintTracker: new Map(), // Tracks hint depth per question (max 2)
       clarificationTracker: new Map(), // Tracks clarification depth per question (max 2)
       genericTracker: new Map(), // Tracks generic/off-topic depth per question (max 2)
-      
+
       hintsProvided: 0, // Legacy: Global counter
       clarificationsGiven: 0, // Legacy: Global counter
-      
+
       evaluations: [],
       codeAnalysisResults: [],
-      
+
       currentState: 'idle',
+      codingSubState: null,
       startTime: new Date(),
-      
+
       conversationHistory: [],
-      
+
+      currentCode: null,
+
       agentSpeaking: false,
       userSpeaking: false,
-      
+
       maxTheoreticalQuestions: config.maxTheoreticalQuestions || config.totalQuestions,
       maxCodingProblems: config.maxCodingProblems || config.totalProblems,
     };
 
     this.states.set(config.interviewId, state);
     this.emit('stateInitialized', { interviewId: config.interviewId, state });
-    
+
     // Start periodic state persistence (every 30 seconds)
     this.startStatePersistence(config.interviewId);
-    
+
     console.log(`[StateProvider] Initialized state for interview ${config.interviewId}`);
-    
+
     return state;
   }
 
@@ -152,7 +159,7 @@ export class StateProvider extends EventEmitter {
     }, 30000);
 
     this.persistenceIntervals.set(interviewId, interval);
-    
+
     console.log(`[StateProvider] Started state persistence for interview ${interviewId}`);
   }
 
@@ -166,13 +173,13 @@ export class StateProvider extends EventEmitter {
     try {
       // This is a placeholder - actual implementation would save to Prisma DB
       console.log(`[StateProvider] Persisting state for interview ${interviewId}`);
-      
+
       // Example: await prisma.interviewState.upsert({
       //   where: { interviewId },
       //   update: { state: JSON.stringify(state) },
       //   create: { interviewId, state: JSON.stringify(state) }
       // });
-      
+
       this.emit('statePersisted', { interviewId, timestamp: new Date() });
     } catch (error) {
       console.error(`[StateProvider] Failed to persist state for interview ${interviewId}:`, error);
@@ -206,7 +213,7 @@ export class StateProvider extends EventEmitter {
 
     Object.assign(state, updates);
     this.emit('stateUpdated', { interviewId, state, updates });
-    
+
     return state;
   }
 
@@ -277,7 +284,7 @@ export class StateProvider extends EventEmitter {
 
     state.hintsProvided++;
     this.emit('hintProvided', { interviewId, totalHints: state.hintsProvided });
-    
+
     return state.hintsProvided;
   }
 
@@ -290,7 +297,7 @@ export class StateProvider extends EventEmitter {
 
     state.clarificationsGiven++;
     this.emit('clarificationGiven', { interviewId, totalClarifications: state.clarificationsGiven });
-    
+
     return state.clarificationsGiven;
   }
 
@@ -321,7 +328,7 @@ export class StateProvider extends EventEmitter {
 
     // Get or create tracker for parent question
     const tracker = state.followUpTracker.get(parentQuestionId) || { followUpDepth: 0, maxDepth: MAX_FOLLOW_UP_DEPTH };
-    
+
     // Check if we've reached max depth
     if (tracker.followUpDepth >= MAX_FOLLOW_UP_DEPTH) {
       console.log(`[StateProvider] Max follow-up depth (${MAX_FOLLOW_UP_DEPTH}) reached for question ${parentQuestionId}`);
@@ -435,6 +442,17 @@ export class StateProvider extends EventEmitter {
   }
 
   /**
+   * Set coding sub-state
+   */
+  setCodingSubState(interviewId: string, subState: InterviewState['codingSubState']): void {
+    const state = this.states.get(interviewId);
+    if (!state) return;
+
+    state.codingSubState = subState;
+    this.emit('codingSubStateChanged', { interviewId, subState });
+  }
+
+  /**
    * Set agent speaking status
    */
   setAgentSpeaking(interviewId: string, speaking: boolean): void {
@@ -525,6 +543,29 @@ export class StateProvider extends EventEmitter {
    */
   getStateCount(): number {
     return this.states.size;
+  }
+
+  /**
+   * Update the candidate's current code
+   */
+  updateCode(interviewId: string, code: string): void {
+    const state = this.states.get(interviewId);
+    if (!state) {
+      console.warn(`[StateProvider] Cannot update code: state not found for interview ${interviewId}`);
+      return;
+    }
+
+    state.currentCode = code;
+    this.emit('codeUpdated', { interviewId, length: code.length, timestamp: new Date() });
+
+    // Also emit a state updated event for general listeners
+    this.emit('stateUpdated', {
+      interviewId,
+      state,
+      updates: { currentCode: code }
+    });
+
+    console.log(`[StateProvider] Code updated for interview ${interviewId}: ${code.length} chars`);
   }
 }
 

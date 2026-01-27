@@ -64,7 +64,7 @@ export class Orchestrator extends EventEmitter {
     this.codingProblems = codingProblems;
     console.log(`[Orchestrator ${this.interviewId}] Stored ${questions.length} questions and ${codingProblems.length} coding problems`);
   }
-  
+
   getInterviewId(): string {
     return this.interviewId;
   }
@@ -85,6 +85,24 @@ export class Orchestrator extends EventEmitter {
       return null;
     }
     return this.getQuestionById(state.currentQuestionId);
+  }
+
+  /**
+   * Get coding problem by ID
+   */
+  getProblemById(problemId: string): CodingProblem | null {
+    return this.codingProblems.find(p => p.id === problemId) || null;
+  }
+
+  /**
+   * Get current coding problem from state
+   */
+  getCurrentProblem(): CodingProblem | null {
+    const state = this.stateProvider.getState(this.interviewId);
+    if (!state || !state.currentProblemId) {
+      return null;
+    }
+    return this.getProblemById(state.currentProblemId);
   }
 
   /**

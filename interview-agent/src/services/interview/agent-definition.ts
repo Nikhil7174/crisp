@@ -305,38 +305,7 @@ export const agent = defineAgent({
         }
       };
 
-      // Listen for data from client (e.g. state requests) to handle late joiners/refreshes
-      // Use 'dataReceived' string event name to avoid extra imports
-      ctx.room.on('dataReceived', async (payload: Uint8Array, participant: any) => {
-        try {
-          const str = new TextDecoder().decode(payload);
-          const msg = JSON.parse(str);
 
-          if (msg.type === 'request-state') {
-            // no-op
-
-            const currentState = stateProvider.getState(interviewId);
-            if (currentState) {
-              // Resend theoretical question if active
-              if (currentState.currentState === 'theoretical') {
-                const q = orchestrator.getCurrentQuestion();
-                if (q) {
-                  // no-op
-                  await sendQuestionToUI(q, currentState.currentQuestionIndex, 'theoretical');
-                }
-              }
-              // Resend active coding problem
-              else if (currentState.currentState === 'coding') {
-                // Logic to get current coding problem if needed
-                // For now, assuming orchestrator tracks it similarly
-                // const p = orchestrator.getCurrentProblem(); 
-              }
-            }
-          }
-        } catch (error) {
-          console.error('❌ [Agent] Error handling data message:', error);
-        }
-      });
 
       // TAG-BASED INTENT DETECTION - No tool calling
       const llmDirect = new openai.LLM({
@@ -375,6 +344,44 @@ export const agent = defineAgent({
           role, // Role for persona
           personaInstructions, // Persona instructions (set once)
         },
+      });
+
+      // Listen for data from client (e.g. state requests) to handle late joiners/refreshes
+      // Use 'dataReceived' string event name to avoid extra imports
+      ctx.room.on('dataReceived', async (payload: Uint8Array, participant: any) => {
+        try {
+          const str = new TextDecoder().decode(payload);
+          const msg = JSON.parse(str);
+
+          if (msg.type === 'request-state') {
+            const currentState = stateProvider.getState(interviewId);
+            if (currentState) {
+              // Resend theoretical question if active
+              if (currentState.currentState === 'theoretical') {
+                const q = orchestrator.getCurrentQuestion();
+                if (q) {
+                  await sendQuestionToUI(q, currentState.currentQuestionIndex, 'theoretical');
+                }
+              }
+              // Resend active coding problem
+              else if (currentState.currentState === 'coding') {
+                // Logic to get current coding problem if needed
+              }
+            }
+          } else if (msg.type === 'code_snapshot') {
+            // Handle code snapshot
+            if (msg.code !== undefined && session.userData) {
+              // Update the currentCode in persistent state
+              stateProvider.updateCode(interviewId, msg.code);
+              // session.userData.currentCode = msg.code; // REMOVED: Using stateProvider instead
+              console.log(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
+            } else {
+              console.warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
+            }
+          }
+        } catch (error) {
+          console.error('❌ [Agent] Error handling data message:', error);
+        }
       });
 
       // Also listen for user speech at session level

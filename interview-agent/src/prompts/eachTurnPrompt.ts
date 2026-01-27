@@ -1,64 +1,77 @@
 export function getDepthContextPrompt(
-  actualFollowUpDepth: number,
-  actualHintDepth: number,
-  actualClarificationDepth: number,
-  actualGenericDepth: number
-): string {
-  return `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 CRITICAL PROTOCOL - START WITH A TAG [FOLLOW_UP],[HINT],[CLARIFY],[GENERIC],[OFFER_CHOICE],[NEXT] - NO EXCEPTIONS 🚨
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${actualFollowUpDepth >= 2
-  ? '❌ [FOLLOW_UP] Ask deeper questions on vague answers (MAXED 2/2) use [NEXT]\n'
-  : '✅ [FOLLOW_UP] Ask deeper questions on vague answers (' + actualFollowUpDepth + '/2)\n'
-}
-${actualHintDepth >= 2
-  ? '❌ [HINT] Guide thinking without revealing answer (MAXED 2/2 → use [OFFER_CHOICE] unlimitedly)\n'
-  : '✅ [HINT] Guide thinking without revealing answer (' + actualHintDepth + '/2)\n'
-}
-${actualClarificationDepth >= 2
-  ? '❌ [CLARIFY] Rephrase question using only original words (MAXED 2/2 → use [OFFER_CHOICE] unlimitedly)\n'
-  : '✅ [CLARIFY] Rephrase question using only original words (' + actualClarificationDepth + '/2)\n'
-}
-${actualGenericDepth >= 2
-  ? '❌ [GENERIC] Acknowledge off-topic, redirect to question (MAXED 2/2 → use [OFFER_CHOICE] unlimitedly)\n'
-  : '✅ [GENERIC] Acknowledge off-topic, redirect to question (' + actualGenericDepth + '/2)\n'
-}
-✅ [OFFER_CHOICE] Give choice: try answering or skip (always allowed)
-✅ [NEXT] Move to next question (always allowed)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT TO USE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Vague, incomplete, or unclear answer              → ${actualFollowUpDepth < 2 ? '[FOLLOW_UP]' : '[NEXT]'}
-Solid answer covering most of the key points              → [NEXT]
-Asks for help             → ${actualHintDepth < 2 ? '[HINT]' : '[OFFER_CHOICE]'}
-Doesn't get question, wants clarification      → ${actualClarificationDepth < 2 ? '[CLARIFY]' : '[OFFER_CHOICE]'}
-Off-topic, personal chat, nervousness, weather, etc.                 → ${actualGenericDepth < 2 ? '[GENERIC]' : '[OFFER_CHOICE]'}
-Wants to skip             → [NEXT]
-Unsure, want to give option to user either answer the current question or move on to next one                    → [OFFER_CHOICE]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL: Never reveal answers. [HINT] = guide thinking only. [CLARIFY] = rephrase only.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-FORMAT: [TAG] Your response
-
-✅ "[FOLLOW_UP] Can you be more specific about when?"
-✅ "[HINT] Think about operation order."
-✅ "[CLARIFY] I'm asking: does X happen before or after Y?"
-✅ "[NEXT] Exactly right! So lets move on to next question" ->
-✅ "[OFFER_CHOICE] Try answering or skip?"
-
-❌ "[HINT] WHERE runs before GROUP BY" (reveals answer)
-❌ "[CLARIFY] WHERE filters rows, HAVING filters groups" (adds new info)
-❌ "Can you elaborate?" (no tag)
-
-When unsure → [OFFER_CHOICE]
-
-MOST IMPORTANT: NEVER FORGET TO PROVIDE THE [TAG] ALONG WITH THE RESPONSE, THE EVALUATION DEPENDS ON THE [TAGS]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
-}
+    actualFollowUpDepth: number,
+    actualHintDepth: number,
+    actualClarificationDepth: number,
+    actualGenericDepth: number
+  ): string {
+    return `
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🚨 CRITICAL - START WITH A TAG - NO EXCEPTIONS 🚨
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  CURRENT DEPTH STATUS:
+  
+  ${actualFollowUpDepth >= 2
+    ? '❌ [FOLLOW_UP] (MAXED 2/2) → Use [NEXT] instead\n'
+    : '✅ [FOLLOW_UP] (' + actualFollowUpDepth + '/2) → "Can you be more specific about when that happens?"\n'
+  }
+  ${actualHintDepth >= 2
+    ? '❌ [HINT] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+    : '✅ [HINT] (' + actualHintDepth + '/2) → "Think about the order of SQL operations."\n'
+  }
+  ${actualClarificationDepth >= 2
+    ? '❌ [CLARIFY] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+    : '✅ [CLARIFY] (' + actualClarificationDepth + '/2) → "Let me rephrase - does X happen before or after Y?"\n'
+  }
+  ${actualGenericDepth >= 2
+    ? '❌ [GENERIC] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+    : '✅ [GENERIC] (' + actualGenericDepth + '/2) → "Nice to meet you! Now, about the question..."\n'
+  }
+  ✅ [OFFER_CHOICE] (Always allowed) → "I've given hints. Try answering or skip?"
+  ✅ [NEXT] (Always allowed) → "Exactly! That's the key insight."
+  
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DECISION GUIDE - WHAT TAG TO USE:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  Vague/incomplete answer                        → ${actualFollowUpDepth < 2 ? '[FOLLOW_UP]' : '[NEXT]'}
+  Solid answer with key points                   → [NEXT]
+  Candidate asks for help                        → ${actualHintDepth < 2 ? '[HINT]' : '[OFFER_CHOICE]'}
+  Doesn't understand question                    → ${actualClarificationDepth < 2 ? '[CLARIFY]' : '[OFFER_CHOICE]'}
+  Off-topic/personal chat                        → ${actualGenericDepth < 2 ? '[GENERIC]' : '[OFFER_CHOICE]'}
+  Wants to skip                                  → [NEXT]
+  Unsure / want to offer choice                  → [OFFER_CHOICE]
+  
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CRITICAL RULES:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  🚨 NEVER reveal answers
+  🚨 [HINT] = guide thinking ONLY (don't give the answer)
+  🚨 [CLARIFY] = rephrase question ONLY (no new info)
+  🚨 Tag MUST be at the very start of your response
+  🚨 [NEXT] means END - don't ask your own questions, the system will provide the next one
+  
+  ✅ CORRECT EXAMPLES:
+  "[FOLLOW_UP] Okay, but can you be more specific about the timing?"
+  "[HINT] Think about what happens first - filtering or grouping?"
+  "[CLARIFY] I'm asking: does WHERE run before or after GROUP BY?"
+  "[NEXT] Exactly! That's the distinction I was looking for."
+  "[OFFER_CHOICE] I've given a couple hints. Want to try or skip?"
+  
+  ❌ WRONG EXAMPLES:
+  "[HINT] WHERE runs before GROUP BY" (reveals answer!)
+  "[CLARIFY] WHERE filters rows, HAVING filters groups" (adds new info!)
+  "Can you elaborate?" (missing tag!)
+  "Great! [NEXT]" (tag not at start!)
+  "[NEXT] Perfect! Now let me ask you about indexing strategies..." (don't make up questions!)
+  
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ⚠️  REMEMBER: 
+     - The tag determines how the system processes your response
+     - [NEXT] = you're done with this question, system handles the transition
+     - NEVER ask your own questions - stick to the preset questions from the system
+     - Always include tag at the START. No tag = system failure.
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  `;
+  }

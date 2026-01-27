@@ -11,7 +11,7 @@ import { StateProvider } from './state-provider.js';
 import { Orchestrator } from './orchestrator.js';
 import { detectJailbreak, getSafeResponse } from './security/jailbreak-detector.js';
 import { extractChunkText, cleanResponseText } from '../../utils/text-processing.js';
-import { getDepthContextPrompt } from '../../prompts/eachTurnPrompt.js';
+import { getInterviewContextPrompt } from '../../prompts/contextPrompts.js';
 
 /**
  * User data stored in the agent session
@@ -61,24 +61,101 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       await this.session.say('Hello! I\'m your AI interviewer today. Let\'s begin with some technical questions.');
 
       // Directly call ask_next_question tool to get first question
-      const { orchestrator, stateProvider, interviewId, questions } = this.session.userData;
+      // CHECK: Are we starting with Theoretical or Coding?
+      // Some interviews might skip theoretical or are resuming
+      const { orchestrator, stateProvider, interviewId } = this.session.userData;
+      const state = stateProvider.getState(interviewId);
 
-      // Start theoretical phase
-      orchestrator.startTheoreticalQuestions();
+      let shouldStartCoding = false;
+      if (state && state.currentState === 'coding') {
+        shouldStartCoding = true;
+      } else {
+        // Default to theoretical flow
+        orchestrator.startTheoreticalQuestions();
+        const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
 
-      // Get first question (orchestrator now has questions stored)
-      const { question } = orchestrator.askNextQuestion();
-      const { sendQuestionToUI } = this.session.userData;
-
-      if (question) {
-        if (sendQuestionToUI) {
-          const state = stateProvider.getState(interviewId);
-          const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
-          await sendQuestionToUI(question, questionIndex, 'theoretical');
-          // no-op
+        if (shouldMoveToCoding) {
+          shouldStartCoding = true;
+        } else if (question) {
+          const { sendQuestionToUI } = this.session.userData;
+          if (sendQuestionToUI) {
+            const state = stateProvider.getState(interviewId);
+            const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
+            await sendQuestionToUI(question, questionIndex, 'theoretical');
+          }
+          console.log('📝 [Agent] Speaking first question:', question.question);
+          await this.session.say(question.question);
         }
-        console.log('📝 [Agent] Speaking first question:', question.question);
-        await this.session.say(question.question);
+      }
+
+      // HANDLE CODING START (Direct Entry)
+      if (shouldStartCoding) {
+        orchestrator.startCodingPhase();
+        const { problem } = orchestrator.presentNextProblem();
+
+        if (problem) {
+          const { sendQuestionToUI } = this.session.userData;
+          // Send to UI
+          if (sendQuestionToUI) {
+            const state = stateProvider.getState(interviewId);
+            const problemIndex = state?.currentProblemIndex || 0;
+            await sendQuestionToUI(problem, problemIndex, 'coding');
+          }
+
+          // Speak intro
+          const intro = `Let's move straight to the coding section. Here's a problem for you to solve.`;
+          await this.session.say(intro);
+
+          // INJECT PROBLEM CONTEXT (Hidden)
+          // This handles the "Coding Q-1" case correctly
+          const problemContextMessage = `
+[SYSTEM_INJECTION_DO_NOT_SPEAK]
+Here is the coding problem I need to solve:
+Title: ${problem.title}
+Description: ${problem.description}
+Constraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}
+Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
+`;
+          // We can't access turnCtx here easily as we are in onEnter (no chat context yet?).
+          // But wait! onEnter doesn't provide a turnCtx. 
+          // However, we can add it to the conversation history via stateProvider so it's there for the next turn.
+          // OR better: Just rely on the fact that `onUserTurnCompleted` will pull context from state? 
+          // NO, `onUserTurnCompleted` injects *system* context. The *problem description* needs to be in history.
+
+          // We can manually add a "user" message to the session's chat context if available?
+          // LiveKit agents 0.8+ doesn't expose a global chat context easily outside a turn.
+          // WORKAROUND: We can just let the ephemeral system context handle it for the very first turn?
+          // OR rely on the fact that the USER will speak first after this intro.
+          // When the user speaks, `onUserTurnCompleted` runs.
+          // BUT `onUserTurnCompleted` only runs *after* the user turn. The LLM needs this context *during* its response?
+          // Wait, LLM responds to User.
+
+          // If we are here, Agent speaks -> User speaks -> Agent responds.
+          // When User speaks, we enter `onUserTurnCompleted`.
+          // We can inject the problem context THERE if we detect we just started coding phase?
+
+          // ACTUALLY: We can just add it to stateProvider conversation history? 
+          // The LLM context is built from that history usually.
+          // But LiveKit Agent builds context from its own internal history.
+
+          // Use `this.session.chatCtx` if it exists (it might not be public).
+          // Actually, `onEnter` initializes the session. 
+
+          // ALTERNATIVE: Use `this.session.say` with hidden text? No.
+
+          // Let's use `stateProvider` to store this "pending injection" and handle it in `onUserTurnCompleted`
+          // OR just rely on the fact that for the FIRST coding turn, the user will probably ask "Can you repeat?" or just start coding.
+          // If they start coding, we add their code.
+
+          // BETTER FIX:
+          // Since `startCodingPhase()` sets the state to 'coding', `onUserTurnCompleted` will run when the user replies.
+          // We can rely on `onUserTurnCompleted` to inject the *Unified Context*.
+          // BUT we removed the problem description from valid context! We need it in history!
+
+          // We need to inject it as a "fake" user message.
+          // Since we can't easily access the ChatContext in onEnter, we will store a flag in session data.
+          (this.session.userData as any).pendingProblemInjection = problem;
+        }
       }
 
       console.log('✅ [Agent] Greeting and first question spoken');
@@ -93,6 +170,8 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
   async onExit() {
     console.log('👋 Interview agent exiting');
   }
+
+
 
   /**
    * NODE-DRIVEN FLOW CONTROL WITH JAILBREAK DETECTION
@@ -123,6 +202,30 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
     if (!state) {
       console.error('❌ [onUserTurnCompleted] No state found');
       return;
+    }
+
+    // CHECK FOR PENDING PROBLEM INJECTION (From onEnter)
+    // If we started directly in coding phase, we need to inject the problem context now
+    const pendingProblem = (this.session.userData as any).pendingProblemInjection;
+    if (pendingProblem) {
+      const problemContextMessage = `
+[SYSTEM_INJECTION_DO_NOT_SPEAK]
+Here is the coding problem I need to solve:
+Title: ${pendingProblem.title}
+Description: ${pendingProblem.description}
+Constraints: ${pendingProblem.constraints ? pendingProblem.constraints.join(', ') : 'None'}
+Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 'None'}
+`;
+      // Add BEFORE the user message processed by LLM? 
+      // Actually, we want it in history.
+      turnCtx.addMessage({
+        role: 'user',
+        content: problemContextMessage
+      });
+      console.log('📝 [onUserTurnCompleted] Injected PENDING coding problem context (from onEnter)');
+
+      // Clear flag
+      (this.session.userData as any).pendingProblemInjection = undefined;
     }
 
     const userText = newMessage.textContent || '';
@@ -203,7 +306,22 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
             await sendQuestionToUI(problem, problemIndex, 'coding');
             // no-op
           }
-        } else {
+
+          // INJECT PROBLEM AS USER MESSAGE (HIDDEN CONTEXT FROM SYSTEM)
+          const problemContextMessage = `
+[SYSTEM_INJECTION_DO_NOT_SPEAK]
+Here is the coding problem I need to solve:
+Title: ${problem.title}
+Description: ${problem.description}
+Constraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}
+Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
+`;
+          turnCtx.addMessage({
+            role: 'user',
+            content: problemContextMessage
+          });
+          console.log('📝 [onUserTurnCompleted] Injected coding problem into ChatContext (hidden from speech)');
+        } else if (question) {
           messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
         }
       } else if (question) {
@@ -239,93 +357,35 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       return;
     }
 
-    // SAFETY CHECK: Add follow-up depth to chat context BEFORE LLM responds.
-    // This ensures the LLM knows the depth before generating a response.
-    // IMPORTANT: Always read the currentQuestionId from *fresh* state so depth
-    // is tracked per question and resets correctly when we move to the next one.
-    if (state?.currentQuestionId && state.currentState === 'theoretical') {
-      // Force a fresh read of the state (in case it was updated in previous turn)
-      const freshState = stateProvider.getState(interviewId);
-      const currentQuestionId =
-        freshState?.currentQuestionId || state.currentQuestionId;
+    // UNIFIED CONTEXT INJECTION
+    // Replace separate 'theoretical' and 'coding' blocks with single unified call
 
-      if (!currentQuestionId) {
-        console.warn(
-          '⚠️ [onUserTurnCompleted] No currentQuestionId found, skipping follow-up depth context'
-        );
-      } else {
-        // Depth from the helper (authoritative source)
-        const followUpDepth = stateProvider.getFollowUpDepth(
-          interviewId,
-          currentQuestionId
-        );
-        const hintDepth = stateProvider.getHintDepth(
-          interviewId,
-          currentQuestionId
-        );
-        const clarificationDepth = stateProvider.getClarificationDepth(
-          interviewId,
-          currentQuestionId
-        );
-        const genericDepth = stateProvider.getGenericDepth(
-          interviewId,
-          currentQuestionId
-        );
-
-        // Also check tracker directly for debugging / redundancy
-        const followUpTracker = freshState?.followUpTracker?.get(currentQuestionId);
-        const followUpTrackerDepth = followUpTracker?.followUpDepth || 0;
-        const hintTracker = freshState?.hintTracker?.get(currentQuestionId);
-        const hintTrackerDepth = hintTracker?.hintDepth || 0;
-        const clarificationTracker = freshState?.clarificationTracker?.get(currentQuestionId);
-        const clarificationTrackerDepth = clarificationTracker?.clarificationDepth || 0;
-        const genericTracker = freshState?.genericTracker?.get(currentQuestionId);
-        const genericTrackerDepth = genericTracker?.genericDepth || 0;
-
-        // Use the higher of the two (in case of inconsistency)
-        const actualFollowUpDepth = Math.max(followUpDepth, followUpTrackerDepth);
-        const actualHintDepth = Math.max(hintDepth, hintTrackerDepth);
-        const actualClarificationDepth = Math.max(clarificationDepth, clarificationTrackerDepth);
-        const actualGenericDepth = Math.max(genericDepth, genericTrackerDepth);
-
-        const canAskMoreFollowUps = actualFollowUpDepth < 2;
-        const canAskMoreHints = actualHintDepth < 2;
-        const canAskMoreClarifications = actualClarificationDepth < 2;
-        const canAskMoreGeneric = actualGenericDepth < 2;
-
-        const depthContext = getDepthContextPrompt(
-          actualFollowUpDepth,
-          actualHintDepth,
-          actualClarificationDepth,
-          actualGenericDepth
-        );
+    // CODE INJECTION REDUNDANCY FIXED:
+    // We used to inject code as a user message here, but it's now handled by the System Context Prompt.
+    // See getInterviewContextPrompt -> getDSADepthContextPrompt
 
 
-        // Official LiveKit pattern: add extra context via turnCtx.addMessage,
-        // do NOT mutate newMessage.content or change its content type.
-        // This message is added just before the next LLM generation, so it is
-        // visible in-context to the model.
+    // Now inject the system context (Theoretical or DSA)
+    // Force a fresh read of the state in case it was updated
+    const freshState = stateProvider.getState(interviewId);
+    if (freshState) {
+      const currentCode = freshState.currentCode || undefined;
+      console.log(`🔍 [Code Check] currentCode in State: ${currentCode ? currentCode.length + ' chars' : 'UNDEFINED/NULL'}`);
+
+      const contextPrompt = getInterviewContextPrompt(
+        freshState,
+        stateProvider,
+        orchestrator,
+        currentCode
+      );
+
+      if (contextPrompt) {
         turnCtx.addMessage({
           role: 'system',
-          content: `\n\n${depthContext}`,
+          content: `\n\n${contextPrompt}`,
         });
 
-        console.log(
-          `📊 [onUserTurnCompleted] Added depth context BEFORE LLM response:`
-        );
-        console.log(`   📍 Current question ID (fresh): ${currentQuestionId}`);
-        console.log(
-          `   📍 Previous question ID (stale state): ${state.currentQuestionId}`
-        );
-        console.log(
-          `   📊 Follow-up depth: ${actualFollowUpDepth}/2 (can ask more: ${canAskMoreFollowUps})`
-        );
-        console.log(
-          `   💡 Hint depth: ${actualHintDepth}/2 (can ask more: ${canAskMoreHints})`
-        );
-        console.log(
-          `   ❓ Clarification depth: ${actualClarificationDepth}/2 (can ask more: ${canAskMoreClarifications})`
-        );
+        console.log(`📊 [onUserTurnCompleted] Injected Unified Context for state: ${freshState.currentState}`);
       }
     }
 
@@ -548,6 +608,23 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                           await sendQuestionToUI(problem, problemIndex, 'coding');
                           // no-op
                         }
+
+                        // INJECT PROBLEM AS USER MESSAGE (HIDDEN CONTEXT FROM SYSTEM)
+                        // This ensures the LLM knows the problem details even though it didn't speak them
+                        // We use 'user' role so it looks like the user provided the context or the system injected it as input
+                        const problemContextMessage = `
+[SYSTEM_INJECTION_DO_NOT_SPEAK]
+Here is the coding problem I need to solve:
+Title: ${problem.title}
+Description: ${problem.description}
+Constraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}
+Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
+`;
+                        chatCtx.addMessage({
+                          role: 'user',
+                          content: problemContextMessage
+                        });
+                        console.log('📝 [llmNode] Injected coding problem into ChatContext (hidden from speech)');
                       } else {
                         responseAppendix = ' That completes the interview. Thank you!';
                       }
@@ -608,7 +685,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
                 // PROCESS TAGS ONLY AT THE START
                 if (!tagProcessed) {
-                  const tagMatch = buffer.match(/^\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE)\]/);
+                  const tagMatch = buffer.match(/^\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE)\]/);
 
                   if (tagMatch) {
                     const intent = tagMatch[1];
@@ -623,12 +700,12 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
                     buffer = buffer.replace(tagMatch[0], '').trimStart();
                     tagProcessed = true;
 
-                    // 3. IF [NEXT] TAG DETECTED - HANDLE IMMEDIATELY
-                    if (intent === 'NEXT') {
+                    // 3. IF [NEXT] OR [CHECK_CODE] TAG DETECTED - HANDLE IMMEDIATELY
+                    if (intent === 'NEXT' || intent === 'CHECK_CODE') {
                       if (nextTagDetected) {
-                        console.log('⚠️ [llmNode] Duplicate [NEXT] tag ignored');
+                        console.log(`⚠️ [llmNode] Duplicate [${intent}] tag ignored`);
                       } else {
-                        console.log('🚀 [llmNode] [NEXT] tag detected - will append next question after LLM finishes');
+                        console.log(`🚀 [llmNode] [${intent}] tag detected - will append next question after LLM finishes`);
                         nextTagDetected = true;
                       }
                     }
@@ -767,9 +844,31 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       });
       console.log(`💬 State Updated: Generic depth ${newDepth}/2`);
     }
-    else if (intent === 'NEXT') {
+    else if (intent === 'DEBUG_HINT') {
+      // Re-use clarification tracker for debug hints as per prompt logic
+      const currentDepth = stateProvider.getClarificationDepth(interviewId, state.currentQuestionId);
+
+      if (currentDepth >= MAX_DEPTH) {
+        console.log(
+          `🛑 [handleIntentTag] DEBUG_HINT ignored: depth already at max (${currentDepth}/${MAX_DEPTH})`
+        );
+        return;
+      }
+
+      const newDepth = currentDepth + 1;
+      const tracker = state.clarificationTracker.get(state.currentQuestionId) || { clarificationDepth: 0, maxDepth: MAX_DEPTH };
+      tracker.clarificationDepth = newDepth;
+      state.clarificationTracker.set(state.currentQuestionId, tracker);
+
+      stateProvider.addConversationMessage(interviewId, {
+        role: 'user',
+        content: `[SYSTEM] Debug Hint depth (clarification) is now ${newDepth}/2.`
+      });
+      console.log(`🐞 State Updated: Debug Hint depth ${newDepth}/2`);
+    }
+    else if (intent === 'NEXT' || intent === 'CHECK_CODE') {
       (this.session.userData as any).pendingNextQuestion = true;
-      console.log('🚀 State Updated: Ready for Next Question');
+      console.log(`🚀 State Updated: Ready for Next Question/Problem (via ${intent})`);
     }
     // OFFER_CHOICE is a meta-action with no depth tracking needed
   }

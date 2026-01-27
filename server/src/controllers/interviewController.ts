@@ -156,13 +156,13 @@ export class InterviewController {
 
       // Create interview session
       const sessionId = this.generateSessionId();
-      
+
       // Separate theoretical and coding questions
       const theoreticalQuestions = questions.filter(q => q.type === 'theoretical');
       const codingQuestions = questions.filter(q => q.type === 'machine_coding');
-      
+
       console.log(`📊 Separated: ${theoreticalQuestions.length} theoretical, ${codingQuestions.length} coding questions`);
-      
+
       // Map theoretical questions
       const mappedTheoretical: InterviewQuestion[] = theoreticalQuestions.map(q => ({
         id: q.id,
@@ -175,7 +175,7 @@ export class InterviewController {
         keyPoints: q.keyPoints,
         documentation: q.documentation
       }));
-      
+
       // Map coding questions (with all coding-specific fields)
       const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => {
         // Set time limit based on difficulty
@@ -187,7 +187,7 @@ export class InterviewController {
         } else if (q.difficulty === 'hard') {
           timeLimit = 1800; // 30 minutes
         }
-        
+
         return {
           id: q.id,
           question: q.question,
@@ -198,8 +198,8 @@ export class InterviewController {
           explanation: q.explanation,
           keyPoints: q.keyPoints,
           documentation: q.documentation,
-          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
-            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
+          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
+            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
             : 'javascript',
           initialCode: q.starterCode,
           starterCodes: q.starterCodes, // Include multi-language starter codes
@@ -210,10 +210,10 @@ export class InterviewController {
           examples: q.examples
         };
       });
-      
+
       // Combine for database storage (keeping all questions together in DB)
       const allQuestions = [...mappedTheoretical, ...mappedCoding];
-      
+
       const session: InterviewSession = {
         id: sessionId,
         candidateId: candidateData.email || candidateData.name || 'unknown',
@@ -228,14 +228,14 @@ export class InterviewController {
       // Create LiveKit room and spawn agent
       const roomName = `interview-${sessionId}`;
       const candidateName = candidateData.name || candidateData.email || 'Candidate';
-      
+
       // Import LiveKit token generation
       const { AccessToken } = await import('livekit-server-sdk');
-      
+
       const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
       const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
       const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
-      
+
       // Generate LiveKit access token for the candidate
       let livekitToken = '';
       try {
@@ -250,7 +250,7 @@ export class InterviewController {
         console.error('⚠️ Failed to generate LiveKit token:', tokenError);
         throw new Error('Failed to generate LiveKit access token');
       }
-      
+
       // Store questions in memory for the agent to fetch via API
       try {
         interviewQuestionsStore.set(sessionId, {
@@ -282,12 +282,12 @@ export class InterviewController {
         });
         throw new Error('Failed to store interview questions');
       }
-      
+
       // The LiveKit agent process (running separately) will pick up jobs when rooms are created
       // The agent will fetch questions from this API endpoint
       // Make sure the interview-agent process is running: cd crisp/interview-agent && npm start
       console.log(`ℹ️  LiveKit room created: ${roomName}. Agent will connect when process is running.`);
-      
+
       // Return with proper separation for security agent app + LiveKit info
       const responseData = {
         success: true,
@@ -333,10 +333,10 @@ export class InterviewController {
   async getInterviewQuestions(req: Request, res: Response): Promise<void> {
     try {
       const { sessionId, roomName } = req.query;
-      
+
       console.log(`📥 [QuestionsAPI] Request received - sessionId: ${sessionId}, roomName: ${roomName}`);
       console.log(`📥 [QuestionsAPI] Store size: ${interviewQuestionsStore.size} entries`);
-      
+
       if (!sessionId && !roomName) {
         console.error('❌ [QuestionsAPI] Missing parameters - sessionId and roomName both undefined');
         res.status(400).json({
@@ -349,7 +349,7 @@ export class InterviewController {
       // Try to find by sessionId first, then roomName
       const identifier = (sessionId as string) || (roomName as string);
       console.log(`🔍 [QuestionsAPI] Looking up identifier: ${identifier}`);
-      
+
       // Try both identifiers
       let questionsData = interviewQuestionsStore.get(identifier);
       if (!questionsData && sessionId && roomName) {
@@ -675,25 +675,25 @@ export class InterviewController {
 
       // Validate required fields
       if (!payload.sessionId) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Session ID is required' 
+          error: 'Session ID is required'
         });
         return;
       }
 
       if (!payload.candidateId) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Candidate ID is required' 
+          error: 'Candidate ID is required'
         });
         return;
       }
 
       if (!payload.startTime || !payload.endTime) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Start time and end time are required' 
+          error: 'Start time and end time are required'
         });
         return;
       }
