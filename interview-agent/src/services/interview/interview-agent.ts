@@ -633,8 +633,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     const followUpDepth = stateProvider.getFollowUpDepth(interviewId, trackingId);
 
                     // Determine appropriate fallback tag based on depth states
-                    // If any depth is maxed, use OFFER_CHOICE; otherwise use NEXT
-                    if (hintDepth >= 2 || clarificationDepth >= 2 || genericDepth >= 2 || followUpDepth >= 2) {
+                    // If hint, clarification, or generic depths are maxed, use OFFER_CHOICE.
+                    // NOTE: We do NOT include followUpDepth here. If follow-ups are maxed, we default to NEXT (else block),
+                    // which is the correct transition behavior.
+                    if (hintDepth >= 2 || clarificationDepth >= 2 || genericDepth >= 2) {
                       fallbackTag = 'OFFER_CHOICE';
                     } else {
                       fallbackTag = 'NEXT';
