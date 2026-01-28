@@ -89,7 +89,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
           stateProvider.addConversationMessage(interviewId, {
             role: 'assistant',
             content: question.question,
-            metadata: { type: 'question', questionId: question.id, phase: 'theoretical' },
+            metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
           });
           console.log('📝 [Agent] Speaking first question:', question.question);
           await this.session.say(question.question);
@@ -116,7 +116,13 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
           stateProvider.addConversationMessage(interviewId, {
             role: 'assistant',
             content: intro,
-            metadata: { type: 'coding_intro', problemId: problem.id, phase: 'coding' },
+            metadata: { type: 'coding_intro', section: 'coding', problemId: problem.id, phase: 'coding' },
+          });
+          // Store the problem description in conversation history for LLM evaluation
+          stateProvider.addConversationMessage(interviewId, {
+            role: 'assistant',
+            content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
+            metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
           });
           await this.session.say(intro);
 
@@ -257,11 +263,18 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
 
     // Store user message in conversation history
     if (userText && userText.trim()) {
+      // Determine section based on current state
+      const section = (state.currentState === 'coding' || state.currentState === 'coding_problem' || state.currentState === 'coding_intro')
+        ? 'coding'
+        : 'theoretical';
+
       stateProvider.addConversationMessage(interviewId, {
         role: 'user',
         content: userText,
         metadata: {
           timestamp: Date.now(),
+          section: section,
+          type: 'answer',
           questionId: state.currentQuestionId,
           problemId: state.currentProblemId,
           phase: state.currentState
@@ -349,8 +362,14 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
             const state = stateProvider.getState(interviewId);
             const problemIndex = state?.currentProblemIndex || 0;
             await sendQuestionToUI(problem, problemIndex, 'coding');
-            // no-op
           }
+
+          // Store the problem description in conversation history for LLM evaluation
+          stateProvider.addConversationMessage(interviewId, {
+            role: 'assistant',
+            content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
+            metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
+          });
 
           // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
           if (!(this.session.userData as any).dsaPromptInjected) {
@@ -664,8 +683,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                           const state = stateProvider.getState(interviewId);
                           const problemIndex = state?.currentProblemIndex || 0;
                           await sendQuestionToUI(problem, problemIndex, 'coding');
-                          // no-op
                         }
+
+                        // Store the problem description in conversation history for LLM evaluation
+                        stateProvider.addConversationMessage(interviewId, {
+                          role: 'assistant',
+                          content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
+                          metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
+                        });
 
                         // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
                         if (!(agent.session.userData as any).dsaPromptInjected) {
@@ -858,11 +883,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       tracker.followUpDepth = newDepth;
       state!.followUpTracker.set(trackingId, tracker);
 
-      // Inject System Context for NEXT turn
-      stateProvider.addConversationMessage(interviewId, {
-        role: 'user',
-        content: `[SYSTEM] Follow-up depth is now ${newDepth}/2.`
-      });
+      // Increment global follow-up counter for stats
+      stateProvider.incrementFollowUps(interviewId);
+
+      // State is tracked internally, not stored in conversation history
       console.log(`📝 State Updated: Follow-up depth ${newDepth}/2`);
     }
     else if (intent === 'HINT') {
@@ -882,11 +906,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       tracker.hintDepth = newDepth;
       state!.hintTracker.set(trackingId, tracker);
 
-      // Inject System Context for NEXT turn
-      stateProvider.addConversationMessage(interviewId, {
-        role: 'user',
-        content: `[SYSTEM] Hint depth is now ${newDepth}/2.`
-      });
+      // Increment global hint counter for stats
+      stateProvider.incrementHints(interviewId);
+
+      // State is tracked internally, not stored in conversation history
       console.log(`💡 State Updated: Hint depth ${newDepth}/2`);
     }
     else if (intent === 'CLARIFY') {
@@ -906,11 +929,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       tracker.clarificationDepth = newDepth;
       state!.clarificationTracker.set(trackingId, tracker);
 
-      // Inject System Context for NEXT turn
-      stateProvider.addConversationMessage(interviewId, {
-        role: 'user',
-        content: `[SYSTEM] Clarification depth is now ${newDepth}/2.`
-      });
+      // Increment global clarification counter for stats
+      stateProvider.incrementClarifications(interviewId);
+
+      // State is tracked internally, not stored in conversation history
       console.log(`❓ State Updated: Clarification depth ${newDepth}/2`);
     }
     else if (intent === 'GENERIC') {
@@ -930,11 +952,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       tracker.genericDepth = newDepth;
       state!.genericTracker.set(trackingId, tracker);
 
-      // Inject System Context for NEXT turn
-      stateProvider.addConversationMessage(interviewId, {
-        role: 'user',
-        content: `[SYSTEM] Generic depth is now ${newDepth}/2.`
-      });
+      // State is tracked internally, not stored in conversation history
       console.log(`💬 State Updated: Generic depth ${newDepth}/2`);
     }
     else if (intent === 'DEBUG_HINT') {

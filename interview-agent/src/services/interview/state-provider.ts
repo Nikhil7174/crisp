@@ -29,6 +29,7 @@ export interface InterviewState {
   // Legacy: Global counters (kept for backward compatibility)
   hintsProvided: number;
   clarificationsGiven: number;
+  followUpsGiven: number;
 
   // Progress tracking
   evaluations: Array<{
@@ -113,6 +114,7 @@ export class StateProvider extends EventEmitter {
 
       hintsProvided: 0, // Legacy: Global counter
       clarificationsGiven: 0, // Legacy: Global counter
+      followUpsGiven: 0, // Global counter for follow-up questions
 
       evaluations: [],
       codeAnalysisResults: [],
@@ -299,6 +301,19 @@ export class StateProvider extends EventEmitter {
     this.emit('clarificationGiven', { interviewId, totalClarifications: state.clarificationsGiven });
 
     return state.clarificationsGiven;
+  }
+
+  /**
+   * Increment follow-ups given
+   */
+  incrementFollowUps(interviewId: string): number {
+    const state = this.states.get(interviewId);
+    if (!state) return 0;
+
+    state.followUpsGiven++;
+    this.emit('followUpGiven', { interviewId, totalFollowUps: state.followUpsGiven });
+
+    return state.followUpsGiven;
   }
 
   /**

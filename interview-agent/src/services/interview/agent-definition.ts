@@ -346,7 +346,7 @@ export const agent = defineAgent({
             overallFeedback: 'Interview completed. Evaluation pending.',
             hintRequestCount: finalState.hintsProvided || 0,
             clarificationRequestCount: finalState.clarificationsGiven || 0,
-            followUpCount: 0, // Could be calculated from conversationHistory metadata
+            followUpCount: finalState.followUpsGiven || 0,
             averageTimePerQuestion: 0,
             averageTimePerCodingProblem: 0,
           };
@@ -419,9 +419,7 @@ export const agent = defineAgent({
       ctx.room.on('dataReceived', async (payload: Uint8Array, participant: any) => {
         try {
           const str = new TextDecoder().decode(payload);
-          console.log(`📨 [Agent] DataReceived raw: ${str.substring(0, 100)}...`);
           const msg = JSON.parse(str);
-          console.log(`📨 [Agent] DataReceived parsed type: ${msg.type}`);
 
           if (msg.type === 'request-state') {
             const currentState = stateProvider.getState(interviewId);
@@ -450,15 +448,37 @@ export const agent = defineAgent({
               console.warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
             }
           } else if (msg.type === 'confirm_next_question') {
-            console.log('✅ [Agent] Received confirm_next_question from UI');
+            console.log('✅ [Agent] Received confirm_next_question from UI', msg.metadata);
             // Proceed to next question logic
             const state = stateProvider.getState(interviewId);
 
             // Check current phase
             const currentPhase = state?.currentState;
 
-            // If in coding phase, try to present next problem
+            // If in coding phase, store current code submission before moving on
             if (currentPhase === 'coding' || currentPhase === 'coding_problem') {
+              // Get current code and complexity from state/message
+              const currentCode = state?.currentCode || '';
+              const complexity = msg.metadata?.complexity || {};
+              const currentProblemId = state?.currentProblemId;
+
+              // Store code submission in conversation history for LLM evaluation
+              if (currentCode.trim()) {
+                stateProvider.addConversationMessage(interviewId, {
+                  role: 'user',
+                  content: `Code Submission:\n\`\`\`\n${currentCode}\n\`\`\`\n\nTime Complexity: ${complexity.time || 'Not specified'}\nSpace Complexity: ${complexity.space || 'Not specified'}`,
+                  metadata: {
+                    type: 'code_submission',
+                    section: 'coding',
+                    problemId: currentProblemId,
+                    timeComplexity: complexity.time,
+                    spaceComplexity: complexity.space,
+                    codeLength: currentCode.length,
+                  },
+                });
+                console.log(`📝 [Agent] Stored code submission (${currentCode.length} chars) with complexity in conversation history`);
+              }
+
               const { problem, shouldWrapUp } = orchestrator.presentNextProblem();
 
               if (shouldWrapUp || !problem) {
@@ -498,6 +518,13 @@ export const agent = defineAgent({
                 const problemIndex = state?.currentProblemIndex || 0;
                 await sendQuestionToUI(problem, problemIndex, 'coding');
 
+                // Store the problem description in conversation history for LLM evaluation
+                stateProvider.addConversationMessage(interviewId, {
+                  role: 'assistant',
+                  content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
+                  metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
+                });
+
                 // Inject problem context
                 (session.userData as any).pendingProblemInjection = problem;
 
@@ -517,6 +544,13 @@ export const agent = defineAgent({
                   // Send to UI
                   const problemIndex = state?.currentProblemIndex || 0;
                   await sendQuestionToUI(problem, problemIndex, 'coding');
+
+                  // Store the problem description in conversation history for LLM evaluation
+                  stateProvider.addConversationMessage(interviewId, {
+                    role: 'assistant',
+                    content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
+                    metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
+                  });
 
                   // Inject problem context into chat (hidden)
                   (session.userData as any).pendingProblemInjection = problem;
