@@ -416,6 +416,22 @@ export class StateProvider extends EventEmitter {
   }
 
   /**
+   * Get the current tracking ID based on interview phase.
+   * Returns currentProblemId during coding phase, currentQuestionId otherwise.
+   * This prevents stale state issues when transitioning between phases.
+   */
+  getCurrentTrackingId(interviewId: string): string | null {
+    const state = this.states.get(interviewId);
+    if (!state) return null;
+
+    // In coding phase, use problem ID; otherwise use question ID
+    if (state.currentState === 'coding' || state.currentState === 'coding_problem' || state.currentState === 'coding_intro') {
+      return state.currentProblemId;
+    }
+    return state.currentQuestionId;
+  }
+
+  /**
    * Move to next problem
    */
   moveToNextProblem(interviewId: string, problemId: string): void {
@@ -424,6 +440,8 @@ export class StateProvider extends EventEmitter {
 
     state.currentProblemIndex++;
     state.currentProblemId = problemId;
+    // Clear theoretical question tracking to prevent stale state
+    state.currentQuestionId = null;
 
     this.emit('problemChanged', { interviewId, problemId, index: state.currentProblemIndex });
   }

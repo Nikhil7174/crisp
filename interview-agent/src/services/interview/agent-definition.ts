@@ -281,28 +281,34 @@ export const agent = defineAgent({
         role // Pass role to agent
       );
 
-      // Helper function to send questions to UI (accessible from tools)
-      const sendQuestionToUI = async (question: any, questionIndex: number, questionType: 'theoretical' | 'coding') => {
+      // General helper to send any event to UI
+      const sendEventToUI = async (eventType: string, data: any = {}) => {
         try {
-          const questionData = {
-            type: questionType === 'theoretical' ? 'question-changed' : 'coding-problem-changed',
-            question: questionType === 'theoretical' ? question : undefined,
-            codingProblem: questionType === 'coding' ? question : undefined,
-            questionIndex,
-            questionId: question.id,
+          const payload = {
+            type: eventType,
+            ...data,
             timestamp: Date.now(),
           };
 
-          const data = new TextEncoder().encode(JSON.stringify(questionData));
+          const encoded = new TextEncoder().encode(JSON.stringify(payload));
           if (ctx.room.localParticipant) {
-            await ctx.room.localParticipant.publishData(data, { reliable: true });
+            await ctx.room.localParticipant.publishData(encoded, { reliable: true });
           } else {
-            console.warn('⚠️ Local participant not available, cannot send question to UI');
+            console.warn('⚠️ Local participant not available, cannot send event to UI');
           }
-
         } catch (error) {
-          console.error('❌ Failed to send question to UI:', error);
+          console.error(`❌ Failed to send ${eventType} to UI:`, error);
         }
+      };
+
+      // Helper function to send questions to UI (backward compatibility / specific helper)
+      const sendQuestionToUI = async (question: any, questionIndex: number, questionType: 'theoretical' | 'coding') => {
+        await sendEventToUI(questionType === 'theoretical' ? 'question-changed' : 'coding-problem-changed', {
+          question: questionType === 'theoretical' ? question : undefined,
+          codingProblem: questionType === 'coding' ? question : undefined,
+          questionIndex,
+          questionId: question.id,
+        });
       };
 
 
@@ -328,7 +334,7 @@ export const agent = defineAgent({
         llm: llmDirect, // Direct LLM (no tools)
         tts: new cartesia.TTS({
           model: 'sonic-3',
-          voice: process.env.CARTESIA_ARUSHI_VOICE_ID || 'f786b574-daa5-4673-aa0c-cbe3e8534c02', // Arushi voice ID - update with your actual voice ID from Cartesia
+          voice: process.env.CARTESIA_ARUSHI_VOICE_ID || 'f786b574-daa5-4673-aa0c-cbe3e8534c02', // Arushi voice ID
           language: 'en',
           speed: 0.9,
           // Note: volume and emotion are available but may need to be set via Cartesia API directly
@@ -339,6 +345,7 @@ export const agent = defineAgent({
           stateProvider,
           currentPhase: (state?.currentState || 'idle') as 'theoretical' | 'coding' | 'completed',
           sendQuestionToUI,
+          sendEventToUI, // Add generic sender to userData
           questions: questionsData?.questions || [],
           codingProblems: questionsData?.codingProblems || [],
           role, // Role for persona
@@ -364,8 +371,9 @@ export const agent = defineAgent({
                 }
               }
               // Resend active coding problem
-              else if (currentState.currentState === 'coding') {
-                // Logic to get current coding problem if needed
+              else if (currentState.currentState === 'coding' || currentState.currentState === 'coding_problem') {
+                // Re-send current coding problem if needed
+                // Note: Typically the client persists this, but good for reconnection
               }
             }
           } else if (msg.type === 'code_snapshot') {
@@ -377,6 +385,140 @@ export const agent = defineAgent({
               console.log(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
             } else {
               console.warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
+            }
+          } else if (msg.type === 'confirm_next_question') {
+            console.log('✅ [Agent] Received confirm_next_question from UI');
+            // Proceed to next question logic
+            const state = stateProvider.getState(interviewId);
+
+            // Check current phase
+            const currentPhase = state?.currentState;
+
+            // If in coding phase, try to present next problem
+            if (currentPhase === 'coding' || currentPhase === 'coding_problem') {
+              const { problem, shouldWrapUp } = orchestrator.presentNextProblem();
+
+              if (shouldWrapUp || !problem) {
+                // No more problems - complete the interview
+                console.log('🎉 [Agent] All problems completed - wrapping up interview');
+                orchestrator.wrapUpInterview();
+
+                const messageToSpeak = "That completes the interview. Thank you for your time! I'll now generate your evaluation.";
+                await session.say(messageToSpeak);
+
+                // Complete the interview after wrap-up speech
+                orchestrator.completeInterview();
+
+                // Get final state and send interview_completed to UI
+                const finalState = stateProvider.getState(interviewId);
+                if (finalState) {
+                  await sendEventToUI('interview_completed', {
+                    state: {
+                      currentState: finalState.currentState,
+                      totalQuestions: finalState.totalQuestions,
+                      questionsAsked: finalState.questionsAsked,
+                      totalProblems: finalState.totalProblems,
+                      problemsCompleted: finalState.currentProblemIndex,
+                      startTime: finalState.startTime?.toISOString(),
+                      endTime: finalState.endTime?.toISOString(),
+                    },
+                    conversationHistory: finalState.conversationHistory,
+                    evaluations: finalState.evaluations,
+                  });
+                  console.log('📤 [Agent] Sent interview_completed to UI');
+                }
+              } else {
+                // Present next coding problem
+                const messageToSpeak = "Great work on that problem! Let's move to the next one.";
+                const problemIndex = state?.currentProblemIndex || 0;
+                await sendQuestionToUI(problem, problemIndex, 'coding');
+
+                // Inject problem context
+                (session.userData as any).pendingProblemInjection = problem;
+
+                await session.say(messageToSpeak);
+              }
+            } else {
+              // Theoretical phase - get next question
+              const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
+
+              let messageToSpeak = "Great, let's move on.";
+
+              if (shouldMoveToCoding) {
+                orchestrator.startCodingPhase();
+                const { problem } = orchestrator.presentNextProblem();
+                if (problem) {
+                  messageToSpeak = "Great job! Moving to the coding section. Here is your problem.";
+                  // Send to UI
+                  const problemIndex = state?.currentProblemIndex || 0;
+                  await sendQuestionToUI(problem, problemIndex, 'coding');
+
+                  // Inject problem context into chat (hidden)
+                  (session.userData as any).pendingProblemInjection = problem;
+                } else {
+                  // No coding problems - complete interview
+                  console.log('🎉 [Agent] No coding problems - completing interview');
+                  orchestrator.wrapUpInterview();
+                  messageToSpeak = "That completes the interview. Thank you for your time!";
+                  await session.say(messageToSpeak);
+
+                  orchestrator.completeInterview();
+
+                  const finalState = stateProvider.getState(interviewId);
+                  if (finalState) {
+                    await sendEventToUI('interview_completed', {
+                      state: {
+                        currentState: finalState.currentState,
+                        totalQuestions: finalState.totalQuestions,
+                        questionsAsked: finalState.questionsAsked,
+                        totalProblems: finalState.totalProblems,
+                        problemsCompleted: finalState.currentProblemIndex,
+                        startTime: finalState.startTime?.toISOString(),
+                        endTime: finalState.endTime?.toISOString(),
+                      },
+                      conversationHistory: finalState.conversationHistory,
+                      evaluations: finalState.evaluations,
+                    });
+                    console.log('📤 [Agent] Sent interview_completed to UI');
+                  }
+                  return; // Don't speak again
+                }
+              } else if (question) {
+                // Next theoretical
+                messageToSpeak = `Moving on. ${question.question}`;
+                const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
+                await sendQuestionToUI(question, questionIndex, 'theoretical');
+              } else {
+                // No more questions and no coding - complete
+                console.log('🎉 [Agent] All theoretical questions completed, no coding problems');
+                orchestrator.wrapUpInterview();
+                messageToSpeak = "That completes all the questions. Thank you for your time!";
+                await session.say(messageToSpeak);
+
+                orchestrator.completeInterview();
+
+                const finalState = stateProvider.getState(interviewId);
+                if (finalState) {
+                  await sendEventToUI('interview_completed', {
+                    state: {
+                      currentState: finalState.currentState,
+                      totalQuestions: finalState.totalQuestions,
+                      questionsAsked: finalState.questionsAsked,
+                      totalProblems: finalState.totalProblems,
+                      problemsCompleted: finalState.currentProblemIndex,
+                      startTime: finalState.startTime?.toISOString(),
+                      endTime: finalState.endTime?.toISOString(),
+                    },
+                    conversationHistory: finalState.conversationHistory,
+                    evaluations: finalState.evaluations,
+                  });
+                  console.log('📤 [Agent] Sent interview_completed to UI');
+                }
+                return;
+              }
+
+              // Speak the transition 
+              await session.say(messageToSpeak);
             }
           }
         } catch (error) {

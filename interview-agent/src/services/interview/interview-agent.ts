@@ -12,6 +12,7 @@ import { Orchestrator } from './orchestrator.js';
 import { detectJailbreak, getSafeResponse } from './security/jailbreak-detector.js';
 import { extractChunkText, cleanResponseText } from '../../utils/text-processing.js';
 import { getInterviewContextPrompt } from '../../prompts/contextPrompts.js';
+import { getDSASystemMessage } from '../../prompts/dsaSystemPrompt.js';
 
 /**
  * User data stored in the agent session
@@ -22,6 +23,7 @@ export interface InterviewSessionData {
   stateProvider: StateProvider;
   currentPhase: 'theoretical' | 'coding' | 'completed';
   sendQuestionToUI?: (question: any, questionIndex: number, questionType: 'theoretical' | 'coding') => Promise<void>;
+  sendEventToUI?: (eventType: string, data?: any) => Promise<void>;
   questions?: any[];
   codingProblems?: any[];
   role?: string; // Role for persona
@@ -208,6 +210,18 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     // If we started directly in coding phase, we need to inject the problem context now
     const pendingProblem = (this.session.userData as any).pendingProblemInjection;
     if (pendingProblem) {
+      // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
+      if (!(this.session.userData as any).dsaPromptInjected) {
+        const dsaSystemPrompt = getDSASystemMessage(role);
+        turnCtx.addMessage({
+          role: 'system',
+          content: dsaSystemPrompt
+        });
+        (this.session.userData as any).dsaPromptInjected = true;
+        console.log('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt (from pending injection)');
+      }
+
+      // THEN inject problem context
       const problemContextMessage = `
 [SYSTEM_INJECTION_DO_NOT_SPEAK]
 Here is the coding problem I need to solve:
@@ -216,8 +230,6 @@ Description: ${pendingProblem.description}
 Constraints: ${pendingProblem.constraints ? pendingProblem.constraints.join(', ') : 'None'}
 Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 'None'}
 `;
-      // Add BEFORE the user message processed by LLM? 
-      // Actually, we want it in history.
       turnCtx.addMessage({
         role: 'user',
         content: problemContextMessage
@@ -232,8 +244,14 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     const userTextLower = userText.toLowerCase();
 
     console.log('📊 Current State:', state.currentState);
-    console.log('📍 Current Question Index:', state.currentQuestionIndex);
-    console.log('🎯 Current Question ID:', state.currentQuestionId || 'N/A');
+    // Log correct ID/index based on current phase
+    if (state.currentState === 'coding' || state.currentState === 'coding_problem' || state.currentState === 'coding_intro') {
+      console.log('📍 Current Problem Index:', state.currentProblemIndex);
+      console.log('🎯 Current Problem ID:', state.currentProblemId || 'N/A');
+    } else {
+      console.log('📍 Current Question Index:', state.currentQuestionIndex);
+      console.log('🎯 Current Question ID:', state.currentQuestionId || 'N/A');
+    }
 
     // ⏱️ TIMING: Jailbreak Detection Start
     const jailbreakStartTime = Date.now();
@@ -307,7 +325,18 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
             // no-op
           }
 
-          // INJECT PROBLEM AS USER MESSAGE (HIDDEN CONTEXT FROM SYSTEM)
+          // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
+          if (!(this.session.userData as any).dsaPromptInjected) {
+            const dsaSystemPrompt = getDSASystemMessage(role);
+            turnCtx.addMessage({
+              role: 'system',
+              content: dsaSystemPrompt
+            });
+            (this.session.userData as any).dsaPromptInjected = true;
+            console.log('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt');
+          }
+
+          // THEN inject problem context
           const problemContextMessage = `
 [SYSTEM_INJECTION_DO_NOT_SPEAK]
 Here is the coding problem I need to solve:
@@ -549,11 +578,13 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
                   let fallbackTag = 'OFFER_CHOICE'; // Default fallback
 
-                  if (state?.currentQuestionId) {
-                    const hintDepth = stateProvider.getHintDepth(interviewId, state.currentQuestionId);
-                    const clarificationDepth = stateProvider.getClarificationDepth(interviewId, state.currentQuestionId);
-                    const genericDepth = stateProvider.getGenericDepth(interviewId, state.currentQuestionId);
-                    const followUpDepth = stateProvider.getFollowUpDepth(interviewId, state.currentQuestionId);
+                  // Use helper to get correct tracking ID based on phase
+                  const trackingId = stateProvider.getCurrentTrackingId(interviewId);
+                  if (trackingId) {
+                    const hintDepth = stateProvider.getHintDepth(interviewId, trackingId);
+                    const clarificationDepth = stateProvider.getClarificationDepth(interviewId, trackingId);
+                    const genericDepth = stateProvider.getGenericDepth(interviewId, trackingId);
+                    const followUpDepth = stateProvider.getFollowUpDepth(interviewId, trackingId);
 
                     // Determine appropriate fallback tag based on depth states
                     // If any depth is maxed, use OFFER_CHOICE; otherwise use NEXT
@@ -609,9 +640,19 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                           // no-op
                         }
 
-                        // INJECT PROBLEM AS USER MESSAGE (HIDDEN CONTEXT FROM SYSTEM)
-                        // This ensures the LLM knows the problem details even though it didn't speak them
-                        // We use 'user' role so it looks like the user provided the context or the system injected it as input
+                        // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
+                        if (!(agent.session.userData as any).dsaPromptInjected) {
+                          const { role } = agent.session.userData;
+                          const dsaSystemPrompt = getDSASystemMessage(role || 'Backend Engineer');
+                          chatCtx.addMessage({
+                            role: 'system',
+                            content: dsaSystemPrompt
+                          });
+                          (agent.session.userData as any).dsaPromptInjected = true;
+                          console.log('🔄 [llmNode] HOT SWAPPED to DSA system prompt');
+                        }
+
+                        // THEN inject problem context
                         const problemContextMessage = `
 [SYSTEM_INJECTION_DO_NOT_SPEAK]
 Here is the coding problem I need to solve:
@@ -700,13 +741,35 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     buffer = buffer.replace(tagMatch[0], '').trimStart();
                     tagProcessed = true;
 
-                    // 3. IF [NEXT] OR [CHECK_CODE] TAG DETECTED - HANDLE IMMEDIATELY
+                    // 3. IF [NEXT] OR [CHECK_CODE] TAG DETECTED - HANDLE
                     if (intent === 'NEXT' || intent === 'CHECK_CODE') {
                       if (nextTagDetected) {
                         console.log(`⚠️ [llmNode] Duplicate [${intent}] tag ignored`);
                       } else {
-                        console.log(`🚀 [llmNode] [${intent}] tag detected - will append next question after LLM finishes`);
-                        nextTagDetected = true;
+                        // CHECK PHASE: If Coding + [NEXT], show modal instead of auto-proceeding
+                        const { stateProvider, interviewId } = agent.session.userData;
+                        const state = stateProvider.getState(interviewId);
+
+                        const isCodingPhase = state?.currentState === 'coding' || state?.currentState === 'coding_problem';
+
+                        if (intent === 'NEXT' && isCodingPhase) {
+                          console.log(`🛡️ [llmNode] [NEXT] tag in CODING phase -> Triggering CONFIRMATION MODAL instead of auto-next`);
+
+                          // Trigger Modal
+                          const { sendEventToUI } = agent.session.userData;
+                          if (sendEventToUI) {
+                            sendEventToUI('show_confirmation_modal', {
+                              message: "Are you sure you want to move to the next question?"
+                            });
+                          }
+
+                          // DO NOT set nextTagDetected = true
+                          // This prevents the "appending next question" logic below
+                        } else {
+                          // Standard behavior (Theoretical [NEXT] or CHECK_CODE)
+                          console.log(`🚀 [llmNode] [${intent}] tag detected - will append next question/action after LLM finishes`);
+                          nextTagDetected = true;
+                        }
                       }
                     }
                   }
@@ -742,18 +805,21 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
   handleIntentTag(intent: string) {
     const { stateProvider, interviewId } = this.session.userData;
     const state = stateProvider.getState(interviewId);
-    if (!state?.currentQuestionId) return;
+
+    // Use helper to get correct tracking ID based on phase
+    const trackingId = stateProvider.getCurrentTrackingId(interviewId);
+    if (!trackingId) return;
 
     const MAX_DEPTH = 2;
 
     if (intent === 'FOLLOW_UP') {
-      const currentDepth = stateProvider.getFollowUpDepth(interviewId, state.currentQuestionId);
+      const currentDepth = stateProvider.getFollowUpDepth(interviewId, trackingId);
 
       // Do not increment beyond max depth, and avoid double-counting in
       // a single turn if something replays the same tag.
       if (currentDepth >= MAX_DEPTH) {
         console.log(
-          `🛑 [handleIntentTag] FOLLOW_UP ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for question ${state.currentQuestionId}`
+          `🛑 [handleIntentTag] FOLLOW_UP ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for ${trackingId}`
         );
         return;
       }
@@ -761,9 +827,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       const newDepth = currentDepth + 1;
 
       // Update Tracker
-      const tracker = state.followUpTracker.get(state.currentQuestionId) || { followUpDepth: 0, maxDepth: MAX_DEPTH };
+      const tracker = state!.followUpTracker.get(trackingId) || { followUpDepth: 0, maxDepth: MAX_DEPTH };
       tracker.followUpDepth = newDepth;
-      state.followUpTracker.set(state.currentQuestionId, tracker);
+      state!.followUpTracker.set(trackingId, tracker);
 
       // Inject System Context for NEXT turn
       stateProvider.addConversationMessage(interviewId, {
@@ -773,11 +839,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       console.log(`📝 State Updated: Follow-up depth ${newDepth}/2`);
     }
     else if (intent === 'HINT') {
-      const currentDepth = stateProvider.getHintDepth(interviewId, state.currentQuestionId);
+      const currentDepth = stateProvider.getHintDepth(interviewId, trackingId);
 
       if (currentDepth >= MAX_DEPTH) {
         console.log(
-          `🛑 [handleIntentTag] HINT ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for question ${state.currentQuestionId}`
+          `🛑 [handleIntentTag] HINT ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for ${trackingId}`
         );
         return;
       }
@@ -785,9 +851,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       const newDepth = currentDepth + 1;
 
       // Update Tracker
-      const tracker = state.hintTracker.get(state.currentQuestionId) || { hintDepth: 0, maxDepth: MAX_DEPTH };
+      const tracker = state!.hintTracker.get(trackingId) || { hintDepth: 0, maxDepth: MAX_DEPTH };
       tracker.hintDepth = newDepth;
-      state.hintTracker.set(state.currentQuestionId, tracker);
+      state!.hintTracker.set(trackingId, tracker);
 
       // Inject System Context for NEXT turn
       stateProvider.addConversationMessage(interviewId, {
@@ -797,11 +863,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       console.log(`💡 State Updated: Hint depth ${newDepth}/2`);
     }
     else if (intent === 'CLARIFY') {
-      const currentDepth = stateProvider.getClarificationDepth(interviewId, state.currentQuestionId);
+      const currentDepth = stateProvider.getClarificationDepth(interviewId, trackingId);
 
       if (currentDepth >= MAX_DEPTH) {
         console.log(
-          `🛑 [handleIntentTag] CLARIFY ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for question ${state.currentQuestionId}`
+          `🛑 [handleIntentTag] CLARIFY ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for ${trackingId}`
         );
         return;
       }
@@ -809,9 +875,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       const newDepth = currentDepth + 1;
 
       // Update Tracker
-      const tracker = state.clarificationTracker.get(state.currentQuestionId) || { clarificationDepth: 0, maxDepth: MAX_DEPTH };
+      const tracker = state!.clarificationTracker.get(trackingId) || { clarificationDepth: 0, maxDepth: MAX_DEPTH };
       tracker.clarificationDepth = newDepth;
-      state.clarificationTracker.set(state.currentQuestionId, tracker);
+      state!.clarificationTracker.set(trackingId, tracker);
 
       // Inject System Context for NEXT turn
       stateProvider.addConversationMessage(interviewId, {
@@ -821,11 +887,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       console.log(`❓ State Updated: Clarification depth ${newDepth}/2`);
     }
     else if (intent === 'GENERIC') {
-      const currentDepth = stateProvider.getGenericDepth(interviewId, state.currentQuestionId);
+      const currentDepth = stateProvider.getGenericDepth(interviewId, trackingId);
 
       if (currentDepth >= MAX_DEPTH) {
         console.log(
-          `🛑 [handleIntentTag] GENERIC ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for question ${state.currentQuestionId}`
+          `🛑 [handleIntentTag] GENERIC ignored: depth already at max (${currentDepth}/${MAX_DEPTH}) for ${trackingId}`
         );
         return;
       }
@@ -833,9 +899,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       const newDepth = currentDepth + 1;
 
       // Update Tracker
-      const tracker = state.genericTracker.get(state.currentQuestionId) || { genericDepth: 0, maxDepth: MAX_DEPTH };
+      const tracker = state!.genericTracker.get(trackingId) || { genericDepth: 0, maxDepth: MAX_DEPTH };
       tracker.genericDepth = newDepth;
-      state.genericTracker.set(state.currentQuestionId, tracker);
+      state!.genericTracker.set(trackingId, tracker);
 
       // Inject System Context for NEXT turn
       stateProvider.addConversationMessage(interviewId, {
@@ -846,7 +912,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     }
     else if (intent === 'DEBUG_HINT') {
       // Re-use clarification tracker for debug hints as per prompt logic
-      const currentDepth = stateProvider.getClarificationDepth(interviewId, state.currentQuestionId);
+      const currentDepth = stateProvider.getClarificationDepth(interviewId, trackingId);
 
       if (currentDepth >= MAX_DEPTH) {
         console.log(
@@ -856,9 +922,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       }
 
       const newDepth = currentDepth + 1;
-      const tracker = state.clarificationTracker.get(state.currentQuestionId) || { clarificationDepth: 0, maxDepth: MAX_DEPTH };
+      const tracker = state!.clarificationTracker.get(trackingId) || { clarificationDepth: 0, maxDepth: MAX_DEPTH };
       tracker.clarificationDepth = newDepth;
-      state.clarificationTracker.set(state.currentQuestionId, tracker);
+      state!.clarificationTracker.set(trackingId, tracker);
 
       stateProvider.addConversationMessage(interviewId, {
         role: 'user',
