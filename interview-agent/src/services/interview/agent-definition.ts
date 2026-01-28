@@ -311,7 +311,68 @@ export const agent = defineAgent({
         });
       };
 
+      // Helper function to send final evaluation directly to backend API
+      const sendFinalEvaluationToBackend = async (finalState: any, interviewLinkId?: number) => {
+        const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
+        try {
+          const sessionId = interviewId.startsWith('interview-')
+            ? interviewId.replace('interview-', '')
+            : interviewId;
 
+          const payload = {
+            sessionId,
+            candidateId: finalState.candidateId || 'unknown',
+            interviewLinkId: interviewLinkId,
+            startTime: finalState.startTime?.toISOString(),
+            endTime: finalState.endTime?.toISOString(),
+            duration: finalState.endTime && finalState.startTime
+              ? finalState.endTime.getTime() - finalState.startTime.getTime()
+              : 0,
+            fullConversationHistory: finalState.conversationHistory || [],
+            theoreticalSection: {
+              totalQuestions: finalState.totalQuestions || 0,
+              questionsAsked: finalState.questionsAsked || 0,
+              conversations: [],
+            },
+            codingSection: {
+              totalProblems: finalState.totalProblems || 0,
+              problemsCompleted: finalState.currentProblemIndex || 0,
+              conversations: [],
+            },
+            // Required fields with defaults (will be updated by LLM evaluation later)
+            totalScore: 0,
+            strengths: [],
+            areasForImprovement: [],
+            overallFeedback: 'Interview completed. Evaluation pending.',
+            hintRequestCount: finalState.hintsProvided || 0,
+            clarificationRequestCount: finalState.clarificationsGiven || 0,
+            followUpCount: 0, // Could be calculated from conversationHistory metadata
+            averageTimePerQuestion: 0,
+            averageTimePerCodingProblem: 0,
+          };
+
+          console.log('📤 [Agent] Sending final evaluation to backend API...', {
+            sessionId,
+            conversationHistoryLength: (finalState.conversationHistory || []).length,
+          });
+
+          const response = await fetch(`${serverUrl}/api/interview/final-evaluation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (response.ok) {
+            const data = await response.json() as { success?: boolean };
+            console.log('✅ [Agent] Final evaluation sent to backend successfully:', data.success);
+          } else {
+            const errorText = await response.text();
+            console.error('❌ [Agent] Backend API error:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('❌ [Agent] Failed to send final evaluation to backend:', error);
+        }
+      };
 
       // TAG-BASED INTENT DETECTION - No tool calling
       const llmDirect = new openai.LLM({
@@ -358,7 +419,9 @@ export const agent = defineAgent({
       ctx.room.on('dataReceived', async (payload: Uint8Array, participant: any) => {
         try {
           const str = new TextDecoder().decode(payload);
+          console.log(`📨 [Agent] DataReceived raw: ${str.substring(0, 100)}...`);
           const msg = JSON.parse(str);
+          console.log(`📨 [Agent] DataReceived parsed type: ${msg.type}`);
 
           if (msg.type === 'request-state') {
             const currentState = stateProvider.getState(interviewId);
@@ -412,6 +475,9 @@ export const agent = defineAgent({
                 // Get final state and send interview_completed to UI
                 const finalState = stateProvider.getState(interviewId);
                 if (finalState) {
+                  // Send final evaluation directly to backend API
+                  await sendFinalEvaluationToBackend(finalState);
+
                   await sendEventToUI('interview_completed', {
                     state: {
                       currentState: finalState.currentState,
@@ -422,7 +488,6 @@ export const agent = defineAgent({
                       startTime: finalState.startTime?.toISOString(),
                       endTime: finalState.endTime?.toISOString(),
                     },
-                    conversationHistory: finalState.conversationHistory,
                     evaluations: finalState.evaluations,
                   });
                   console.log('📤 [Agent] Sent interview_completed to UI');
@@ -466,6 +531,9 @@ export const agent = defineAgent({
 
                   const finalState = stateProvider.getState(interviewId);
                   if (finalState) {
+                    // Send final evaluation directly to backend API
+                    await sendFinalEvaluationToBackend(finalState);
+
                     await sendEventToUI('interview_completed', {
                       state: {
                         currentState: finalState.currentState,
@@ -476,7 +544,6 @@ export const agent = defineAgent({
                         startTime: finalState.startTime?.toISOString(),
                         endTime: finalState.endTime?.toISOString(),
                       },
-                      conversationHistory: finalState.conversationHistory,
                       evaluations: finalState.evaluations,
                     });
                     console.log('📤 [Agent] Sent interview_completed to UI');
@@ -499,6 +566,9 @@ export const agent = defineAgent({
 
                 const finalState = stateProvider.getState(interviewId);
                 if (finalState) {
+                  // Send final evaluation directly to backend API
+                  await sendFinalEvaluationToBackend(finalState);
+
                   await sendEventToUI('interview_completed', {
                     state: {
                       currentState: finalState.currentState,
@@ -509,7 +579,6 @@ export const agent = defineAgent({
                       startTime: finalState.startTime?.toISOString(),
                       endTime: finalState.endTime?.toISOString(),
                     },
-                    conversationHistory: finalState.conversationHistory,
                     evaluations: finalState.evaluations,
                   });
                   console.log('📤 [Agent] Sent interview_completed to UI');

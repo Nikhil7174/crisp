@@ -85,6 +85,12 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
             const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
             await sendQuestionToUI(question, questionIndex, 'theoretical');
           }
+          // Store question in conversation history
+          stateProvider.addConversationMessage(interviewId, {
+            role: 'assistant',
+            content: question.question,
+            metadata: { type: 'question', questionId: question.id, phase: 'theoretical' },
+          });
           console.log('📝 [Agent] Speaking first question:', question.question);
           await this.session.say(question.question);
         }
@@ -106,6 +112,12 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
 
           // Speak intro
           const intro = `Let's move straight to the coding section. Here's a problem for you to solve.`;
+          // Store coding intro in conversation history
+          stateProvider.addConversationMessage(interviewId, {
+            role: 'assistant',
+            content: intro,
+            metadata: { type: 'coding_intro', problemId: problem.id, phase: 'coding' },
+          });
           await this.session.say(intro);
 
           // INJECT PROBLEM CONTEXT (Hidden)
@@ -242,6 +254,21 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
 
     const userText = newMessage.textContent || '';
     const userTextLower = userText.toLowerCase();
+
+    // Store user message in conversation history
+    if (userText && userText.trim()) {
+      stateProvider.addConversationMessage(interviewId, {
+        role: 'user',
+        content: userText,
+        metadata: {
+          timestamp: Date.now(),
+          questionId: state.currentQuestionId,
+          problemId: state.currentProblemId,
+          phase: state.currentState
+        },
+      });
+      console.log('📝 [onUserTurnCompleted] Stored user message in conversation history');
+    }
 
     console.log('📊 Current State:', state.currentState);
     // Log correct ID/index based on current phase
