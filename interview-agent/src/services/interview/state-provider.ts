@@ -323,13 +323,14 @@ export class StateProvider extends EventEmitter {
     const state = this.states.get(interviewId);
     if (!state) return;
 
+    const actualIndex = state.currentQuestionIndex;
     state.currentQuestionIndex++;
     state.currentQuestionId = questionId;
     state.questionsAsked++;
     state.currentQuestionIsFollowUp = false;
     state.parentQuestionId = null;
 
-    this.emit('questionChanged', { interviewId, questionId, index: state.currentQuestionIndex });
+    this.emit('questionChanged', { interviewId, questionId, index: actualIndex });
   }
 
   /**
@@ -453,12 +454,13 @@ export class StateProvider extends EventEmitter {
     const state = this.states.get(interviewId);
     if (!state) return;
 
+    const actualIndex = state.currentProblemIndex;
     state.currentProblemIndex++;
     state.currentProblemId = problemId;
     // Clear theoretical question tracking to prevent stale state
     state.currentQuestionId = null;
 
-    this.emit('problemChanged', { interviewId, problemId, index: state.currentProblemIndex });
+    this.emit('problemChanged', { interviewId, problemId, index: actualIndex });
   }
 
   /**

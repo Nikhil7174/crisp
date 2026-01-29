@@ -191,6 +191,8 @@ export class InterviewController {
         return {
           id: q.id,
           question: q.question,
+          title: q.question,    // Required by Orchestrator
+          description: q.problemStatement || q.question, // Required by Orchestrator
           type: 'coding',
           difficulty: q.difficulty,
           timeLimit: q.timeLimit || timeLimit,

@@ -74,7 +74,23 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       } else {
         // Default to theoretical flow
         orchestrator.startTheoreticalQuestions();
-        const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
+
+        // CHECK: Do we already have an active question? (Handle reconnects/re-entry)
+        let question: any = null;
+        let shouldMoveToCoding = false;
+        let isNewQuestion = false;
+
+        if (state && state.currentQuestionId) {
+          console.log(`🔄 [Agent] Resuming existing theoretical question: ${state.currentQuestionId}`);
+          question = orchestrator.getQuestionById(state.currentQuestionId);
+        } else {
+          // No active question, get the next one
+          console.log(`🆕 [Agent] No active question, asking next one`);
+          const result = orchestrator.askNextQuestion();
+          question = result.question;
+          shouldMoveToCoding = result.shouldMoveToCoding;
+          isNewQuestion = true;
+        }
 
         if (shouldMoveToCoding) {
           shouldStartCoding = true;
@@ -82,16 +98,20 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
           const { sendQuestionToUI } = this.session.userData;
           if (sendQuestionToUI) {
             const state = stateProvider.getState(interviewId);
+            // Calculate index: If new question, state was just incremented. If resuming, state is stable.
+            // Ideally rely on state.currentQuestionIndex which points to the *next* slot, so current is index-1
             const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
             await sendQuestionToUI(question, questionIndex, 'theoretical');
           }
-          // Store question in conversation history
-          stateProvider.addConversationMessage(interviewId, {
-            role: 'assistant',
-            content: question.question,
-            metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
-          });
-          console.log('📝 [Agent] Speaking first question:', question.question);
+          // Store question in conversation history only if it's new (avoid dupe on resume)
+          if (isNewQuestion) {
+            stateProvider.addConversationMessage(interviewId, {
+              role: 'assistant',
+              content: question.question,
+              metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
+            });
+          }
+          console.log('📝 [Agent] Speaking question:', question.question);
           await this.session.say(question.question);
         }
       }

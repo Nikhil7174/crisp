@@ -43,9 +43,9 @@ export const agent = defineAgent({
     console.log('🔥 Prewarming agent resources...');
 
     try {
-      // Load VAD model (Voice Activity Detection)
-      console.log('Loading Silero VAD model...');
-      proc.userData.vad = await silero.VAD.load();
+      // Load VAD model (Voice Activity Detection) with requested 1.0s threshold
+      console.log('Loading Silero VAD model with 1.0s min speech duration...');
+      proc.userData.vad = await silero.VAD.load({ minSpeechDuration: 1.0 });
       console.log('✅ VAD model loaded');
 
       // Initialize shared services
@@ -337,7 +337,10 @@ export const agent = defineAgent({
             codingSection: {
               totalProblems: finalState.totalProblems || 0,
               problemsCompleted: finalState.currentProblemIndex || 0,
-              conversations: [],
+              conversations: [], // detailed conversations handled by fullConversationHistory
+              // Include final code if available for the current problem
+              finalCode: finalState.currentCode || '',
+              problem: orchestrator.getCurrentProblem() || undefined,
             },
             // Required fields with defaults (will be updated by LLM evaluation later)
             totalScore: 0,
@@ -347,8 +350,10 @@ export const agent = defineAgent({
             hintRequestCount: finalState.hintsProvided || 0,
             clarificationRequestCount: finalState.clarificationsGiven || 0,
             followUpCount: finalState.followUpsGiven || 0,
-            averageTimePerQuestion: 0,
-            averageTimePerCodingProblem: 0,
+            averageTimePerQuestion: (finalState.endTime && finalState.startTime && (finalState.questionsAsked || 0) + (finalState.currentProblemIndex || 0) > 0)
+              ? Math.round(((finalState.endTime.getTime() - finalState.startTime.getTime()) / 1000) / ((finalState.questionsAsked || 0) + (finalState.currentProblemIndex || 0)))
+              : 0,
+            averageTimePerCodingProblem: 0, // Could be specialized if we track section timing
           };
 
           console.log('📤 [Agent] Sending final evaluation to backend API...', {

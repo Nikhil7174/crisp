@@ -95,6 +95,20 @@ export class Orchestrator extends EventEmitter {
   }
 
   /**
+   * Get index of question by ID
+   */
+  getIndexOfQuestion(questionId: string): number {
+    return this.questions.findIndex(q => q.id === questionId);
+  }
+
+  /**
+   * Get index of problem by ID
+   */
+  getIndexOfProblem(problemId: string): number {
+    return this.codingProblems.findIndex(p => p.id === problemId);
+  }
+
+  /**
    * Get current coding problem from state
    */
   getCurrentProblem(): CodingProblem | null {

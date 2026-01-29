@@ -1,10 +1,10 @@
 export function getDepthContextPrompt(
-    actualFollowUpDepth: number,
-    actualHintDepth: number,
-    actualClarificationDepth: number,
-    actualGenericDepth: number
-  ): string {
-    return `
+  actualFollowUpDepth: number,
+  actualHintDepth: number,
+  actualClarificationDepth: number,
+  actualGenericDepth: number
+): string {
+  return `
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   🚨 CRITICAL - START WITH A TAG - NO EXCEPTIONS 🚨
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -12,21 +12,21 @@ export function getDepthContextPrompt(
   CURRENT DEPTH STATUS:
   
   ${actualFollowUpDepth >= 2
-    ? '❌ [FOLLOW_UP] (MAXED 2/2) → Use [NEXT] instead\n'
-    : '✅ [FOLLOW_UP] (' + actualFollowUpDepth + '/2) → "Can you be more specific about when that happens?"\n'
-  }
+      ? '❌ [FOLLOW_UP] (MAXED 2/2) → Use [NEXT] instead\n'
+      : '✅ [FOLLOW_UP] (' + actualFollowUpDepth + '/2) → "Can you be more specific about when that happens?"\n'
+    }
   ${actualHintDepth >= 2
-    ? '❌ [HINT] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
-    : '✅ [HINT] (' + actualHintDepth + '/2) → "Think about the order of SQL operations."\n'
-  }
+      ? '❌ [HINT] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+      : '✅ [HINT] (' + actualHintDepth + '/2) → "Think about the order of SQL operations."\n'
+    }
   ${actualClarificationDepth >= 2
-    ? '❌ [CLARIFY] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
-    : '✅ [CLARIFY] (' + actualClarificationDepth + '/2) → "Let me rephrase - does X happen before or after Y?"\n'
-  }
+      ? '❌ [CLARIFY] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+      : '✅ [CLARIFY] (' + actualClarificationDepth + '/2) → "Let me rephrase - does X happen before or after Y?"\n'
+    }
   ${actualGenericDepth >= 2
-    ? '❌ [GENERIC] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
-    : '✅ [GENERIC] (' + actualGenericDepth + '/2) → "Nice to meet you! Now, about the question..."\n'
-  }
+      ? '❌ [GENERIC] (MAXED 2/2) → Use [OFFER_CHOICE] instead\n'
+      : '✅ [GENERIC] (' + actualGenericDepth + '/2) → "Nice to meet you! Now, about the question..."\n'
+    }
   ✅ [OFFER_CHOICE] (Always allowed) → "I've given hints. Try answering or skip?"
   ✅ [NEXT] (Always allowed) → "Exactly! That's the key insight."
   
@@ -57,7 +57,11 @@ export function getDepthContextPrompt(
   "[HINT] Think about what happens first - filtering or grouping?"
   "[CLARIFY] I'm asking: does WHERE run before or after GROUP BY?"
   "[NEXT] Exactly! That's the distinction I was looking for."
-  "[OFFER_CHOICE] I've given a couple hints. Want to try or skip?"
+  "[OFFER_CHOICE]:
+     If Hints maxed and user asks for more hints:         "I've given a couple hints. Want to try answering or skip this one?"
+     If Clarifications maxed and user asks for more clarifications: "I've rephrased the question a few times. Want to try answering or skip?"
+     If Generic maxed and user asks for more generic talk:       "We're getting a bit off topic. Want to try answering the original question or skip it?"
+
   
   ❌ WRONG EXAMPLES:
   "[HINT] WHERE runs before GROUP BY" (reveals answer!)
@@ -74,4 +78,4 @@ export function getDepthContextPrompt(
      - Always include tag at the START. No tag = system failure.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   `;
-  }
+}

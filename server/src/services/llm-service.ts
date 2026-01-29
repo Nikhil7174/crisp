@@ -114,7 +114,7 @@ export class LLMService extends EventEmitter {
       followUpDepth,
       candidateAnswerLength: candidateAnswer.length
     })
-    
+
     const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
@@ -214,13 +214,13 @@ IMPORTANT:
         console.log('LLM Response content:', content)
 
         let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-        
+
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
           console.error('Failed to parse LLM response as JSON:', content)
           console.error('Parse error:', parseError)
-          
+
           // Fallback: create a basic evaluation
           evaluation = {
             keyPointsCovered: [],
@@ -230,16 +230,16 @@ IMPORTANT:
             feedback: "I had trouble processing your answer. Could you please try again?"
           }
         }
-        
+
         const result = {
           questionId: question.id,
           candidateAnswer,
           ...evaluation
         }
-        
+
         // Validate follow-up criteria programmatically (safety check)
         const validatedResult = this.validateFollowUpCriteria(result, followUpDepth)
-        
+
         console.log('🔍 [LLM-Server] evaluateAnswer final result:', {
           questionId: validatedResult.questionId,
           needsFollowUp: validatedResult.needsFollowUp,
@@ -247,26 +247,26 @@ IMPORTANT:
           keyPointsCovered: validatedResult.keyPointsCovered.length,
           wasModified: validatedResult.needsFollowUp !== result.needsFollowUp
         })
-        
+
         return validatedResult
       } catch (error: any) {
         lastError = error
         const isRetryableError = error.status === 429 || // Rate limit
-                                error.status >= 500 ||   // Server errors
-                                error.code === 'ETIMEDOUT' ||
-                                error.message?.includes('timeout') ||
-                                error.type === 'server_error' ||
-                                error.type === 'rate_limit_error'
-        
+          error.status >= 500 ||   // Server errors
+          error.code === 'ETIMEDOUT' ||
+          error.message?.includes('timeout') ||
+          error.type === 'server_error' ||
+          error.type === 'rate_limit_error'
+
         console.error(`❌ [LLM-Server] OpenAI API error (attempt ${attempt}/${maxRetries}):`, error.message || error)
-        
+
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
           console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
-        
+
         // If not retryable or last attempt, break and throw
         if (!isRetryableError || attempt === maxRetries) {
           break
@@ -314,10 +314,10 @@ Respond with just the follow-up question text.`
   async analyzeCode(code: string, problem: string, language: string = 'javascript', previousCode: string = ''): Promise<CodeAnalysis> {
     try {
       const hasPreviousCode = previousCode && previousCode.trim().length > 0
-      const previousCodeSection = hasPreviousCode ? 
-        `\n\nCode from ~1 minute ago (for comparison):\n\`\`\`${language}\n${previousCode}\n\`\`\`` : 
+      const previousCodeSection = hasPreviousCode ?
+        `\n\nCode from ~1 minute ago (for comparison):\n\`\`\`${language}\n${previousCode}\n\`\`\`` :
         '\n\n(No previous code - first analysis)'
-      
+
       const systemPrompt = `You are an AI code reviewer analyzing a candidate's code progress.
 
 Problem: ${problem}
@@ -430,7 +430,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
 
   addToConversation(role: 'user' | 'assistant', content: string): void {
     this.conversationHistory.push({ role, content })
-    
+
     // Keep only last 20 messages to manage context length
     if (this.conversationHistory.length > 20) {
       this.conversationHistory = this.conversationHistory.slice(-20)
@@ -459,7 +459,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
       followUpAnswerLength: followUpAnswer.length,
       followUpQuestion: followUpQuestion.substring(0, 50) + '...'
     })
-    
+
     const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
@@ -542,13 +542,13 @@ IMPORTANT:
         }
 
         let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
-        
+
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
           console.error('Failed to parse LLM response as JSON:', content)
           console.error('Parse error:', parseError)
-          
+
           // Fallback: create a basic evaluation
           evaluation = {
             keyPointsCovered: [],
@@ -558,13 +558,13 @@ IMPORTANT:
             feedback: "I had trouble processing your follow-up answer. Could you please try again?"
           }
         }
-        
+
         const result = {
           questionId: originalQuestion.id, // Use original question ID
           candidateAnswer: followUpAnswer, // Use follow-up answer
           ...evaluation
         }
-        
+
         console.log('🔍 [LLM-Server] evaluateFollowUpAnswer result:', {
           questionId: result.questionId,
           needsFollowUp: result.needsFollowUp,
@@ -572,26 +572,26 @@ IMPORTANT:
           keyPointsCovered: result.keyPointsCovered.length,
           isFollowUp: true
         })
-        
+
         return result
       } catch (error: any) {
         lastError = error
         const isRetryableError = error.status === 429 || // Rate limit
-                                error.status >= 500 ||   // Server errors
-                                error.code === 'ETIMEDOUT' ||
-                                error.message?.includes('timeout') ||
-                                error.type === 'server_error' ||
-                                error.type === 'rate_limit_error'
-        
+          error.status >= 500 ||   // Server errors
+          error.code === 'ETIMEDOUT' ||
+          error.message?.includes('timeout') ||
+          error.type === 'server_error' ||
+          error.type === 'rate_limit_error'
+
         console.error(`❌ [LLM-Server] OpenAI API error for follow-up (attempt ${attempt}/${maxRetries}):`, error.message || error)
-        
+
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
           console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
-        
+
         // If not retryable or last attempt, break and throw
         if (!isRetryableError || attempt === maxRetries) {
           break
@@ -677,7 +677,7 @@ IMPORTANT:
       // Handle both old format (array) and new format (payload)
       let conversationHistory: any[]
       let evaluationPayload: FinalEvaluationPayload | null = null
-      
+
       if (Array.isArray(payload)) {
         // Old format - just conversation history
         conversationHistory = payload as any[]
@@ -717,16 +717,17 @@ IMPORTANT:
           const role = msg.role === 'user' ? 'Candidate' : msg.role === 'assistant' ? 'AI Interviewer' : 'System'
           const section = msg.metadata?.section || 'general'
           const type = msg.metadata?.type || 'message'
-          const content = msg.content.substring(0, 200) // Limit content length
-          return `[${idx + 1}] ${role} (${section}, ${type}): ${content}`
+          const content = msg.content
+
+          return `[${idx + 1}] ${role} (${section}, ${type}):\n${content}\n`
         })
-        .join('\n')
+        .join('\n---\n')
 
       // Check which sections are present (have questions/problems)
-      const hasTheoreticalSection = evaluationPayload 
+      const hasTheoreticalSection = evaluationPayload
         ? (evaluationPayload.theoreticalSection?.totalQuestions ?? 0) > 0
         : theoreticalMessages.length > 0
-      
+
       const hasCodingSection = evaluationPayload
         ? (evaluationPayload.codingSection?.totalProblems ?? 0) > 0
         : codingMessages.length > 0
@@ -744,7 +745,7 @@ IMPORTANT:
             const question = evaluationPayload!.theoreticalSection.questions.find(q => q.id === conv.questionId)
             const hintCountForQ = conv.conversation.filter(m => m.metadata?.type === 'hint').length
             const clarificationCountForQ = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
-            const timeTaken = conv.conversation.length > 0 
+            const timeTaken = conv.conversation.length > 0
               ? (conv.conversation[conv.conversation.length - 1].timestamp - conv.conversation[0].timestamp) / 1000
               : 0
 
@@ -764,47 +765,44 @@ IMPORTANT:
         }
 
         // Coding section context (only if section exists)
-        if (hasCodingSection && evaluationPayload.codingSection && evaluationPayload.codingSection.conversations.length > 0) {
-          codingContext = '\n\nCODING SECTION DETAILS:\n'
-          evaluationPayload.codingSection.conversations.forEach((conv, idx) => {
-            const hintCountForP = conv.conversation.filter(m => m.metadata?.type === 'hint').length
-            const clarificationCountForP = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
-            const timeTaken = conv.submittedAt && conv.conversation.length > 0
-              ? (new Date(conv.submittedAt).getTime() - conv.conversation[0].timestamp) / 1000
-              : 0
+        if (hasCodingSection && evaluationPayload.codingSection) {
+          if (evaluationPayload.codingSection.conversations && evaluationPayload.codingSection.conversations.length > 0) {
+            codingContext = '\n\nCODING SECTION DETAILS:\n'
+            evaluationPayload.codingSection.conversations.forEach((conv, idx) => {
+              const hintCountForP = conv.conversation.filter(m => m.metadata?.type === 'hint').length
+              const clarificationCountForP = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
+              const timeTaken = conv.submittedAt && conv.conversation.length > 0
+                ? (new Date(conv.submittedAt).getTime() - conv.conversation[0].timestamp) / 1000
+                : 0
 
-            codingContext += `\nProblem ${idx + 1}:\n`
-            codingContext += `- Problem: ${conv.problem?.problem || 'N/A'}\n`
-            codingContext += `- Difficulty: ${conv.problem?.difficulty || 'N/A'}\n`
-            codingContext += `- Language: ${conv.problem?.language || 'N/A'}\n`
-            codingContext += `- Score: ${conv.evaluation?.score || 0}/100\n`
-            codingContext += `- Hints used: ${hintCountForP}\n`
-            codingContext += `- Clarifications: ${clarificationCountForP}\n`
-            codingContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
-            if (conv.finalCode) {
-              codingContext += `- Final code length: ${conv.finalCode.length} characters\n`
-            }
-            if (conv.timeComplexity) {
-              codingContext += `- Time complexity: ${conv.timeComplexity}\n`
-            }
-            if (conv.spaceComplexity) {
-              codingContext += `- Space complexity: ${conv.spaceComplexity}\n`
-            }
-            if (conv.evaluation?.testResults) {
-              const passedTests = conv.evaluation.testResults.filter(t => t.passed).length
-              codingContext += `- Test results: ${passedTests}/${conv.evaluation.testResults.length} passed\n`
-            }
-            if (conv.evaluation?.feedback) {
-              codingContext += `- Feedback: ${conv.evaluation.feedback}\n`
-            }
-            if (conv.codeAnalysisHistory && conv.codeAnalysisHistory.length > 0) {
-              codingContext += `- Code analysis iterations: ${conv.codeAnalysisHistory.length}\n`
-            }
-          })
+              codingContext += `\nProblem ${idx + 1}:\n`
+              codingContext += `- Problem: ${conv.problem?.problem || 'N/A'}\n`
+              codingContext += `- Difficulty: ${conv.problem?.difficulty || 'N/A'}\n`
+              codingContext += `- Language: ${conv.problem?.language || 'N/A'}\n`
+              codingContext += `- Score: ${conv.evaluation?.score || 0}/100\n`
+              codingContext += `- Hints used: ${hintCountForP}\n`
+              codingContext += `- Clarifications: ${clarificationCountForP}\n`
+              codingContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
+              if (conv.finalCode) {
+                codingContext += `- Final code length: ${conv.finalCode.length} characters\n`
+                codingContext += `- CODE CONTENT:\n\`\`\`${conv.problem?.language || 'javascript'}\n${conv.finalCode}\n\`\`\`\n`
+              }
+              // ... rest of detailed analysis
+            })
+          } else if ((evaluationPayload.codingSection as any).finalCode) {
+            // Fallback for standalone finalCode (new format from agent)
+            const cs = evaluationPayload.codingSection as any;
+            codingContext = '\n\nCODING SECTION DETAILS (Standalone Submission):\n';
+            codingContext += `- Problem: ${cs.problem?.title || cs.problem?.problem || 'N/A'}\n`;
+            codingContext += `- Language: ${cs.problem?.language || 'N/A'}\n`;
+            codingContext += `- FINAL CODE:\n\`\`\`${cs.problem?.language || 'javascript'}\n${cs.finalCode}\n\`\`\`\n`;
+          }
         }
+      }
 
-        // Performance metrics
-        performanceMetrics = '\n\nPERFORMANCE METRICS:\n'
+      // Performance metrics
+      performanceMetrics = '\n\nPERFORMANCE METRICS:\n'
+      if (evaluationPayload) {
         performanceMetrics += `- Total interview duration: ${(evaluationPayload.duration / 1000 / 60).toFixed(1)} minutes\n`
         if (hasTheoreticalSection) {
           performanceMetrics += `- Average time per theoretical question: ${evaluationPayload.averageTimePerQuestion?.toFixed(1) || 'N/A'} seconds\n`
@@ -818,6 +816,10 @@ IMPORTANT:
         performanceMetrics += `- Total clarifications requested: ${clarificationCount}\n`
         performanceMetrics += `- Total follow-up questions: ${followUpCount}\n`
         performanceMetrics += `- Overall score: ${evaluationPayload.totalScore?.toFixed(1) || 'N/A'}/100\n`
+      } else {
+        performanceMetrics += `- Total hints requested: ${hintCount}\n`
+        performanceMetrics += `- Total clarifications requested: ${clarificationCount}\n`
+        performanceMetrics += `- Total follow-up questions: ${followUpCount}\n`
       }
 
       const systemPrompt = `You are an expert technical interviewer analyzing a complete interview conversation history. Your task is to provide comprehensive evaluation scores and feedback with detailed breakdowns.
@@ -931,6 +933,7 @@ ${hasCodingSection ? `2. CODING SECTION EVALUATION:` : ''}
 3. OVERALL EVALUATION:
    - Weight: ${hasTheoreticalSection && hasCodingSection ? '60% theoretical, 40% coding' : hasTheoreticalSection ? '100% theoretical' : '100% coding'} (only consider sections that exist)
    - Consider: Overall interview performance, communication skills, problem-solving ability, technical knowledge
+   - **TRUTH SOURCE**: Use the CONVERSATION HISTORY below as the absolute source of truth for what the candidate said and wrote. The section details provided are summaries; look into the actual messages for technical depth and code quality.
    - Provide specific learning recommendations based on identified gaps
    ${!hasTheoreticalSection ? '- NOTE: This interview did NOT include theoretical questions. Do NOT include theoreticalSection in your response.' : ''}
    ${!hasCodingSection ? '- NOTE: This interview did NOT include coding problems. Do NOT include codingSection in your response.' : ''}
@@ -939,9 +942,9 @@ METRICS TO CONSIDER:
 - Hint requests: ${hintCount} (more hints = lower score)
 - Clarification requests: ${clarificationCount} (more clarifications = lower score)
 - Follow-up questions: ${followUpCount} (indicates initial answers were incomplete)
-- Answer quality and completeness
-- Technical depth and accuracy
-- Problem-solving approach
+- Answer quality and completeness from the actual transcript
+- Technical depth and accuracy based on their spoken/typed words
+- Problem-solving approach and **ACTUAL CODE** written in the transcript
 - Communication clarity
 ${performanceMetrics}
 
@@ -1088,7 +1091,7 @@ Always provide overall performance evaluation. Include question-wise and problem
         console.warn('⚠️ Coding section expected but not found in LLM response')
       }
 
-      // Ensure optional fields are present (may be undefined if LLM doesn't provide them or section doesn't exist)
+      // Ensure optional fields are present
       const result: any = {
         overall: {
           ...evaluation.overall,
@@ -1125,8 +1128,8 @@ Always provide overall performance evaluation. Include question-wise and problem
 
     } catch (error) {
       console.error('Error generating comprehensive evaluation:', error)
-      // Return fallback evaluation - basic structure without section checks
-      const fallbackResult: any = {
+      // Return fallback evaluation
+      return {
         overall: {
           score: 0,
           feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
@@ -1144,12 +1147,9 @@ Always provide overall performance evaluation. Include question-wise and problem
           averageTimePerQuestion: 0,
           averageTimePerProblem: 0
         }
-      }
-
-      return fallbackResult
+      } as any
     }
   }
-
 }
 
 export function createLLMService(config: LLMConfig): LLMService {

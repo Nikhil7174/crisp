@@ -854,6 +854,21 @@ export class PrismaService {
             console.log('✅ Interview record created:', interview.id);
         } else {
             console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
+            // Updating the parent Interview table with final stats is crucial for the dashboard
+            await prisma.interview.update({
+                where: { id: interview.id },
+                data: {
+                    duration: payload.duration,
+                    time_spent: payload.duration,
+                    score: Math.round(payload.totalScore),
+                    end_time: new Date(payload.endTime),
+                    // Also ensure candidate info is up to date if provided
+                    candidate_name: payload.candidateId,
+                    candidate_email: payload.candidateId,
+                    total_questions: (payload.theoreticalSection?.totalQuestions || 0) + (payload.codingSection?.totalProblems || 0),
+                }
+            });
+            console.log('✅ Synced final stats to Interview table for interview:', interview.id);
         }
 
         // Normalize / provide safe defaults so Prisma doesn't receive undefined for required fields

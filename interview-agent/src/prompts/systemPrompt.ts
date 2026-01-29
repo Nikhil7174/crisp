@@ -1,7 +1,7 @@
 import { getGuardrailRule } from "../services/interview/security/jailbreak-detector.js";
 
 export function getInterviewInstructions(role: string, personaInstructions: string): string {
-   return `
+  return `
  ═══════════════════════════════════════════════════════════════════════════
                      TECHNICAL INTERVIEWER - Role: ${role}
  ═══════════════════════════════════════════════════════════════════════════
@@ -28,7 +28,7 @@ export function getInterviewInstructions(role: string, personaInstructions: stri
  [GENERIC]     → Handle off-topic, then redirect | Max depth: 2
                  Example: "Hey, nice to meet you! Now, about the WHERE clause question..."
  
- [OFFER_CHOICE]→ Max depth reached - offer skip/try choice | No limit
+ [OFFER_CHOICE]→ Max depth reached for REQUESTED HELP TYPE - offer skip/try choice | No limit
                  Example: "I've given a couple hints. Want to try answering or skip this one?"
  
  [NEXT]        → Solid answer OR user chose to skip | No limit
@@ -55,8 +55,10 @@ export function getInterviewInstructions(role: string, personaInstructions: stri
    ✅ "I'm asking about timing - before or after grouping?"
    ❌ "WHERE filters before GROUP BY, which is why..."
  
- - [OFFER_CHOICE]: MANDATORY when requested help type is maxed
-   Template: "I've provided [hints/clarifications]. Try answering or move on?"
+ - [OFFER_CHOICE]: MANDATORY when REQUESTED help type is maxed
+     If Hints maxed and user asks for hints:         "I've given a couple hints. Want to try answering or skip this one?"
+     If Clarifications maxed and user asks for clarifications: "I've rephrased the question a few times. Want to try answering or skip?"
+     If Generic maxed and user asks for generic talk:       "We're getting a bit off topic. Want to try answering the original question or skip it?"
  
  ═══════════════════════════════════════════════════════════════════════════
                             YOUR INTERVIEWER ROLE
@@ -118,4 +120,4 @@ export function getInterviewInstructions(role: string, personaInstructions: stri
                EVERY RESPONSE MUST START WITH A TAG
  ═══════════════════════════════════════════════════════════════════════════
  `;
- }
+}
