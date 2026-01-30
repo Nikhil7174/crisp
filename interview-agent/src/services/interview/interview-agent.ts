@@ -910,6 +910,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
       // State is tracked internally, not stored in conversation history
       console.log(`📝 State Updated: Follow-up depth ${newDepth}/2`);
+
+      // SEND UI EVENT
+      const { sendEventToUI } = this.session.userData;
+      if (sendEventToUI) {
+        sendEventToUI('follow_up').catch(err => {
+          console.error(`❌ [handleIntentTag] Failed to send 'follow_up' event:`, err);
+        });
+      }
     }
     else if (intent === 'HINT') {
       const currentDepth = stateProvider.getHintDepth(interviewId, trackingId);
@@ -933,6 +941,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
       // State is tracked internally, not stored in conversation history
       console.log(`💡 State Updated: Hint depth ${newDepth}/2`);
+
+      // SEND UI EVENT
+      const { sendEventToUI } = this.session.userData;
+      if (sendEventToUI) {
+        sendEventToUI('hint').catch(err => {
+          console.error(`❌ [handleIntentTag] Failed to send 'hint' event:`, err);
+        });
+      }
     }
     else if (intent === 'CLARIFY') {
       const currentDepth = stateProvider.getClarificationDepth(interviewId, trackingId);
@@ -956,6 +972,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
       // State is tracked internally, not stored in conversation history
       console.log(`❓ State Updated: Clarification depth ${newDepth}/2`);
+
+      // SEND UI EVENT
+      const { sendEventToUI } = this.session.userData;
+      if (sendEventToUI) {
+        sendEventToUI('clarification').catch(err => {
+          console.error(`❌ [handleIntentTag] Failed to send 'clarification' event:`, err);
+        });
+      }
     }
     else if (intent === 'GENERIC') {
       const currentDepth = stateProvider.getGenericDepth(interviewId, trackingId);
@@ -976,6 +1000,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
       // State is tracked internally, not stored in conversation history
       console.log(`💬 State Updated: Generic depth ${newDepth}/2`);
+      
+      // CLEAR BADGES - Generic speech means we're no longer in hint/clarification/follow-up mode
+      const { sendEventToUI } = this.session.userData;
+      if (sendEventToUI) {
+        sendEventToUI('clear_badges').catch(err => {
+          console.error(`❌ [handleIntentTag] Failed to send 'clear_badges' event:`, err);
+        });
+      }
     }
     else if (intent === 'DEBUG_HINT') {
       // Re-use clarification tracker for debug hints as per prompt logic

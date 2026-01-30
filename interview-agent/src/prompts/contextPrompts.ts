@@ -64,11 +64,16 @@ export function getInterviewContextPrompt(
         const actualClarificationDepth = Math.max(clarificationDepth, clarificationTrackerDepth);
         const actualGenericDepth = Math.max(genericDepth, genericTrackerDepth);
 
+        // Get the current question text to include in context
+        const currentQuestion = orchestrator.getQuestionById(state.currentQuestionId);
+        const questionText = currentQuestion ? currentQuestion.question : null;
+
         return getDepthContextPrompt(
             actualFollowUpDepth,
             actualHintDepth,
             actualClarificationDepth,
-            actualGenericDepth
+            actualGenericDepth,
+            questionText
         );
     }
 
