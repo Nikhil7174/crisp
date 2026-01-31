@@ -295,7 +295,6 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
       style={{ maxWidth: '90vw' }}
       footer={[
         <Button key="refresh" onClick={loadQuestions} loading={loading} icon={<ReloadOutlined />}>
-          Refresh
         </Button>,
         <Button key="close" onClick={onClose}>
           Close

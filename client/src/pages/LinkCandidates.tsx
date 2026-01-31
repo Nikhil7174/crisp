@@ -9,13 +9,11 @@ import {
   Tag,
   Row,
   Col,
-  Statistic,
   message,
   Spin,
   Tooltip,
 } from 'antd';
 import {
-  ArrowLeftOutlined,
   TrophyOutlined,
   UserOutlined,
   ClockCircleOutlined,
@@ -25,7 +23,9 @@ import {
 import dayjs from 'dayjs';
 import { API_BASE_URL } from '../constants/api';
 import { useAuth } from '../hooks/useAuth';
-import { colors, spacing } from '../styles';
+import { colors } from '../styles';
+import './LinkCandidates.css';
+import { BackButton } from '../components/ui/BackButton';
 
 const { Title, Text } = Typography;
 
@@ -169,10 +169,13 @@ export const LinkCandidates: React.FC = () => {
     {
       title: 'Candidate',
       key: 'candidate',
+      onHeaderCell: () => ({ style: { textAlign: 'center' as const } }),
       render: (_: any, record: Candidate) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{record.candidate_name}</div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
+          <Text style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: '#111827', display: 'block' }}>
+            {record.candidate_name}
+          </Text>
+          <Text style={{ fontSize: 12, lineHeight: 1.5, color: '#6B7280' }}>
             {record.candidate_email}
           </Text>
         </div>
@@ -181,6 +184,7 @@ export const LinkCandidates: React.FC = () => {
     {
       title: 'Status',
       key: 'status',
+      align: 'center' as const,
       render: (_: any, record: Candidate) => (
         <Tag
           icon={record.end_time ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
@@ -193,6 +197,7 @@ export const LinkCandidates: React.FC = () => {
     {
       title: 'Score',
       key: 'score',
+      align: 'center' as const,
       render: (_: any, record: Candidate) => {
         // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
         const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score 
@@ -223,6 +228,7 @@ export const LinkCandidates: React.FC = () => {
     {
       title: 'Duration',
       key: 'duration',
+      align: 'center' as const,
       render: (_: any, record: Candidate) => {
         // Calculate duration from start_time and end_time (most reliable)
         if (record.start_time && record.end_time) {
@@ -230,9 +236,17 @@ export const LinkCandidates: React.FC = () => {
           const end = new Date(record.end_time).getTime();
           const durationMs = end - start;
           const durationMinutes = Math.round(durationMs / 1000 / 60);
-          return `${durationMinutes} min`;
+          return (
+            <Text style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.6, color: '#6B7280' }}>
+              {durationMinutes} min
+            </Text>
+          );
         }
-        return '-';
+        return (
+          <Text style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.6, color: '#6B7280' }}>
+            -
+          </Text>
+        );
       },
       sorter: (a: Candidate, b: Candidate) => {
         const getDuration = (record: Candidate): number => {
@@ -250,7 +264,12 @@ export const LinkCandidates: React.FC = () => {
       title: 'Started',
       dataIndex: 'start_time',
       key: 'start_time',
-      render: (date: string) => dayjs(date).format('MMM D, YYYY HH:mm'),
+      align: 'center' as const,
+      render: (date: string) => (
+        <Text style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.6, color: '#6B7280' }}>
+          {dayjs(date).format('MMM D, YYYY HH:mm')}
+        </Text>
+      ),
       sorter: (a: Candidate, b: Candidate) => {
         const dateA = new Date(a.start_time).getTime();
         const dateB = new Date(b.start_time).getTime();
@@ -260,6 +279,7 @@ export const LinkCandidates: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
+      align: 'center' as const,
       render: (_: any, record: Candidate) => (
         <Space>
           <Tooltip title="View Interview Details">
@@ -267,7 +287,18 @@ export const LinkCandidates: React.FC = () => {
               icon={<EyeOutlined />}
               onClick={() => handleViewDetails(record)}
               size="small"
-              type="primary"
+              type="default"
+              className="view-details-btn"
+              style={{
+                color: colors.primary.main,
+                borderColor: colors.primary.main,
+                background: 'transparent',
+                fontWeight: 500,
+                fontSize: 13,
+                height: 28,
+                padding: '0 10px',
+                ['--primary-color' as any]: colors.primary.main
+              }}
             >
               View Details
             </Button>
@@ -286,86 +317,142 @@ export const LinkCandidates: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: `${spacing.xl}px 60px`, background: '#fafafa', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ marginBottom: spacing.xl }}>
-        <Button
-          icon={<ArrowLeftOutlined />}
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '80px 0 32px', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 20, left: 24 }}>
+        <BackButton
+          label="Back"
           onClick={() => navigate('/interviewer/dashboard')}
-          style={{ marginBottom: spacing.md }}
-        >
-          Back to Dashboard
-        </Button>
-
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: spacing.md
-        }}>
-          <div>
-            <Title level={2} style={{ margin: 0 }}>
-              {linkInfo?.title || 'Interview Link Candidates'}
-            </Title>
-            {linkInfo?.description && (
-              <Text type="secondary">{linkInfo.description}</Text>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <Row gutter={16} style={{ marginBottom: spacing.xl }}>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Total Candidates"
-              value={statistics.totalCandidates}
-              prefix={<UserOutlined />}
-              valueStyle={{ color: colors.primary.main }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Completed Interviews"
-              value={statistics.completedInterviews}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: colors.success.main }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Average Score"
-              value={statistics.averageScore}
-              suffix="%"
-              prefix={<TrophyOutlined />}
-              valueStyle={{ color: colors.info.main }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Candidates Table */}
-      <Card
-        title="Candidates"
-        style={{ borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-      >
-        <Table
-          columns={columns}
-          dataSource={candidates}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          locale={{
-            emptyText: 'No candidates have taken this interview yet'
-          }}
         />
-      </Card>
+      </div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
+        {/* Header */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            borderRadius: 8,
+            padding: '24px 32px',
+            marginBottom: 32,
+          }}
+        >
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+                {linkInfo?.title || 'Interview Link Candidates'}
+              </Title>
+              {linkInfo?.description && (
+                <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
+                  {linkInfo.description}
+                </Text>
+              )}
+            </Col>
+          </Row>
+        </div>
+
+        {/* Summary Bar */}
+        <Card
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            boxShadow: 'none',
+            borderRadius: 8,
+            marginBottom: 32,
+          }}
+          bodyStyle={{ padding: '16px 20px' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#EFF6FF',
+                border: '1px solid #DBEAFE',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <UserOutlined style={{ color: colors.primary.main, fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Total Candidates:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.totalCandidates}
+                </Text>
+              </Text>
+            </div>
+
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#D1FAE5',
+                border: '1px solid #A7F3D0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <CheckCircleOutlined style={{ color: '#10B981', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Completed:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.completedInterviews}
+                </Text>
+              </Text>
+            </div>
+
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#FEF3C7',
+                border: '1px solid #FDE68A',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <TrophyOutlined style={{ color: '#F59E0B', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Average Score:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.averageScore}%
+                </Text>
+              </Text>
+            </div>
+          </div>
+        </Card>
+
+        {/* Candidates Table */}
+        <Card
+          title={
+            <Title level={4} style={{ margin: 0, fontWeight: 600, fontSize: 18, lineHeight: 1.5 }}>
+              Candidates
+            </Title>
+          }
+          style={{ borderRadius: 8, boxShadow: 'none', border: '1px solid #E5E7EB', background: '#FFFFFF' }}
+          bodyStyle={{ padding: 24 }}
+        >
+          <Table
+            columns={columns}
+            dataSource={candidates}
+            rowKey="id"
+            loading={loading}
+            className="premium-table"
+            pagination={{ pageSize: 10 }}
+            locale={{
+              emptyText: 'No candidates have taken this interview yet'
+            }}
+          />
+        </Card>
+      </div>
     </div>
   );
 };
