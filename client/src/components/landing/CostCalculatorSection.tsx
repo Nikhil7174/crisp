@@ -1,13 +1,15 @@
 // src/components/landing/CostCalculatorSection.tsx
 import React, { useState, useMemo } from 'react';
-import { Typography, Space, Row, Col, Button, Tabs, Select } from 'antd';
+import { Typography, Space, Row, Col, Button, Tabs, Select, Grid } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing, typography, borderRadius } from '../../styles';
+import './CostCalculatorSection.css';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
+const { useBreakpoint } = Grid;
 
 type ViewType = 'financial' | 'time';
 type Country = 'india' | 'usa';
@@ -67,6 +69,7 @@ const USA_CONSTANTS = {
 
 const CostCalculatorSection: React.FC = () => {
   const navigate = useNavigate();
+  const screens = useBreakpoint();
   const [numHires, setNumHires] = useState<number>(80);
   const [activeView, setActiveView] = useState<ViewType>('financial');
   const [country, setCountry] = useState<Country>('india');
@@ -75,6 +78,10 @@ const CostCalculatorSection: React.FC = () => {
 
   // Get country-specific constants
   const constants = country === 'india' ? INDIA_CONSTANTS : USA_CONSTANTS;
+
+  const rowGutter: [number, number] = screens.lg 
+  ? [spacing.xxxl * 2, spacing.xxxl]  // Desktop: [128, 64]
+  : [spacing.xxxl, spacing.xxxl];     // Mobile/Tablet: [64, 64]
 
   // Calculate costs based on number of hires
   const calculations = useMemo(() => {
@@ -218,6 +225,7 @@ const CostCalculatorSection: React.FC = () => {
 
   return (
     <div
+      className="cost-calculator-section"
       style={{
         background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)',
         padding: `${spacing.xxxl * 1.5}px ${spacing.xl}px ${spacing.xxxl * 2.5}px ${spacing.xl}px`,
@@ -242,12 +250,14 @@ const CostCalculatorSection: React.FC = () => {
                 alignItems: 'center', 
                 gap: spacing.md,
                 flexWrap: 'wrap',
-              }}>
+              }}
+              className="cost-calculator-controls">
                 {/* Scenario Selector Dropdown */}
                 <Select
                   value={scenario}
                   onChange={(value) => setScenario(value as Scenario)}
                   size="large"
+                  className="cost-calculator-select"
                   style={{ width: 250 }}
                 >
                   <Option value="best">Freelance Marketplace</Option>
@@ -258,6 +268,7 @@ const CostCalculatorSection: React.FC = () => {
                 <Select
                   value={country}
                   onChange={(value) => setCountry(value as Country)}
+                  className="cost-calculator-select"
                   style={{ width: 140, minWidth: 120 }}
                   size="large"
                 >
@@ -273,10 +284,13 @@ const CostCalculatorSection: React.FC = () => {
                 alignItems: 'center', 
                 gap: spacing.md,
                 flexWrap: 'wrap',
-              }}>
+              }}
+              className="cost-calculator-tabs-wrap">
                 <Tabs
                   activeKey={activeView}
                   onChange={(key) => setActiveView(key as ViewType)}
+                  className="cost-calculator-tabs"
+                  size="middle"
                   items={[
                     {
                       key: 'financial',
@@ -292,13 +306,14 @@ const CostCalculatorSection: React.FC = () => {
             </Col>
           </Row>
 
-          <Row gutter={[spacing.xxxl * 2, spacing.xxxl]} align="middle">
+          <Row gutter={rowGutter} align="middle">
             {/* Left Column - Headline and Savings */}
             <Col xs={24} lg={11} style={{ paddingRight: spacing.md }}>
               <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 <div>
                   <Title
                     level={1}
+                    className="cost-calculator-title"
                     style={{
                       fontSize: typography.fontSize['5xl'],
                       fontWeight: typography.fontWeight.bold,
@@ -340,6 +355,7 @@ const CostCalculatorSection: React.FC = () => {
 
                 {/* Savings Display */}
                 <div
+                  className="cost-calculator-savings"
                   style={{
                     display: 'flex',
                     gap: spacing.xl,
@@ -348,6 +364,7 @@ const CostCalculatorSection: React.FC = () => {
                 >
                   <div>
                     <Text
+                      className="cost-calculator-savings-value"
                       style={{
                         fontSize: typography.fontSize['4xl'],
                         fontWeight: typography.fontWeight.bold,
@@ -360,6 +377,7 @@ const CostCalculatorSection: React.FC = () => {
                         : `${formatNumber('engHoursSaved' in currentCalc ? currentCalc.engHoursSaved : 0)} hrs`}
                     </Text>
                     <Text
+                      className="cost-calculator-savings-label"
                       style={{
                         fontSize: typography.fontSize.base,
                         color: colors.neutral[600],
@@ -370,9 +388,10 @@ const CostCalculatorSection: React.FC = () => {
                       {activeView === 'financial' ? 'Annual Savings' : 'Eng. Hours Saved'}
                     </Text>
                   </div>
-                  <div style={{ width: 1, background: colors.neutral[300] }} />
+                  <div className="cost-calculator-savings-divider" style={{ width: 1, background: colors.neutral[300] }} />
                   <div>
                     <Text
+                      className="cost-calculator-savings-value"
                       style={{
                         fontSize: typography.fontSize['4xl'],
                         fontWeight: typography.fontWeight.bold,
@@ -385,6 +404,7 @@ const CostCalculatorSection: React.FC = () => {
                         : `${'daysSaved' in currentCalc ? currentCalc.daysSaved : 0} days`}
                     </Text>
                     <Text
+                      className="cost-calculator-savings-label"
                       style={{
                         fontSize: typography.fontSize.base,
                         color: colors.neutral[600],
@@ -430,6 +450,7 @@ const CostCalculatorSection: React.FC = () => {
                     }}
                   >
                     <Text
+                      className="cost-calculator-slider-label"
                       style={{
                         fontSize: typography.fontSize.base,
                         color: colors.neutral[600],
@@ -439,6 +460,7 @@ const CostCalculatorSection: React.FC = () => {
                       Number of interviews taken per Year
                     </Text>
                     <Text
+                      className="cost-calculator-slider-value"
                       style={{
                         fontSize: typography.fontSize.lg,
                         color: colors.primary.main,
@@ -524,6 +546,7 @@ const CostCalculatorSection: React.FC = () => {
 
                 {/* Chart */}
                 <div
+                  className="cost-calculator-chart"
                   style={{
                     background: colors.background.primary,
                     padding: spacing.xl,
