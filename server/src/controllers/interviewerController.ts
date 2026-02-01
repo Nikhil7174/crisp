@@ -44,7 +44,7 @@ export class InterviewerController {
                 ? Math.round(interviews.reduce((sum, i) => sum + (i.score || 0), 0) / totalInterviews)
                 : 0;
             const completedInterviews = interviews.filter(i => i.end_time).length;
-            
+
             // Calculate cheating detection statistics
             const cheatingDetectedCount = interviews.filter(i => i.cheating_detected).length;
             const securityAgentConnectedCount = interviews.filter(i => i.security_agent_connected).length;
@@ -78,7 +78,7 @@ export class InterviewerController {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
             const { id } = req.params;
-            const interviewId = parseInt(id);
+            const interviewId = parseInt(id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });
@@ -129,12 +129,12 @@ export class InterviewerController {
                 return;
             }
 
-            if (!linkId) {
+            if (!linkId || typeof linkId !== 'string') {
                 res.status(400).json({ error: 'Link ID is required' });
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
@@ -195,7 +195,7 @@ export class InterviewerController {
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
@@ -246,7 +246,7 @@ export class InterviewerController {
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
@@ -280,9 +280,9 @@ export class InterviewerController {
             let generatedQuestions = parseJsonField(interviewLink.generated_questions, []);
             const questionSource = interviewLink.question_source || 'auto';
 
-            const hasManualQuestions = generatedQuestions && generatedQuestions.length > 0 && 
+            const hasManualQuestions = generatedQuestions && generatedQuestions.length > 0 &&
                 generatedQuestions.some((q: any) => q.id && q.id.toString().includes('manual-'));
-            
+
             if (questionSource === 'auto' && (!generatedQuestions || generatedQuestions.length === 0 || hasManualQuestions)) {
                 if (hasManualQuestions) {
                     await this.dbService.updateInterviewLinkQuestions(linkIdNum, []);
@@ -491,7 +491,7 @@ export class InterviewerController {
         try {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
-            const linkId = parseInt(req.params.id);
+            const linkId = parseInt(req.params.id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });
@@ -534,7 +534,7 @@ export class InterviewerController {
         try {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
-            const linkId = parseInt(req.params.id);
+            const linkId = parseInt(req.params.id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });
@@ -594,24 +594,24 @@ export class InterviewerController {
                 ? undefined
                 : (typeof machineQuestions === 'string' ? machineQuestions : JSON.stringify(machineQuestions));
 
-            const existingTopics = existingLink.topics ? 
-                (typeof existingLink.topics === 'string' ? existingLink.topics : JSON.stringify(existingLink.topics)) : 
+            const existingTopics = existingLink.topics ?
+                (typeof existingLink.topics === 'string' ? existingLink.topics : JSON.stringify(existingLink.topics)) :
                 null;
-            const existingMachineQuestions = existingLink.machine_questions ? 
-                (typeof existingLink.machine_questions === 'string' ? existingLink.machine_questions : JSON.stringify(existingLink.machine_questions)) : 
+            const existingMachineQuestions = existingLink.machine_questions ?
+                (typeof existingLink.machine_questions === 'string' ? existingLink.machine_questions : JSON.stringify(existingLink.machine_questions)) :
                 null;
-            
-            const topicsChanged = topics !== undefined && 
+
+            const topicsChanged = topics !== undefined &&
                 JSON.stringify(normalizedTopics) !== existingTopics;
-            const machineQuestionsChanged = machineQuestions !== undefined && 
+            const machineQuestionsChanged = machineQuestions !== undefined &&
                 JSON.stringify(normalizedMachineQuestions) !== existingMachineQuestions;
-            const maxQuestionsChanged = maxInterviewQuestions !== undefined && 
+            const maxQuestionsChanged = maxInterviewQuestions !== undefined &&
                 maxInterviewQuestions !== existingLink.max_interview_questions;
-            const maxMachineCodingChanged = maxMachineCodingQuestions !== undefined && 
+            const maxMachineCodingChanged = maxMachineCodingQuestions !== undefined &&
                 maxMachineCodingQuestions !== existingLink.max_machine_coding_questions;
-            const questionSourceChanged = questionSource !== undefined && 
+            const questionSourceChanged = questionSource !== undefined &&
                 questionSource !== (existingLink.question_source || 'auto');
-            
+
             // Update the link first
             const updatedLink = await this.dbService.updateInterviewLink(linkId, {
                 title,
@@ -652,11 +652,11 @@ export class InterviewerController {
                 await this.dbService.updateInterviewLinkQuestions(linkId, normalizedManualQuestions);
             } else if (questionSource === 'auto') {
                 const shouldRegenerate = questionSourceChanged || topicsChanged || machineQuestionsChanged || maxQuestionsChanged || maxMachineCodingChanged;
-                
+
                 if (shouldRegenerate) {
                     await this.dbService.updateInterviewLinkQuestions(linkId, []);
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    
+
                     const linkForGeneration = await this.dbService.getInterviewLinkById(linkId);
                     if (linkForGeneration) {
                         linkForGeneration.generated_questions = null;
@@ -691,7 +691,7 @@ export class InterviewerController {
         try {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
-            const linkId = parseInt(req.params.id);
+            const linkId = parseInt(req.params.id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });
@@ -735,7 +735,7 @@ export class InterviewerController {
         try {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
-            const linkId = parseInt(req.params.id);
+            const linkId = parseInt(req.params.id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });

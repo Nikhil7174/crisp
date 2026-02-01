@@ -40,32 +40,32 @@ export class InterviewerController {
             // Calculate summary statistics
             const totalInterviews = interviews.length;
             const totalCandidates = new Set(interviews.map(i => i.candidate_email)).size;
-            
+
             // Calculate average score from completed interviews
             // Priority: LLM evaluation overall score > finalEvaluation totalScore > interview.score
             const scores: number[] = [];
-            
+
             interviews.forEach(i => {
                 if (!i.end_time) return; // Skip incomplete interviews
-                
+
                 // Try to get score from various sources
                 let score: number | null = null;
-                
+
                 // Check LLM evaluation first (most accurate)
-                if ((i as any).finalEvaluation?.llmEvaluation?.overall?.score !== null && 
+                if ((i as any).finalEvaluation?.llmEvaluation?.overall?.score !== null &&
                     (i as any).finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
                     score = (i as any).finalEvaluation.llmEvaluation.overall.score;
                 }
                 // Check finalEvaluation totalScore
-                else if ((i as any).finalEvaluation?.totalScore !== null && 
-                         (i as any).finalEvaluation?.totalScore !== undefined) {
+                else if ((i as any).finalEvaluation?.totalScore !== null &&
+                    (i as any).finalEvaluation?.totalScore !== undefined) {
                     score = (i as any).finalEvaluation.totalScore;
                 }
                 // Check interview.score
                 else if (i.score !== null && i.score !== undefined) {
                     score = i.score;
                 }
-                
+
                 // Only add if we found a valid score (including 0 as valid)
                 if (score !== null && score !== undefined) {
                     scores.push(score);
@@ -74,14 +74,14 @@ export class InterviewerController {
                     console.log(`[Average Score] Interview ${i.id}: No valid score found (end_time: ${i.end_time}, has finalEvaluation: ${!!(i as any).finalEvaluation})`);
                 }
             });
-            
+
             const averageScore = scores.length > 0
                 ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
                 : 0;
-            
+
             console.log(`[Average Score] Total completed interviews: ${interviews.filter(i => i.end_time).length}, Interviews with scores: ${scores.length}, Average: ${averageScore}`);
             const completedInterviews = interviews.filter(i => i.end_time).length;
-            
+
             // Calculate cheating detection statistics
             const cheatingDetectedCount = interviews.filter(i => i.cheating_detected).length;
             const securityAgentConnectedCount = interviews.filter(i => i.security_agent_connected).length;
@@ -115,7 +115,7 @@ export class InterviewerController {
             const authReq = req as AuthRequest;
             const interviewerId = authReq.user?.userId;
             const { id } = req.params;
-            const interviewId = parseInt(id);
+            const interviewId = parseInt(id as string);
 
             if (!interviewerId) {
                 res.status(401).json({ error: 'Unauthorized' });
@@ -171,7 +171,7 @@ export class InterviewerController {
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
@@ -229,7 +229,7 @@ export class InterviewerController {
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
@@ -280,7 +280,7 @@ export class InterviewerController {
                 return;
             }
 
-            const linkIdNum = parseInt(linkId);
+            const linkIdNum = parseInt(linkId as string);
             if (isNaN(linkIdNum)) {
                 res.status(400).json({ error: 'Invalid link ID' });
                 return;
