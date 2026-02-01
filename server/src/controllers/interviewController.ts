@@ -42,7 +42,7 @@ export class InterviewController {
     try {
       const { token } = req.params;
 
-      if (!token) {
+      if (!token || typeof token !== 'string') {
         res.status(400).json({ error: 'Link token is required' });
         return;
       }
@@ -348,15 +348,36 @@ export class InterviewController {
         return;
       }
 
+      // Helper function to extract string from query parameter
+      const extractString = (param: any): string | undefined => {
+        if (typeof param === 'string') return param;
+        if (Array.isArray(param) && param.length > 0 && typeof param[0] === 'string') return param[0];
+        return undefined;
+      };
+
+      // Ensure we have string values, not arrays or ParsedQs objects
+      const sessionIdStr = extractString(sessionId);
+      const roomNameStr = extractString(roomName);
+
       // Try to find by sessionId first, then roomName
-      const identifier = (sessionId as string) || (roomName as string);
+      const identifier = sessionIdStr || roomNameStr;
+      
+      if (!identifier) {
+        console.error('❌ [QuestionsAPI] Could not extract valid identifier from query parameters');
+        res.status(400).json({
+          success: false,
+          error: 'Valid sessionId or roomName is required'
+        });
+        return;
+      }
+
       console.log(`🔍 [QuestionsAPI] Looking up identifier: ${identifier}`);
 
       // Try both identifiers
       let questionsData = interviewQuestionsStore.get(identifier);
-      if (!questionsData && sessionId && roomName) {
+      if (!questionsData && sessionIdStr && roomNameStr) {
         // Try the other identifier
-        const alternateIdentifier = identifier === sessionId ? (roomName as string) : (sessionId as string);
+        const alternateIdentifier = identifier === sessionIdStr ? roomNameStr : sessionIdStr;
         console.log(`🔍 [QuestionsAPI] Trying alternate identifier: ${alternateIdentifier}`);
         questionsData = interviewQuestionsStore.get(alternateIdentifier);
       }
@@ -367,8 +388,8 @@ export class InterviewController {
         res.status(404).json({
           success: false,
           error: 'Questions not found for this interview session',
-          sessionId: sessionId as string,
-          roomName: roomName as string,
+          sessionId: sessionIdStr,
+          roomName: roomNameStr,
           identifier,
           storeSize: interviewQuestionsStore.size,
         });
@@ -543,7 +564,7 @@ export class InterviewController {
       const { sessionId } = req.params;
       const { cheatingDetected, cheatingIncidents, securityAgentConnected } = req.body;
 
-      if (!sessionId) {
+      if (!sessionId || typeof sessionId !== 'string') {
         res.status(400).json({
           success: false,
           error: 'Session ID is required'
@@ -581,7 +602,7 @@ export class InterviewController {
       const { sessionId } = req.params;
       const { suspiciousEvents } = req.body;
 
-      if (!sessionId) {
+      if (!sessionId || typeof sessionId !== 'string') {
         res.status(400).json({
           success: false,
           error: 'Session ID is required'
