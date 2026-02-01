@@ -5,7 +5,7 @@ import { UserType } from '@prisma/client';
 export class PrismaService {
     private static instance: PrismaService;
 
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): PrismaService {
         if (!PrismaService.instance) {
@@ -155,7 +155,7 @@ export class PrismaService {
                     where: { interview_link_id: link.id },
                 });
                 const completedInterviews = await prisma.interview.count({
-                    where: { 
+                    where: {
                         interview_link_id: link.id,
                         end_time: { not: null },
                     },
@@ -203,7 +203,7 @@ export class PrismaService {
         questionSource?: 'auto' | 'manual';
     }) {
         const updateData: any = {};
-        
+
         if (updates.title !== undefined) updateData.title = updates.title;
         if (updates.description !== undefined) updateData.description = updates.description;
         if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
@@ -301,8 +301,8 @@ export class PrismaService {
                     fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
                     theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
                     codingSection: JSON.parse(interview.final_evaluation.coding_section),
-                    llmEvaluation: interview.final_evaluation.llm_evaluation 
-                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
+                    llmEvaluation: interview.final_evaluation.llm_evaluation
+                        ? JSON.parse(interview.final_evaluation.llm_evaluation)
                         : null,
                     createdAt: interview.final_evaluation.created_at,
                     updatedAt: interview.final_evaluation.updated_at,
@@ -401,8 +401,8 @@ export class PrismaService {
                     fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
                     theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
                     codingSection: JSON.parse(interview.final_evaluation.coding_section),
-                    llmEvaluation: interview.final_evaluation.llm_evaluation 
-                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
+                    llmEvaluation: interview.final_evaluation.llm_evaluation
+                        ? JSON.parse(interview.final_evaluation.llm_evaluation)
                         : null,
                     createdAt: interview.final_evaluation.created_at,
                     updatedAt: interview.final_evaluation.updated_at,
@@ -493,7 +493,7 @@ export class PrismaService {
 
         console.log('Parsed interviews count:', parsedInterviews.length);
         console.log('=== END PRISMA SERVICE DEBUG ===');
-        
+
         return parsedInterviews;
     }
 
@@ -529,17 +529,17 @@ export class PrismaService {
                 clarificationRequestCount: interview.final_evaluation.clarification_request_count,
                 followUpCount: interview.final_evaluation.follow_up_count,
                 averageTimePerQuestion: interview.final_evaluation.average_time_per_question,
-                    averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
-                    fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
-                    theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
-                    codingSection: JSON.parse(interview.final_evaluation.coding_section),
-                    llmEvaluation: interview.final_evaluation.llm_evaluation 
-                        ? JSON.parse(interview.final_evaluation.llm_evaluation) 
-                        : null,
-                    createdAt: interview.final_evaluation.created_at,
-                    updatedAt: interview.final_evaluation.updated_at,
-                }
-                : null;
+                averageTimePerCodingProblem: interview.final_evaluation.average_time_per_coding_problem,
+                fullConversationHistory: JSON.parse(interview.final_evaluation.full_conversation_history),
+                theoreticalSection: JSON.parse(interview.final_evaluation.theoretical_section),
+                codingSection: JSON.parse(interview.final_evaluation.coding_section),
+                llmEvaluation: interview.final_evaluation.llm_evaluation
+                    ? JSON.parse(interview.final_evaluation.llm_evaluation)
+                    : null,
+                createdAt: interview.final_evaluation.created_at,
+                updatedAt: interview.final_evaluation.updated_at,
+            }
+            : null;
 
         return {
             id: interview.id,
@@ -676,7 +676,7 @@ export class PrismaService {
         // This prevents duplicate entries from multiple API calls
         const metadataStr = data.metadata ? JSON.stringify(data.metadata) : null
         const oneSecondAgo = new Date(Date.now() - 1000)
-        
+
         const existingEvent = await prisma.securityEvent.findFirst({
             where: {
                 interview_id: interview.id,
@@ -854,35 +854,60 @@ export class PrismaService {
             console.log('✅ Interview record created:', interview.id);
         } else {
             console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
+            // Updating the parent Interview table with final stats is crucial for the dashboard
+            await prisma.interview.update({
+                where: { id: interview.id },
+                data: {
+                    duration: payload.duration,
+                    time_spent: payload.duration,
+                    score: Math.round(payload.totalScore),
+                    end_time: new Date(payload.endTime),
+                    // Also ensure candidate info is up to date if provided
+                    candidate_name: payload.candidateId,
+                    candidate_email: payload.candidateId,
+                    total_questions: (payload.theoreticalSection?.totalQuestions || 0) + (payload.codingSection?.totalProblems || 0),
+                }
+            });
+            console.log('✅ Synced final stats to Interview table for interview:', interview.id);
         }
 
-        const data = {
-            interview_id: interview.id,
+        // Normalize / provide safe defaults so Prisma doesn't receive undefined for required fields
+        // Separate update and create data to handle Prisma relations properly
+        const baseData = {
             session_id: payload.sessionId,
-            candidate_id: payload.candidateId,
-            interview_link_id: payload.interviewLinkId || null,
+            candidate_id: payload.candidateId || '',
+            interview_link_id: payload.interviewLinkId ?? null,
             start_time: new Date(payload.startTime),
             end_time: new Date(payload.endTime),
-            duration: payload.duration,
-            full_conversation_history: JSON.stringify(payload.fullConversationHistory),
-            theoretical_section: JSON.stringify(payload.theoreticalSection),
-            coding_section: JSON.stringify(payload.codingSection),
-            total_score: payload.totalScore,
-            strengths: JSON.stringify(payload.strengths),
-            areas_for_improvement: JSON.stringify(payload.areasForImprovement),
-            overall_feedback: payload.overallFeedback,
-            hint_request_count: payload.hintRequestCount,
-            clarification_request_count: payload.clarificationRequestCount,
-            follow_up_count: payload.followUpCount,
-            average_time_per_question: payload.averageTimePerQuestion,
-            average_time_per_coding_problem: payload.averageTimePerCodingProblem,
+            duration: payload.duration ?? 0,
+            full_conversation_history: JSON.stringify(payload.fullConversationHistory ?? []),
+            theoretical_section: JSON.stringify(payload.theoreticalSection ?? {}),
+            coding_section: JSON.stringify(payload.codingSection ?? {}),
+            total_score: payload.totalScore ?? 0,
+            strengths: JSON.stringify(payload.strengths ?? []),
+            areas_for_improvement: JSON.stringify(payload.areasForImprovement ?? []),
+            overall_feedback: payload.overallFeedback ?? '',
+            hint_request_count: payload.hintRequestCount ?? 0,
+            clarification_request_count: payload.clarificationRequestCount ?? 0,
+            follow_up_count: payload.followUpCount ?? 0,
+            average_time_per_question: payload.averageTimePerQuestion ?? null,
+            average_time_per_coding_problem: payload.averageTimePerCodingProblem ?? null,
         };
+
+        // For create, use the connect syntax for the relation
+        const createData = {
+            ...baseData,
+            interview: { connect: { id: interview.id } },
+        };
+
+        // For update, don't include interview_id as it's the unique constraint field
+        const updateData = baseData;
 
         try {
             const result = await prisma.finalEvaluation.upsert({
                 where: { interview_id: interview.id },
-                update: data,
-                create: data,
+                update: updateData,
+                create: createData,
             });
 
             // Save vision security warnings to SecurityEvent table if provided
@@ -898,7 +923,7 @@ export class PrismaService {
                         screenshotLength: data?.screenshot?.length || 0
                     }));
                     console.log('📊 [Security Events] Processing vision security warnings:', JSON.stringify(warningSummary, null, 2));
-                    
+
                     const incidents = Object.entries(payload.visionSecurityWarnings).flatMap(([type, data]: [string, any]) => {
                         if (!data || !data.events || !Array.isArray(data.events)) {
                             console.warn(`⚠️ [Security Events] Invalid data structure for type ${type}:`, data);
@@ -906,13 +931,13 @@ export class PrismaService {
                         }
                         // For multiple_faces, include screenshot if available (only 1 screenshot total)
                         const screenshot = type === 'multiple_faces' && data.screenshot ? data.screenshot : null;
-                        
+
                         if (screenshot) {
                             console.log(`📸 [Security Events] Screenshot found for ${type}, length: ${screenshot.length} chars`);
                         } else {
                             console.log(`📸 [Security Events] No screenshot for ${type}`);
                         }
-                        
+
                         // If we have a screenshot but no events, create a placeholder event to store the screenshot
                         if (type === 'multiple_faces' && screenshot && data.events.length === 0) {
                             console.log(`📸 [Security Events] Creating placeholder event for multiple_faces to store screenshot`);
@@ -927,12 +952,12 @@ export class PrismaService {
                                 metadata: JSON.stringify({ screenshot: screenshot })
                             }];
                         }
-                        
+
                         return data.events.map((event: any, index: number) => {
-                            const metadata: any = { 
-                                duration: event.duration, 
-                                startTime: event.startTime, 
-                                endTime: event.endTime 
+                            const metadata: any = {
+                                duration: event.duration,
+                                startTime: event.startTime,
+                                endTime: event.endTime
                             };
                             // Include screenshot ONLY in the FIRST event for multiple_faces
                             // All other events will reference this first event
@@ -940,7 +965,7 @@ export class PrismaService {
                                 metadata.screenshot = screenshot; // base64 string
                                 console.log(`📸 [Security Events] Adding screenshot to FIRST event only for ${type}`);
                             }
-                            
+
                             return {
                                 interview_id: interview.id,
                                 interview_link_id: interview.interview_link_id || null,
@@ -953,9 +978,9 @@ export class PrismaService {
                             };
                         });
                     });
-                    
+
                     console.log(`📊 [Security Events] Prepared ${incidents.length} incidents to save`);
-                    
+
                     if (incidents.length > 0) {
                         // Check for existing events to avoid duplicates
                         const existing = await prisma.securityEvent.findMany({
@@ -965,27 +990,27 @@ export class PrismaService {
                             },
                             select: { event_type: true, metadata: true }
                         });
-                        
+
                         const existingKeys = new Set(
                             existing.map(e => {
                                 const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata) : e.metadata;
                                 return `${e.event_type}-${meta.startTime}-${meta.endTime}`;
                             })
                         );
-                        
+
                         const newIncidents = incidents.filter(inc => {
                             const meta = typeof inc.metadata === 'string' ? JSON.parse(inc.metadata) : inc.metadata;
                             const key = `${inc.event_type}-${meta.startTime}-${meta.endTime}`;
                             return !existingKeys.has(key);
                         });
-                        
+
                         console.log(`📊 [Security Events] Filtered ${incidents.length} -> ${newIncidents.length} (removed ${incidents.length - newIncidents.length} duplicates)`);
-                        
+
                         if (newIncidents.length > 0) {
                             await prisma.securityEvent.createMany({ data: newIncidents });
                             console.log(`✅ Vision security warnings saved: ${newIncidents.length} new incidents`);
                         }
-                        
+
                         if (incidents.length > 0) {
                             await prisma.interview.update({
                                 where: { id: interview.id },
@@ -1030,7 +1055,7 @@ export class PrismaService {
                     llm_evaluation: JSON.stringify(llmEvaluation),
                 },
             });
-            
+
             // Also update the interview.score field with the LLM evaluation overall score if available
             // This ensures the score is easily accessible for statistics
             if (llmEvaluation?.overall?.score !== null && llmEvaluation?.overall?.score !== undefined) {
@@ -1042,7 +1067,7 @@ export class PrismaService {
                 });
                 console.log(`✅ Interview score updated to ${llmEvaluation.overall.score} for interview ${interviewId}`);
             }
-            
+
             console.log(`✅ LLM evaluation saved for interview ${interviewId}`);
             return result;
         } catch (error) {

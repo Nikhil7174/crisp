@@ -5,26 +5,26 @@ import {
   Table,
   Typography,
   Space,
-  Tag,
   Row,
   Col,
-  Statistic,
   Empty,
   Tooltip,
 } from 'antd';
 import {
-  ClockCircleOutlined,
   FileTextOutlined,
   LogoutOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
   ExclamationCircleOutlined,
+  CalendarOutlined,
+  BuildOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { colors, spacing } from '../styles';
+import { colors } from '../styles';
 import { API_BASE_URL } from '../constants/api';
+import './CandidateDashboard.css';
 
 const { Title, Text } = Typography;
 
@@ -118,34 +118,23 @@ export const CandidateDashboard: React.FC = () => {
     [attempts]
   );
 
-  const totalDuration = useMemo(() => {
-    // Calculate total duration from all completed interviews using startTime and endTime
-    return completedAttempts.reduce((total, attempt) => {
-      if (attempt.startTime && attempt.endTime) {
-        const start = new Date(attempt.startTime).getTime();
-        const end = new Date(attempt.endTime).getTime();
-        const durationMs = end - start;
-        return total + durationMs;
-      }
-      return total;
-    }, 0);
+  const interviewsThisMonth = useMemo(() => {
+    if (completedAttempts.length === 0) return 0;
+    const startOfMonth = dayjs().startOf('month');
+    const endOfMonth = dayjs().endOf('month');
+    return completedAttempts.filter((attempt) => {
+      if (!attempt.startTime) return false;
+      const interviewDate = dayjs(attempt.startTime);
+      return interviewDate.isAfter(startOfMonth) && interviewDate.isBefore(endOfMonth);
+    }).length;
   }, [completedAttempts]);
-  
-  // Format duration in hours and minutes
-  const formatDuration = (ms: number) => {
-    const totalMinutes = Math.round(ms / 1000 / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
-  const inProgressCount = useMemo(() => 
-    attempts.filter((a) => a.status === 'in_progress').length,
-    [attempts]
-  );
+  const companiesCount = useMemo(() => {
+    const titles = attempts
+      .map((attempt) => attempt.title?.trim())
+      .filter((title): title is string => Boolean(title));
+    return new Set(titles).size;
+  }, [attempts]);
 
   const isStale = useMemo(() => {
     if (!lastFetched) return true;
@@ -167,89 +156,89 @@ export const CandidateDashboard: React.FC = () => {
       title: 'Interview Name',
       dataIndex: 'title',
       key: 'title',
-      render: (title: string) => <strong>{title}</strong>,
+      render: (title: string) => (
+        <Text style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: '#111827' }}>
+          {title}
+        </Text>
+      ),
     },
     {
       title: 'Date',
       dataIndex: 'startTime',
       key: 'startTime',
-      render: (date: string) => dayjs(date).format('MMM D, YYYY'),
-    },
-    {
-      title: 'Score',
-      dataIndex: 'score',
-      key: 'score',
-      render: (score?: number) =>
-        score !== undefined ? (
-          <Tag color={score >= 70 ? 'success' : score >= 50 ? 'warning' : 'error'}>
-            {score}%
-          </Tag>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+      render: (date: string) => (
+        <Text style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.6, color: '#6B7280' }}>
+          {dayjs(date).format('MMM D, YYYY')}
+        </Text>
+      ),
     },
   ], []);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: `${spacing.xl}px 60px` }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '32px 0' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
         {/* Header */}
         <div
           style={{
-            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-            borderRadius: 16,
-            padding: spacing.xl,
-            marginBottom: spacing.xl,
-            color: 'white',
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            borderRadius: 8,
+            padding: '24px 32px',
+            marginBottom: 32,
           }}
         >
           <Row justify="space-between" align="middle">
             <Col>
-              <Title level={2} style={{ color: 'white', margin: 0 }}>
-                Welcome, {user?.fullName}!
+              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+                Your Interviews
               </Title>
-              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16 }}>
-                {attempts.length === 0 
-                  ? "Ready to take your first interview? Let's get started!"
-                  : `You've completed ${completedAttempts.length} interview${completedAttempts.length !== 1 ? 's' : ''}. Keep practicing!`
-                }
+              <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
+                Welcome back, {user?.fullName}
               </Text>
               {lastFetched && (
-                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, display: 'block', marginTop: 4 }}>
+                <Text style={{ color: '#9CA3AF', fontSize: 12, display: 'block', marginTop: 8, lineHeight: 1.5 }}>
                   Last updated: {dayjs(lastFetched).format('MMM D, YYYY h:mm A')}
                   {isStale && (
                     <Tooltip title="Data is stale - click refresh to get latest updates">
-                      <ExclamationCircleOutlined style={{ marginLeft: 8, color: '#ffa940' }} />
+                      <ExclamationCircleOutlined style={{ marginLeft: 8, color: '#F59E0B' }} />
                     </Tooltip>
                   )}
                 </Text>
               )}
             </Col>
             <Col>
-              <Space>
+              <Space size={12}>
                 <Tooltip title="Refresh interview data">
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={refetch}
                     loading={loading}
                     size="large"
+                    type="text"
                     style={{
-                      background: 'rgba(255,255,255,0.2)',
-                      color: 'white',
+                      color: '#6B7280',
                       border: 'none',
+                      height: 36,
+                      fontSize: 16,
+                      padding: '0 12px',
                     }}
-                  />
+                  >
+                  </Button>
                 </Tooltip>
                 <Button
-                  type="default"
                   icon={<PlayCircleOutlined />}
                   onClick={handleJoinInterview}
                   size="large"
+                  type="primary"
+                  className="primary-cta-btn"
                   style={{
-                    background: 'white',
-                    color: colors.primary.main,
                     border: 'none',
-                    fontWeight: 600,
+                    background: colors.primary.main,
+                    fontWeight: 500,
+                    boxShadow: 'none',
+                    height: 36,
+                    fontSize: 16,
+                    padding: '0 12px',
                   }}
                 >
                   {attempts.length === 0 ? 'Start Your First Interview' : 'Take Another Interview'}
@@ -258,10 +247,16 @@ export const CandidateDashboard: React.FC = () => {
                   icon={<LogoutOutlined />}
                   onClick={handleLogout}
                   size="large"
+                  type="text"
+                  className="ghost-logout-btn"
                   style={{
-                    background: 'rgba(255,255,255,0.2)',
-                    color: 'white',
-                    border: 'none',
+                    color: '#6B7280',
+                    border: '1px solid #E5E7EB',
+                    background: '#F3F4F6',
+                    borderRadius: 6,
+                    height: 36,
+                    fontSize: 16,
+                    padding: '0 12px',
                   }}
                 >
                   Logout
@@ -271,21 +266,110 @@ export const CandidateDashboard: React.FC = () => {
           </Row>
         </div>
 
+        {/* Summary Bar */}
+        <Card
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            boxShadow: 'none',
+            borderRadius: 8,
+            marginBottom: 32,
+          }}
+          bodyStyle={{ padding: '16px 20px' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#D1FAE5',
+                border: '1px solid #A7F3D0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <FileTextOutlined style={{ color: '#10B981', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Completed:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {loading ? '—' : completedAttempts.length}
+                </Text>
+              </Text>
+            </div>
+
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#FEF3C7',
+                border: '1px solid #FDE68A',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <CalendarOutlined style={{ color: '#F59E0B', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>This Month:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {loading ? '—' : interviewsThisMonth}
+                </Text>
+              </Text>
+            </div>
+
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#E0F2FE',
+                border: '1px solid #BAE6FD',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <BuildOutlined style={{ color: '#0284C7', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Companies:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {loading ? '—' : companiesCount}
+                </Text>
+              </Text>
+            </div>
+          </div>
+        </Card>
+
         {/* Error Display */}
         {error && (
-          <Card style={{ marginBottom: spacing.xl, border: `1px solid ${colors.error.main}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
+          <Card 
+            style={{ 
+              marginBottom: 32, 
+              border: '1px solid #FCA5A5',
+              background: '#FEF2F2',
+              boxShadow: 'none',
+              borderRadius: 8,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <ExclamationCircleOutlined style={{ color: colors.error.main, fontSize: 20 }} />
               <div>
-                <Text strong style={{ color: colors.error.main }}>Failed to load interview data</Text>
+                <Text strong style={{ color: '#DC2626', lineHeight: 1.6 }}>Failed to load interview data</Text>
                 <br />
-                <Text type="secondary">{error}</Text>
+                <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>{error}</Text>
                 <br />
                 <Button 
                   type="link" 
                   onClick={refetch} 
                   loading={loading}
-                  style={{ padding: 0, marginTop: 4 }}
+                  style={{ padding: 0, marginTop: 4, height: 'auto' }}
                 >
                   Try again
                 </Button>
@@ -294,70 +378,11 @@ export const CandidateDashboard: React.FC = () => {
           </Card>
         )}
 
-        {/* Statistics */}
-        <Row gutter={16} style={{ marginBottom: spacing.xl }}>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Statistic
-                title="Total Interviews"
-                value={attempts.length}
-                prefix={<FileTextOutlined />}
-                valueStyle={{ color: colors.primary.main }}
-                loading={loading}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Statistic
-                title="In Progress"
-                value={inProgressCount}
-                prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: colors.warning.main }}
-                loading={loading}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Statistic
-                title="Total Duration"
-                value={formatDuration(totalDuration)}
-                prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: colors.info.main }}
-                loading={loading}
-              />
-            </Card>
-          </Col>
-        </Row>
-
         {/* Interview History */}
         <Card
-          title={<Title level={4} style={{ margin: 0 }}>Interview History</Title>}
-          style={{ borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-          extra={
-            <Space>
-              <Tooltip title="Refresh data">
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={refetch}
-                  loading={loading}
-                  size="small"
-                />
-              </Tooltip>
-              <Button
-                type="primary"
-                icon={<PlayCircleOutlined />}
-                onClick={handleJoinInterview}
-                style={{
-                  background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                  border: 'none',
-                }}
-              >
-                Start New Interview
-              </Button>
-            </Space>
-          }
+          title={<Title level={4} style={{ margin: 0, fontWeight: 600, fontSize: 18, lineHeight: 1.5 }}>Interview History</Title>}
+          style={{ borderRadius: 8, boxShadow: 'none', border: '1px solid #E5E7EB', background: '#FFFFFF' }}
+          bodyStyle={{ padding: 24 }}
         >
           {attempts.length > 0 ? (
             completedAttempts.length > 0 ? (
@@ -367,23 +392,25 @@ export const CandidateDashboard: React.FC = () => {
                 rowKey="id"
                 loading={loading}
                 pagination={{ pageSize: 10 }}
+                className="premium-table"
               />
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <div>
-                    <Text type="secondary" style={{ display: 'block', marginBottom: spacing.md }}>
+                    <Text style={{ display: 'block', marginBottom: 16, color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
                       You have interviews in progress. Complete them to see your scores!
                     </Text>
                     <Button
-                      type="primary"
                       icon={<PlayCircleOutlined />}
                       onClick={handleJoinInterview}
                       size="large"
                       style={{
-                        background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                        border: 'none',
+                        color: colors.primary.main,
+                        borderColor: colors.primary.main,
+                        background: 'transparent',
+                        fontWeight: 500,
                       }}
                     >
                       Continue Interview
@@ -397,17 +424,18 @@ export const CandidateDashboard: React.FC = () => {
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 <div>
-                  <Text type="secondary" style={{ display: 'block', marginBottom: spacing.md }}>
+                  <Text style={{ display: 'block', marginBottom: 16, color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
                     You haven't taken any interviews yet
                   </Text>
                   <Button
-                    type="primary"
                     icon={<PlayCircleOutlined />}
                     onClick={handleJoinInterview}
                     size="large"
                     style={{
-                      background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                      border: 'none',
+                      color: colors.primary.main,
+                      borderColor: colors.primary.main,
+                      background: 'transparent',
+                      fontWeight: 500,
                     }}
                   >
                     Join Your First Interview

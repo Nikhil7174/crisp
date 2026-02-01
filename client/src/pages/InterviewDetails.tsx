@@ -14,7 +14,6 @@ import {
   Rate,
 } from 'antd';
 import {
-  ArrowLeftOutlined,
   UserOutlined,
   MessageOutlined,
   SettingOutlined,
@@ -27,6 +26,7 @@ import { useAuth } from '../hooks/useAuth';
 import { colors, spacing } from '../styles';
 import { DetailedFeedbackSheet } from '../components/DetailedFeedbackSheet';
 import { generateFeedbackPDF } from '../utils/pdfGenerator';
+import { BackButton } from '../components/ui/BackButton';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -365,27 +365,26 @@ export const InterviewDetails: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: `${spacing.xl}px 60px`, background: '#fafafa', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ marginBottom: spacing.xl }}>
-        <Button
-          icon={<ArrowLeftOutlined />}
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '80px 0 32px', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 20, left: 24 }}>
+        <BackButton
+          label="Back"
           onClick={() => {
-            // Navigate back to candidates list for this link
             if (linkId) {
               navigate(`/interviewer/link/${linkId}/candidates`);
             } else {
               navigate(-1);
             }
           }}
-          style={{ marginBottom: spacing.md }}
-        >
-          Back to Candidates
-        </Button>
-        <Title level={2} style={{ margin: 0 }}>
-          Interview Details
-        </Title>
+        />
       </div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
+        {/* Header */}
+        <div style={{ marginBottom: spacing.xl }}>
+          <Title level={2} style={{ margin: 0 }}>
+            Interview Details
+          </Title>
+        </div>
 
       <Tabs
         className="candidate-details-tabs"
@@ -1113,6 +1112,7 @@ export const InterviewDetails: React.FC = () => {
           },
         ]}
       />
+      </div>
     </div>
   );
 };

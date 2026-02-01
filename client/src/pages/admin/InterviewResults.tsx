@@ -5,9 +5,6 @@ import {
   Table,
   Button,
   Typography,
-  Row,
-  Col,
-  Statistic,
   Tag,
   message,
   Spin,
@@ -32,6 +29,7 @@ import {
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { colors, spacing } from '../../styles';
+import '../InterviewerDashboard.css';
 import { API_BASE_URL } from '../../constants/api';
 import type { InterviewLink } from '../../types';
 
@@ -192,9 +190,11 @@ export const InterviewResults: React.FC = () => {
       key: 'link',
       render: (record: InterviewLink) => (
         <div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>{record.title}</div>
+          <Text style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: '#111827', display: 'block' }}>
+            {record.title}
+          </Text>
           {record.description && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text style={{ fontSize: 12, lineHeight: 1.5, color: '#6B7280' }}>
               {record.description}
             </Text>
           )}
@@ -206,6 +206,7 @@ export const InterviewResults: React.FC = () => {
       dataIndex: 'isActive',
       key: 'isActive',
       width: 120,
+      align: 'center' as const,
       render: (isActive: boolean) =>
         isActive ? (
           <Tag icon={<CheckCircleOutlined />} color="success">
@@ -219,8 +220,9 @@ export const InterviewResults: React.FC = () => {
       title: 'Candidates',
       key: 'candidates',
       width: 120,
+      align: 'center' as const,
       render: (record: InterviewLink) => (
-        <Text strong style={{ color: colors.primary.main }}>
+        <Text style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.6, color: colors.primary.main }}>
           {record.totalAttempts || 0}
         </Text>
       ),
@@ -231,6 +233,7 @@ export const InterviewResults: React.FC = () => {
       title: 'Expiry',
       key: 'expiry',
       width: 150,
+      align: 'center' as const,
       render: (record: InterviewLink) => {
         if (!record.expiryDate) {
           return (
@@ -271,6 +274,7 @@ export const InterviewResults: React.FC = () => {
       title: 'Interview Details',
       key: 'interviewDetails',
       width: 180,
+      align: 'center' as const,
       render: (record: InterviewLink) => {
         const hasCandidates = record.totalAttempts && record.totalAttempts > 0;
         
@@ -313,6 +317,7 @@ export const InterviewResults: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       width: 120,
+      align: 'center' as const,
       render: (record: InterviewLink) => {
         const isExpired = record.expiryDate && dayjs(record.expiryDate).isBefore(dayjs());
         const isInactive = !record.isActive;
@@ -366,66 +371,114 @@ export const InterviewResults: React.FC = () => {
   }
 
   return (
-    <div>
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: spacing.xl }}>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Total Interview Links"
-              value={statistics.totalLinks}
-              prefix={<LinkOutlined />}
-              valueStyle={{ color: colors.primary.main }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Active Links"
-              value={statistics.activeLinks}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: colors.success.main }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Total Candidates"
-              value={statistics.totalCandidates}
-              prefix={<UserOutlined />}
-              valueStyle={{ color: colors.info.main }}
-            />
-          </Card>
-        </Col>
-      </Row>
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '32px 0' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
+        {/* Summary Bar */}
+        <Card
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            boxShadow: 'none',
+            borderRadius: 8,
+            marginBottom: 32,
+          }}
+          bodyStyle={{ padding: '16px 20px' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#EFF6FF',
+                border: '1px solid #DBEAFE',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <LinkOutlined style={{ color: colors.primary.main, fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Total Links:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.totalLinks}
+                </Text>
+              </Text>
+            </div>
 
-      {/* Interview Links Table */}
-      <Card
-        title={
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#D1FAE5',
+                border: '1px solid #A7F3D0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <CheckCircleOutlined style={{ color: '#10B981', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Active Links:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.activeLinks}
+                </Text>
+              </Text>
+            </div>
+
+            <Text style={{ color: '#9CA3AF' }}>|</Text>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#E0F2FE',
+                border: '1px solid #BAE6FD',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <UserOutlined style={{ color: '#0284C7', fontSize: 20 }} />
+              </span>
+              <Text style={{ color: '#374151', fontSize: 14 }}>
+                <Text style={{ color: '#6B7280', fontWeight: 500 }}>Total Candidates:</Text>{' '}
+                <Text strong style={{ color: '#111827', fontWeight: 800 }}>
+                  {statistics.totalCandidates}
+                </Text>
+              </Text>
+            </div>
+          </div>
+        </Card>
+
+        {/* Interview Links Table */}
+        <Card
+          title={
+            <Title level={4} style={{ margin: 0, fontWeight: 600, fontSize: 18, lineHeight: 1.5 }}>
               Interview Links & Results
             </Title>
-            <Text type="secondary">Click on any link to view candidate results</Text>
-          </div>
-        }
-        style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-      >
-        <Table
-          columns={columns}
-          dataSource={links}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} links`,
-          }}
-        />
-      </Card>
+          }
+          style={{ borderRadius: 8, boxShadow: 'none', border: '1px solid #E5E7EB', background: '#FFFFFF' }}
+          bodyStyle={{ padding: 24 }}
+        >
+          <Table
+            columns={columns}
+            dataSource={links}
+            rowKey="id"
+            loading={loading}
+            className="premium-table"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} links`,
+            }}
+          />
+        </Card>
+      </div>
 
       {/* Create/Edit Modal */}
       <Modal

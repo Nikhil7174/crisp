@@ -15,6 +15,12 @@ router.post('/start', authMiddleware, (req: Request, res: Response) => {
     interviewController.startInterview(req, res);
 });
 
+// Get interview questions endpoint - public (used by agent process)
+// The agent will authenticate using a shared secret or API key if needed
+router.get('/questions', (req: Request, res: Response) => {
+    interviewController.getInterviewQuestions(req, res);
+});
+
 // Validate coding answer endpoint
 router.post('/validate-code', (req: Request, res: Response) => {
     interviewController.validateCodeAnswer(req, res);

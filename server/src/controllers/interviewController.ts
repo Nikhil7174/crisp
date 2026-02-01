@@ -7,6 +7,19 @@ import { SecurityService } from '../services/securityService';
 import { QuestionGenerationService } from '../services/questionGenerationService';
 import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults, FinalEvaluationPayload } from '../models/types';
 
+/**
+ * In-memory store for interview questions
+ * Keyed by sessionId or roomName (interview-${sessionId})
+ * This allows the agent process to fetch questions via API
+ */
+const interviewQuestionsStore = new Map<string, {
+  questions: InterviewQuestion[];
+  codingProblems: InterviewQuestion[];
+  sessionId: string;
+  maxTheoreticalQuestions?: number;
+  role?: string; // Role for persona selection
+}>();
+
 export class InterviewController {
   private openaiService: OpenAIService;
   private dbService: PrismaService;
@@ -91,8 +104,8 @@ export class InterviewController {
   }
 
   async startInterview(req: Request, res: Response): Promise<void> {
+    const { candidateData, linkToken } = req.body;
     try {
-      const { candidateData, linkToken } = req.body;
       const userId = (req as any).user?.userId; // Optional, only if authenticated
 
       if (!candidateData) {
@@ -143,13 +156,13 @@ export class InterviewController {
 
       // Create interview session
       const sessionId = this.generateSessionId();
-      
+
       // Separate theoretical and coding questions
       const theoreticalQuestions = questions.filter(q => q.type === 'theoretical');
       const codingQuestions = questions.filter(q => q.type === 'machine_coding');
-      
+
       console.log(`📊 Separated: ${theoreticalQuestions.length} theoretical, ${codingQuestions.length} coding questions`);
-      
+
       // Map theoretical questions
       const mappedTheoretical: InterviewQuestion[] = theoreticalQuestions.map(q => ({
         id: q.id,
@@ -162,7 +175,7 @@ export class InterviewController {
         keyPoints: q.keyPoints,
         documentation: q.documentation
       }));
-      
+
       // Map coding questions (with all coding-specific fields)
       const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => {
         // Set time limit based on difficulty
@@ -174,10 +187,12 @@ export class InterviewController {
         } else if (q.difficulty === 'hard') {
           timeLimit = 1800; // 30 minutes
         }
-        
+
         return {
           id: q.id,
           question: q.question,
+          title: q.question,    // Required by Orchestrator
+          description: q.problemStatement || q.question, // Required by Orchestrator
           type: 'coding',
           difficulty: q.difficulty,
           timeLimit: q.timeLimit || timeLimit,
@@ -185,8 +200,8 @@ export class InterviewController {
           explanation: q.explanation,
           keyPoints: q.keyPoints,
           documentation: q.documentation,
-          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language)) 
-            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' 
+          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
+            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
             : 'javascript',
           initialCode: q.starterCode,
           starterCodes: q.starterCodes, // Include multi-language starter codes
@@ -197,10 +212,10 @@ export class InterviewController {
           examples: q.examples
         };
       });
-      
+
       // Combine for database storage (keeping all questions together in DB)
       const allQuestions = [...mappedTheoretical, ...mappedCoding];
-      
+
       const session: InterviewSession = {
         id: sessionId,
         candidateId: candidateData.email || candidateData.name || 'unknown',
@@ -212,7 +227,70 @@ export class InterviewController {
 
       // Session saving removed - no longer needed without sessions table
 
-      // Return with proper separation for security agent app
+      // Create LiveKit room and spawn agent
+      const roomName = `interview-${sessionId}`;
+      const candidateName = candidateData.name || candidateData.email || 'Candidate';
+
+      // Import LiveKit token generation
+      const { AccessToken } = await import('livekit-server-sdk');
+
+      const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
+      const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
+      const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+
+      // Generate LiveKit access token for the candidate
+      let livekitToken = '';
+      try {
+        const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+          identity: candidateName,
+          name: candidateName,
+        });
+        at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+        livekitToken = await at.toJwt();
+        console.log(`✅ LiveKit token generated for ${candidateName} in room ${roomName}`);
+      } catch (tokenError) {
+        console.error('⚠️ Failed to generate LiveKit token:', tokenError);
+        throw new Error('Failed to generate LiveKit access token');
+      }
+
+      // Store questions in memory for the agent to fetch via API
+      try {
+        interviewQuestionsStore.set(sessionId, {
+          questions: mappedTheoretical,
+          codingProblems: mappedCoding,
+          sessionId,
+          maxTheoreticalQuestions: link.max_interview_questions || 10,
+          role: link.role || 'Backend Engineer', // Include role for persona
+        });
+        // Also store by roomName for easier lookup
+        interviewQuestionsStore.set(roomName, {
+          questions: mappedTheoretical,
+          codingProblems: mappedCoding,
+          sessionId,
+          maxTheoreticalQuestions: link.max_interview_questions || 10,
+          role: link.role || 'Backend Engineer', // Include role for persona
+        });
+        console.log(`📚 [QuestionsStore] Stored ${mappedTheoretical.length} questions and ${mappedCoding.length} coding problems for session ${sessionId} (room: ${roomName})`);
+        console.log(`📚 [QuestionsStore] Store size: ${interviewQuestionsStore.size} entries`);
+      } catch (storeError) {
+        console.error('❌ [QuestionsStore] Failed to store questions:', storeError);
+        console.error('❌ [QuestionsStore] Error details:', {
+          sessionId,
+          roomName,
+          theoreticalCount: mappedTheoretical.length,
+          codingCount: mappedCoding.length,
+          error: storeError instanceof Error ? storeError.message : String(storeError),
+          stack: storeError instanceof Error ? storeError.stack : undefined,
+        });
+        throw new Error('Failed to store interview questions');
+      }
+
+      // The LiveKit agent process (running separately) will pick up jobs when rooms are created
+      // The agent will fetch questions from this API endpoint
+      // Make sure the interview-agent process is running: cd crisp/interview-agent && npm start
+      console.log(`ℹ️  LiveKit room created: ${roomName}. Agent will connect when process is running.`);
+
+      // Return with proper separation for security agent app + LiveKit info
       const responseData = {
         success: true,
         sessionId,
@@ -222,13 +300,25 @@ export class InterviewController {
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         // Also include combined for backward compatibility
         questions: allQuestions,
+        // LiveKit room information
+        roomName,
+        wsUrl: LIVEKIT_URL,
+        token: livekitToken,
         message: 'Interview session started successfully'
       };
 
       res.json(responseData);
 
     } catch (error) {
-      console.error('Start interview error:', error);
+      console.error('❌ [StartInterview] Start interview error:', error);
+      console.error('❌ [StartInterview] Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        candidateData: candidateData ? { name: candidateData.name, email: candidateData.email } : null,
+        linkToken: linkToken ? 'provided' : 'missing',
+        hasCandidateData: !!candidateData,
+        hasLinkToken: !!linkToken,
+      });
       res.status(500).json({
         error: 'Failed to start interview',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -237,6 +327,77 @@ export class InterviewController {
   }
 
   // Note: submitAnswer method removed - answers are only stored locally until interview completion
+
+  /**
+   * Get questions for an interview session
+   * Used by the LiveKit agent process to fetch questions
+   */
+  async getInterviewQuestions(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId, roomName } = req.query;
+
+      console.log(`📥 [QuestionsAPI] Request received - sessionId: ${sessionId}, roomName: ${roomName}`);
+      console.log(`📥 [QuestionsAPI] Store size: ${interviewQuestionsStore.size} entries`);
+
+      if (!sessionId && !roomName) {
+        console.error('❌ [QuestionsAPI] Missing parameters - sessionId and roomName both undefined');
+        res.status(400).json({
+          success: false,
+          error: 'sessionId or roomName is required'
+        });
+        return;
+      }
+
+      // Try to find by sessionId first, then roomName
+      const identifier = (sessionId as string) || (roomName as string);
+      console.log(`🔍 [QuestionsAPI] Looking up identifier: ${identifier}`);
+
+      // Try both identifiers
+      let questionsData = interviewQuestionsStore.get(identifier);
+      if (!questionsData && sessionId && roomName) {
+        // Try the other identifier
+        const alternateIdentifier = identifier === sessionId ? (roomName as string) : (sessionId as string);
+        console.log(`🔍 [QuestionsAPI] Trying alternate identifier: ${alternateIdentifier}`);
+        questionsData = interviewQuestionsStore.get(alternateIdentifier);
+      }
+
+      if (!questionsData) {
+        console.error(`❌ [QuestionsAPI] Questions not found for identifier: ${identifier}`);
+        console.error(`❌ [QuestionsAPI] Available keys in store:`, Array.from(interviewQuestionsStore.keys()));
+        res.status(404).json({
+          success: false,
+          error: 'Questions not found for this interview session',
+          sessionId: sessionId as string,
+          roomName: roomName as string,
+          identifier,
+          storeSize: interviewQuestionsStore.size,
+        });
+        return;
+      }
+
+      console.log(`✅ [QuestionsAPI] Found questions: ${questionsData.questions.length} questions, ${questionsData.codingProblems.length} coding problems`);
+      res.json({
+        success: true,
+        questions: questionsData.questions,
+        codingProblems: questionsData.codingProblems,
+        sessionId: questionsData.sessionId,
+        maxTheoreticalQuestions: questionsData.maxTheoreticalQuestions,
+        role: questionsData.role || 'Backend Engineer', // Include role in response
+      });
+    } catch (error) {
+      console.error('❌ [QuestionsAPI] Get interview questions error:', error);
+      console.error('❌ [QuestionsAPI] Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        query: req.query,
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get interview questions',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 
   /**
    * Validate coding question answer
@@ -516,25 +677,25 @@ export class InterviewController {
 
       // Validate required fields
       if (!payload.sessionId) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Session ID is required' 
+          error: 'Session ID is required'
         });
         return;
       }
 
       if (!payload.candidateId) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Candidate ID is required' 
+          error: 'Candidate ID is required'
         });
         return;
       }
 
       if (!payload.startTime || !payload.endTime) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: 'Start time and end time are required' 
+          error: 'Start time and end time are required'
         });
         return;
       }

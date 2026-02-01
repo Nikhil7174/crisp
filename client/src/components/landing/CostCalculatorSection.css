@@ -1,0 +1,85 @@
+.cost-calculator-section {
+  box-sizing: border-box;
+}
+
+.cost-calculator-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.cost-calculator-tabs .ant-tabs-nav-list {
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .cost-calculator-section {
+    padding: 48px 16px 72px !important;
+  }
+
+  .cost-calculator-controls,
+  .cost-calculator-tabs-wrap {
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+
+  .cost-calculator-controls {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  .cost-calculator-select {
+    width: 100% !important;
+  }
+
+  .cost-calculator-tabs {
+    width: 100%;
+  }
+
+  .cost-calculator-tabs .ant-tabs-nav {
+    flex-wrap: wrap;
+  }
+
+  .cost-calculator-tabs .ant-tabs-nav-list {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .cost-calculator-tabs .ant-tabs-tab {
+    padding: 6px 8px;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .cost-calculator-title {
+    font-size: 28px !important;
+    line-height: 1.12 !important;
+  }
+
+  .cost-calculator-savings {
+    flex-direction: column;
+    gap: 16px !important;
+  }
+
+  .cost-calculator-savings-divider {
+    width: 100% !important;
+    height: 1px;
+  }
+
+  .cost-calculator-savings-value {
+    font-size: 28px !important;
+  }
+
+  .cost-calculator-savings-label {
+    font-size: 12px !important;
+  }
+
+  .cost-calculator-slider-label,
+  .cost-calculator-slider-value {
+    font-size: 12px !important;
+  }
+
+  .cost-calculator-chart {
+    padding: 16px !important;
+  }
+}
+

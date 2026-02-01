@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { EventEmitter } from 'events'
-import { FinalEvaluationPayload } from '../models/types'
+import { FinalEvaluationPayload } from '../models/types.js'
+import * as openai from '@livekit/agents-plugin-openai'
+import { llm } from '@livekit/agents'
 
 export interface Question {
   id: string
@@ -48,17 +50,130 @@ export interface LLMConfig {
   model?: string
   temperature?: number
   maxTokens?: number
+  // Optional: Use LiveKit LLM instead of direct OpenAI client
+  useLiveKitLLM?: boolean
+  liveKitLLM?: openai.LLM // Pass existing LiveKit LLM instance to reuse
 }
 
 export class LLMService extends EventEmitter {
-  private openai: OpenAI
+  private openai?: OpenAI
+  private liveKitLLM?: openai.LLM
   private config: LLMConfig
   private conversationHistory: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+  private useLiveKitLLM: boolean
 
   constructor(config: LLMConfig) {
     super()
     this.config = config
-    this.openai = new OpenAI({ apiKey: config.apiKey })
+    this.useLiveKitLLM = config.useLiveKitLLM ?? false
+
+    if (config.liveKitLLM) {
+      // Reuse existing LiveKit LLM instance
+      this.liveKitLLM = config.liveKitLLM
+      this.useLiveKitLLM = true
+    } else if (this.useLiveKitLLM) {
+      // Create new LiveKit LLM instance
+      this.liveKitLLM = new openai.LLM({
+        model: config.model || 'gpt-4o-mini',
+        temperature: config.temperature || 0.3,
+      })
+    } else {
+      // Fallback to direct OpenAI client (original behavior)
+      this.openai = new OpenAI({ apiKey: config.apiKey })
+    }
+  }
+
+  /**
+   * Extract text content from a LiveKit ChatChunk
+   * Handles different possible chunk structures
+   */
+  /**
+     * Extract text content from a LiveKit ChatChunk
+     * Handles different possible chunk structures
+     */
+  private extractChunkText(chunk: any): string {
+    if (typeof chunk === 'string') {
+      return chunk
+    }
+
+    if (!chunk || typeof chunk !== 'object') {
+      return ''
+    }
+
+    // 1. Handle OpenAI/LiveKit standard structure (choices array)
+    if (chunk.choices && Array.isArray(chunk.choices) && chunk.choices.length > 0) {
+      const choice = chunk.choices[0]
+      if (choice.delta && choice.delta.content) {
+        return typeof choice.delta.content === 'string' ? choice.delta.content : ''
+      }
+      return ''
+    }
+
+    // 2. Handle 'delta' property
+    if ('delta' in chunk) {
+      const delta = chunk.delta
+      if (typeof delta === 'string') {
+        return delta
+      }
+      if (typeof delta === 'object' && delta !== null && 'content' in delta) {
+        return typeof delta.content === 'string' ? delta.content : ''
+      }
+    }
+
+    // 3. Handle 'content' property
+    if ('content' in chunk) {
+      return typeof chunk.content === 'string' ? chunk.content : ''
+    }
+
+    // 4. Handle 'text' property
+    if ('text' in chunk) {
+      return typeof chunk.text === 'string' ? chunk.text : ''
+    }
+
+    // 5. Handle usage chunks (ignore them silently to avoid logs)
+    if ('usage' in chunk || 'id' in chunk) {
+      return ''
+    }
+
+    return ''
+  }
+  /**
+   * Helper method to call LLM (either LiveKit LLM or direct OpenAI)
+   * This allows us to reuse the same LLM instance for both conversation and evaluation
+   */
+  private async callLLM(systemPrompt: string, userMessage: string, maxTokens?: number): Promise<string> {
+    if (this.useLiveKitLLM && this.liveKitLLM) {
+      // Use LiveKit LLM (standalone mode)
+      const chatCtx = new llm.ChatContext()
+      chatCtx.addMessage({ role: 'system', content: systemPrompt })
+      chatCtx.addMessage({ role: 'user', content: userMessage })
+
+      // Collect streamed response
+      let fullContent = ''
+      const stream = await this.liveKitLLM.chat({ chatCtx })
+      for await (const chunk of stream) {
+        const chunkText = this.extractChunkText(chunk)
+        if (chunkText) {
+          fullContent += chunkText
+        }
+      }
+      return fullContent
+    } else {
+      // Use direct OpenAI client (original behavior)
+      if (!this.openai) {
+        throw new Error('OpenAI client not initialized. Provide apiKey or useLiveKitLLM=true')
+      }
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: this.config.temperature || 0.3,
+        max_tokens: maxTokens || this.config.maxTokens || 500
+      })
+      return response.choices[0]?.message?.content || ''
+    }
   }
 
   // Validate follow-up criteria programmatically
@@ -80,9 +195,9 @@ export class LLMService extends EventEmitter {
       }
     }
 
-    // Rule 2: Only ask follow-up if score < 60
-    if (evaluation.needsFollowUp && evaluation.score >= 60) {
-      console.log('🚫 [LLM-Server] Blocking follow-up: score >= 60 (score:', evaluation.score, ')')
+    // Rule 2: Only ask follow-up if score < 70
+    if (evaluation.needsFollowUp && evaluation.score >= 70) {
+      console.log('🚫 [LLM-Server] Blocking follow-up: score >= 70 (score:', evaluation.score, ')')
       return {
         ...evaluation,
         needsFollowUp: false,
@@ -108,14 +223,21 @@ export class LLMService extends EventEmitter {
     return evaluation
   }
 
-  async evaluateAnswer(question: Question, candidateAnswer: string, followUpDepth: number = 0, maxTheoreticalQuestions: number = 10): Promise<Evaluation> {
+  async evaluateAnswer(
+    question: Question,
+    candidateAnswer: string,
+    followUpDepth: number = 0,
+    maxTheoreticalQuestions: number = 10,
+    originalAnswer?: string,
+    followUpQuestion?: string
+  ): Promise<Evaluation> {
     console.log('🔍 [LLM-Server] evaluateAnswer called with:', {
       questionId: question.id,
       followUpDepth,
       candidateAnswerLength: candidateAnswer.length
     })
 
-    const systemPrompt = `You are an AI interviewer evaluating a candidate's technical answer in a VOICE INTERVIEW. Your job is to assess how well they covered the key points and determine if a follow-up is needed.
+    const systemPrompt = `You are a human technical interviewer conducting a voice interview. You're evaluating a candidate's answer naturally, like a real person would.
 
 IMPORTANT CONTEXT - VOICE INTERVIEW & SPEECH-TO-TEXT:
 - This is a verbal interview - the candidate is speaking, not typing
@@ -131,64 +253,78 @@ QUESTION: ${question.question}
 EXPECTED ANSWER: ${question.expectedAnswer}
 KEY POINTS TO COVER: ${question.keyPoints.join(', ')}
 
-EVALUATION CRITERIA:
-1. Score (0-100): Based on how many key points they covered and accuracy
-2. Key Points Covered: List specific points they mentioned correctly
-3. Needs Follow-up: ONLY set to true if ALL these conditions are met:
-   - Score is BELOW 60
-   - They missed MULTIPLE important key points (not just few minor details)
-   - A follow-up could significantly improve their understanding
-4. Follow-up Question: Only if needsFollowUp is true - ask about the most important missed points
-5. Feedback: Constructive, encouraging, and specific
+${followUpDepth > 0 && originalAnswer ? `IMPORTANT - FOLLOW-UP CONTEXT:
+This is a FOLLOW-UP question. The candidate already answered the original question.
 
-SCORING GUIDE:
-- 90-100: Covered all key points accurately with good detail
-- 80-89: Covered most key points well, minor gaps
-- 70-79: Covered main points, some important details missing
-- 60-69: Partial understanding, but acceptable - covered some key points
-- 50-59: Basic understanding but missing key concepts
-- 0-49: Major gaps or incorrect information
+ORIGINAL QUESTION: ${question.question}
+CANDIDATE'S ORIGINAL ANSWER: ${originalAnswer}
+FOLLOW-UP QUESTION THAT WAS ASKED: ${followUpQuestion || 'N/A'}
+CANDIDATE'S FOLLOW-UP ANSWER: ${candidateAnswer}
 
-FOLLOW-UP DECISION RULES (STRICTLY ENFORCE):
-✓ Ask follow-up ONLY if: score < 60 AND multiple key points missed
-✗ DO NOT ask follow-up if: score >= 60 (even if they missed some details)
-✗ DO NOT ask follow-up if: they covered most key points (even with minor gaps)
+When evaluating this follow-up answer, you MUST consider BOTH answers together:
+- The original answer + the follow-up answer = their complete response
+- Don't penalize them for not repeating what they already said in the original answer
+- If they covered WHERE in the original answer and HAVING in the follow-up, that's a complete answer!
+- Evaluate the COMBINED understanding, not just the follow-up answer in isolation
+- A good follow-up answer that completes the original answer should score well (70+)
+
+Example: If original answer covered "WHERE filters rows" and follow-up answer covers "HAVING filters groups after aggregation", together they have a complete answer about both clauses.` : ''}
+
+YOUR EVALUATION APPROACH (Think like a human interviewer):
+1. Score (0-100): How well did they answer? Be fair but thorough
+2. Key Points Covered: What did they actually mention correctly?
+3. Needs Follow-up: Would a real interviewer ask a follow-up here?
+   - YES if: Score < 70 AND they missed important parts of the answer
+   - NO if: They gave a decent answer (even if not perfect)
+4. Follow-up Question: If needed, ask naturally about what they missed
+5. Feedback: Sound like a real person - be conversational, encouraging, but also probe deeper if needed
+
+SCORING GUIDE (Think like a human):
+- 90-100: Excellent answer - covered everything well
+- 80-89: Good answer - got most of it right
+- 70-79: Decent answer - covered main points, some gaps
+- 60-69: Partial answer - got some parts right but missed important details
+- 50-59: Weak answer - only answered part of the question, missing key concepts
+- 0-49: Poor answer - major gaps or incorrect information
+
+FOLLOW-UP DECISION (Human logic):
+✓ Ask follow-up if: Score < 70 AND they clearly missed important parts
+✗ Don't ask follow-up if: Score >= 70 OR they gave a reasonable answer (even if not perfect)
+
+FEEDBACK STYLE (Be human):
+- Sound natural and conversational
+- Acknowledge what they got right
+- Gently point out what's missing
+- If they're vague or unclear, probe deeper: "Can you elaborate on that?" or "I'd like to understand better..."
+- Be encouraging but don't let them off easy - if the answer is weak, let them know
+- Use natural language, not robotic phrases
 
 EXAMPLES:
 
 Example 1 - Good Answer (no follow-up):
 {
-  "keyPointsCovered": ["function scope", "hoisting", "block scope", "reassignment"],
+  "keyPointsCovered": ["WHERE filters before grouping", "HAVING filters after aggregation"],
   "score": 85,
   "needsFollowUp": false,
-  "feedback": "Excellent! You covered the main differences between var, let, and const including scope and hoisting behavior."
+  "feedback": "Good! You covered the main difference - WHERE filters rows before grouping, and HAVING filters groups after aggregation. That's the key distinction."
 }
 
-Example 2 - Decent Answer (no follow-up even with gaps):
+Example 2 - Weak Answer (follow-up needed):
 {
-  "keyPointsCovered": ["function scope", "block scope", "reassignment"],
-  "score": 65,
-  "needsFollowUp": false,
-  "feedback": "Good job! You covered the main differences including scope and reassignment. You got the key concepts right."
-}
-
-Example 3 - Weak Answer (follow-up needed):
-{
-  "keyPointsCovered": ["scope"],
-  "score": 45,
+  "keyPointsCovered": ["WHERE filters rows"],
+  "score": 55,
   "needsFollowUp": true,
-  "followUpQuestion": "You mentioned scope, but can you explain the specific differences between var, let, and const in terms of scope, hoisting, and reassignment?",
-  "feedback": "You're on the right track mentioning scope! Let's dive deeper into the specific differences between these three variable declarations."
+  "followUpQuestion": "You mentioned WHERE filters rows, which is correct. But can you explain what HAVING does and when you'd use it versus WHERE?",
+  "feedback": "Okay, you're right that WHERE filters rows. But the question asks about both WHERE and HAVING - can you tell me about HAVING as well?"
 }
 
 NOTE: If needsFollowUp is false, omit the followUpQuestion field entirely (don't include it as null).
 
 IMPORTANT: 
 - Return ONLY valid JSON, no other text
-- Be generous with scores for partial understanding
-- STRICTLY: needsFollowUp = false if score >= 60
-- Only ask follow-ups when the answer is significantly incomplete (score < 60)
-- Keep feedback encouraging and constructive`
+- Think like a human interviewer - be fair but thorough
+- STRICTLY: needsFollowUp = false if score >= 70
+- Make feedback sound natural and conversational, not robotic`
 
     const maxRetries = 3
     let lastError: any = null
@@ -196,17 +332,21 @@ IMPORTANT:
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔍 [LLM-Server] Calling OpenAI API (attempt ${attempt}/${maxRetries})`)
-        const response = await this.openai.chat.completions.create({
-          model: this.config.model || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Candidate's answer: ${candidateAnswer}` }
-          ],
-          temperature: this.config.temperature || 0.3,
-          max_tokens: this.config.maxTokens || 500
-        })
+        // Build user message with context
+        let userMessage = `Candidate's answer: ${candidateAnswer}`;
+        if (followUpDepth > 0 && originalAnswer) {
+          userMessage = `This is a follow-up answer. Here's the full context:
 
-        const content = response.choices[0]?.message?.content
+Original question: ${question.question}
+Candidate's original answer: ${originalAnswer}
+Follow-up question asked: ${followUpQuestion || 'N/A'}
+Candidate's follow-up answer: ${candidateAnswer}
+
+Evaluate the candidate's COMPLETE understanding by considering BOTH answers together.`;
+        }
+
+        const content = await this.callLLM(systemPrompt, userMessage, this.config.maxTokens || 500)
+
         if (!content) {
           throw new Error('No response from LLM')
         }
@@ -294,17 +434,8 @@ Generate a follow-up question that:
 
 Respond with just the follow-up question text.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Generate a follow-up question.` }
-        ],
-        temperature: this.config.temperature || 0.7,
-        max_tokens: this.config.maxTokens || 200
-      })
-
-      return response.choices[0]?.message?.content || 'Could you tell me more about that?'
+      const content = await this.callLLM(systemPrompt, 'Generate a follow-up question.', this.config.maxTokens || 200)
+      return content || 'Could you tell me more about that?'
     } catch (error) {
       console.error('Error generating follow-up:', error)
       return 'Could you elaborate on that point?'
@@ -365,17 +496,8 @@ Respond in JSON format with these exact fields:
 
       const userContent = `Current code:\n\`\`\`${language}\n${code}\n\`\`\`${previousCodeSection}\n\nAnalyze the current code and determine if candidate is stuck by comparing it with previous code.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
-        temperature: this.config.temperature || 0.2,
-        max_tokens: this.config.maxTokens || 800
-      })
+      const content = await this.callLLM(systemPrompt, userContent, this.config.maxTokens || 800)
 
-      const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('No response from LLM')
       }
@@ -414,14 +536,34 @@ Respond naturally and professionally. Keep responses concise but helpful.`
         ...conversationHistory.map(msg => ({ role: msg.role, content: msg.content }))
       ]
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4',
-        messages: messages as any,
-        temperature: this.config.temperature || 0.7,
-        max_tokens: this.config.maxTokens || 300
-      })
+      // Build messages for LiveKit or OpenAI
+      if (this.useLiveKitLLM && this.liveKitLLM) {
+        const chatCtx = new llm.ChatContext()
+        messages.forEach(msg => {
+          chatCtx.addMessage({ role: msg.role as any, content: msg.content })
+        })
 
-      return response.choices[0]?.message?.content || 'I understand. Please continue.'
+        let fullContent = ''
+        const stream = await this.liveKitLLM.chat({ chatCtx })
+        for await (const chunk of stream) {
+          const chunkText = this.extractChunkText(chunk)
+          if (chunkText) {
+            fullContent += chunkText
+          }
+        }
+        return fullContent || 'I understand. Please continue.'
+      } else {
+        if (!this.openai) {
+          throw new Error('OpenAI client not initialized. Provide apiKey or useLiveKitLLM=true')
+        }
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model || 'gpt-4',
+          messages: messages as any,
+          temperature: this.config.temperature || 0.7,
+          max_tokens: this.config.maxTokens || 300
+        })
+        return response.choices[0]?.message?.content || 'I understand. Please continue.'
+      }
     } catch (error) {
       console.error('Error generating response:', error)
       return 'I understand. Please continue.'
@@ -526,17 +668,12 @@ IMPORTANT:
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔍 [LLM-Server] Calling OpenAI API for follow-up (attempt ${attempt}/${maxRetries})`)
-        const response = await this.openai.chat.completions.create({
-          model: this.config.model || 'gpt-4',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Evaluate this follow-up answer: ${followUpAnswer}` }
-          ],
-          temperature: this.config.temperature || 0.3,
-          max_tokens: this.config.maxTokens || 500
-        })
+        const content = await this.callLLM(
+          systemPrompt,
+          `Evaluate this follow-up answer: ${followUpAnswer}`,
+          this.config.maxTokens || 500
+        )
 
-        const content = response.choices[0]?.message?.content
         if (!content) {
           throw new Error('No response from LLM')
         }
@@ -717,11 +854,10 @@ IMPORTANT:
           const role = msg.role === 'user' ? 'Candidate' : msg.role === 'assistant' ? 'AI Interviewer' : 'System'
           const section = msg.metadata?.section || 'general'
           const type = msg.metadata?.type || 'message'
-          const content = msg.content
-
-          return `[${idx + 1}] ${role} (${section}, ${type}):\n${content}\n`
+          const content = msg.content.substring(0, 200) // Limit content length
+          return `[${idx + 1}] ${role} (${section}, ${type}): ${content}`
         })
-        .join('\n---\n')
+        .join('\n')
 
       // Check which sections are present (have questions/problems)
       const hasTheoreticalSection = evaluationPayload
@@ -765,44 +901,47 @@ IMPORTANT:
         }
 
         // Coding section context (only if section exists)
-        if (hasCodingSection && evaluationPayload.codingSection) {
-          if (evaluationPayload.codingSection.conversations && evaluationPayload.codingSection.conversations.length > 0) {
-            codingContext = '\n\nCODING SECTION DETAILS:\n'
-            evaluationPayload.codingSection.conversations.forEach((conv, idx) => {
-              const hintCountForP = conv.conversation.filter(m => m.metadata?.type === 'hint').length
-              const clarificationCountForP = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
-              const timeTaken = conv.submittedAt && conv.conversation.length > 0
-                ? (new Date(conv.submittedAt).getTime() - conv.conversation[0].timestamp) / 1000
-                : 0
+        if (hasCodingSection && evaluationPayload.codingSection && evaluationPayload.codingSection.conversations.length > 0) {
+          codingContext = '\n\nCODING SECTION DETAILS:\n'
+          evaluationPayload.codingSection.conversations.forEach((conv, idx) => {
+            const hintCountForP = conv.conversation.filter(m => m.metadata?.type === 'hint').length
+            const clarificationCountForP = conv.conversation.filter(m => m.metadata?.type === 'clarification').length
+            const timeTaken = conv.submittedAt && conv.conversation.length > 0
+              ? (new Date(conv.submittedAt).getTime() - conv.conversation[0].timestamp) / 1000
+              : 0
 
-              codingContext += `\nProblem ${idx + 1}:\n`
-              codingContext += `- Problem: ${conv.problem?.problem || 'N/A'}\n`
-              codingContext += `- Difficulty: ${conv.problem?.difficulty || 'N/A'}\n`
-              codingContext += `- Language: ${conv.problem?.language || 'N/A'}\n`
-              codingContext += `- Score: ${conv.evaluation?.score || 0}/100\n`
-              codingContext += `- Hints used: ${hintCountForP}\n`
-              codingContext += `- Clarifications: ${clarificationCountForP}\n`
-              codingContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
-              if (conv.finalCode) {
-                codingContext += `- Final code length: ${conv.finalCode.length} characters\n`
-                codingContext += `- CODE CONTENT:\n\`\`\`${conv.problem?.language || 'javascript'}\n${conv.finalCode}\n\`\`\`\n`
-              }
-              // ... rest of detailed analysis
-            })
-          } else if ((evaluationPayload.codingSection as any).finalCode) {
-            // Fallback for standalone finalCode (new format from agent)
-            const cs = evaluationPayload.codingSection as any;
-            codingContext = '\n\nCODING SECTION DETAILS (Standalone Submission):\n';
-            codingContext += `- Problem: ${cs.problem?.title || cs.problem?.problem || 'N/A'}\n`;
-            codingContext += `- Language: ${cs.problem?.language || 'N/A'}\n`;
-            codingContext += `- FINAL CODE:\n\`\`\`${cs.problem?.language || 'javascript'}\n${cs.finalCode}\n\`\`\`\n`;
-          }
+            codingContext += `\nProblem ${idx + 1}:\n`
+            codingContext += `- Problem: ${conv.problem?.problem || 'N/A'}\n`
+            codingContext += `- Difficulty: ${conv.problem?.difficulty || 'N/A'}\n`
+            codingContext += `- Language: ${conv.problem?.language || 'N/A'}\n`
+            codingContext += `- Score: ${conv.evaluation?.score || 0}/100\n`
+            codingContext += `- Hints used: ${hintCountForP}\n`
+            codingContext += `- Clarifications: ${clarificationCountForP}\n`
+            codingContext += `- Time taken: ${timeTaken.toFixed(1)}s\n`
+            if (conv.finalCode) {
+              codingContext += `- Final code length: ${conv.finalCode.length} characters\n`
+            }
+            if (conv.timeComplexity) {
+              codingContext += `- Time complexity: ${conv.timeComplexity}\n`
+            }
+            if (conv.spaceComplexity) {
+              codingContext += `- Space complexity: ${conv.spaceComplexity}\n`
+            }
+            if (conv.evaluation?.testResults) {
+              const passedTests = conv.evaluation.testResults.filter(t => t.passed).length
+              codingContext += `- Test results: ${passedTests}/${conv.evaluation.testResults.length} passed\n`
+            }
+            if (conv.evaluation?.feedback) {
+              codingContext += `- Feedback: ${conv.evaluation.feedback}\n`
+            }
+            if (conv.codeAnalysisHistory && conv.codeAnalysisHistory.length > 0) {
+              codingContext += `- Code analysis iterations: ${conv.codeAnalysisHistory.length}\n`
+            }
+          })
         }
-      }
 
-      // Performance metrics
-      performanceMetrics = '\n\nPERFORMANCE METRICS:\n'
-      if (evaluationPayload) {
+        // Performance metrics
+        performanceMetrics = '\n\nPERFORMANCE METRICS:\n'
         performanceMetrics += `- Total interview duration: ${(evaluationPayload.duration / 1000 / 60).toFixed(1)} minutes\n`
         if (hasTheoreticalSection) {
           performanceMetrics += `- Average time per theoretical question: ${evaluationPayload.averageTimePerQuestion?.toFixed(1) || 'N/A'} seconds\n`
@@ -816,10 +955,6 @@ IMPORTANT:
         performanceMetrics += `- Total clarifications requested: ${clarificationCount}\n`
         performanceMetrics += `- Total follow-up questions: ${followUpCount}\n`
         performanceMetrics += `- Overall score: ${evaluationPayload.totalScore?.toFixed(1) || 'N/A'}/100\n`
-      } else {
-        performanceMetrics += `- Total hints requested: ${hintCount}\n`
-        performanceMetrics += `- Total clarifications requested: ${clarificationCount}\n`
-        performanceMetrics += `- Total follow-up questions: ${followUpCount}\n`
       }
 
       const systemPrompt = `You are an expert technical interviewer analyzing a complete interview conversation history. Your task is to provide comprehensive evaluation scores and feedback with detailed breakdowns.
@@ -933,7 +1068,6 @@ ${hasCodingSection ? `2. CODING SECTION EVALUATION:` : ''}
 3. OVERALL EVALUATION:
    - Weight: ${hasTheoreticalSection && hasCodingSection ? '60% theoretical, 40% coding' : hasTheoreticalSection ? '100% theoretical' : '100% coding'} (only consider sections that exist)
    - Consider: Overall interview performance, communication skills, problem-solving ability, technical knowledge
-   - **TRUTH SOURCE**: Use the CONVERSATION HISTORY below as the absolute source of truth for what the candidate said and wrote. The section details provided are summaries; look into the actual messages for technical depth and code quality.
    - Provide specific learning recommendations based on identified gaps
    ${!hasTheoreticalSection ? '- NOTE: This interview did NOT include theoretical questions. Do NOT include theoreticalSection in your response.' : ''}
    ${!hasCodingSection ? '- NOTE: This interview did NOT include coding problems. Do NOT include codingSection in your response.' : ''}
@@ -942,9 +1076,9 @@ METRICS TO CONSIDER:
 - Hint requests: ${hintCount} (more hints = lower score)
 - Clarification requests: ${clarificationCount} (more clarifications = lower score)
 - Follow-up questions: ${followUpCount} (indicates initial answers were incomplete)
-- Answer quality and completeness from the actual transcript
-- Technical depth and accuracy based on their spoken/typed words
-- Problem-solving approach and **ACTUAL CODE** written in the transcript
+- Answer quality and completeness
+- Technical depth and accuracy
+- Problem-solving approach
 - Communication clarity
 ${performanceMetrics}
 
@@ -1051,17 +1185,8 @@ ${hasTheoreticalSection ? 'Provide detailed evaluation for theoretical section.'
 ${hasCodingSection ? 'Provide detailed evaluation for coding section.' : 'DO NOT evaluate coding section - it was not part of this interview.'}
 Always provide overall performance evaluation. Include question-wise and problem-wise breakdowns when context is available.`
 
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 4000 // Increased for detailed breakdowns
-      })
+      const content = await this.callLLM(systemPrompt, userPrompt, 4000)
 
-      const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('No response from LLM')
       }
@@ -1091,7 +1216,7 @@ Always provide overall performance evaluation. Include question-wise and problem
         console.warn('⚠️ Coding section expected but not found in LLM response')
       }
 
-      // Ensure optional fields are present
+      // Ensure optional fields are present (may be undefined if LLM doesn't provide them or section doesn't exist)
       const result: any = {
         overall: {
           ...evaluation.overall,
@@ -1128,8 +1253,8 @@ Always provide overall performance evaluation. Include question-wise and problem
 
     } catch (error) {
       console.error('Error generating comprehensive evaluation:', error)
-      // Return fallback evaluation
-      return {
+      // Return fallback evaluation - basic structure without section checks
+      const fallbackResult: any = {
         overall: {
           score: 0,
           feedback: 'Unable to generate evaluation. Please review the conversation history manually.',
@@ -1147,12 +1272,23 @@ Always provide overall performance evaluation. Include question-wise and problem
           averageTimePerQuestion: 0,
           averageTimePerProblem: 0
         }
-      } as any
+      }
+
+      return fallbackResult
     }
   }
+
 }
 
-export function createLLMService(config: LLMConfig): LLMService {
+export function createLLMService(config: LLMConfig, liveKitLLM?: openai.LLM): LLMService {
+  // If LiveKit LLM is provided, use it instead of creating a new OpenAI client
+  if (liveKitLLM) {
+    return new LLMService({
+      ...config,
+      liveKitLLM,
+      useLiveKitLLM: true,
+    })
+  }
   return new LLMService(config)
 }
 
