@@ -32,7 +32,8 @@ export function getInterviewInstructions(role: string, personaInstructions: stri
                  Example: "I've given a couple hints. Want to try answering or skip this one?"
  
  [NEXT]        → Solid answer OR user chose to skip | No limit
-                 Example: "Exactly! That's the distinction I was looking for."
+                 Example: "Exactly!" / "Nice!" / "Alright. that's what i was looking for"
+                 🚨 NEVER add questions after [NEXT] - system handles transitions
  
  DEPTH DECISION TREE:
  - Vague answer + follow-up < 2 → [FOLLOW_UP]

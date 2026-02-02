@@ -8,14 +8,15 @@
  */
 
 export function getDSADepthContextPrompt(
-    hintDepth: number,
-    debugHintDepth: number,
-    codingSubState?: string | null,
-    currentCode?: string
+  hintDepth: number,
+  debugHintDepth: number,
+  codingSubState?: string | null,
+  currentCode?: string,
+  currentNotepad?: string
 ): string {
 
-    const codeSection = currentCode && currentCode.trim().length > 0
-        ? `
+  const codeSection = currentCode && currentCode.trim().length > 0
+    ? `
 ━━━━━━━━ CANDIDATE'S CURRENT CODE SNAPSHOT (READ-ONLY) ━━━━━━━━
 You have access to the candidate's latest code from their editor.
 
@@ -37,14 +38,30 @@ ${currentCode}
 \`\`\`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `
-        : `
+    : `
 ━━━━━━━━ NO CODE SNAPSHOT AVAILABLE ━━━━━━━━
 The candidate has not provided any code yet (or it is empty).
 Reason only about their spoken approach.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
-    return `
+  const notepadSection = currentNotepad && currentNotepad.trim().length > 0
+    ? `
+━━━━━━━━ 📝 CANDIDATE'S NOTEPAD - READ THIS FIRST! ━━━━━━━━
+🚨 IMPORTANT: If the candidate mentions "approach", "notes", "what I wrote", or "notepad",
+you MUST reference this content in your response!
+
+Candidate's notes:
+\`\`\`
+${currentNotepad}
+\`\`\`
+
+When responding, acknowledge what they wrote here before giving feedback.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`
+    : '';
+
+  return `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚨 CRITICAL - START WITH A TAG - NO EXCEPTIONS 🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -53,15 +70,15 @@ CURRENT DEPTH STATUS:
 
 ✅ [CLARIFY] (No limit) → "Yes, the array can contain duplicates."
 ${hintDepth >= 2
-    ? '❌ [HINT] (MAXED 2/2) → Use [CONVERSE] or [NEXT] instead\n'
-    : `✅ [HINT] (${hintDepth}/2) → "Think about tracking visited elements."\n`
-}
+      ? '❌ [HINT] (MAXED 2/2) → Use [CONVERSE] or [NEXT] instead\n'
+      : `✅ [HINT] (${hintDepth}/2) → "Think about tracking visited elements."\n`
+    }
 ${debugHintDepth >= 2
-    ? '❌ [DEBUG_HINT] (MAXED 2/2) → Use [CONVERSE] or [NEXT] instead\n'
-    : `✅ [DEBUG_HINT] (${debugHintDepth}/2) → "Check line 5 - what if array is empty?"\n`
-}
+      ? '❌ [DEBUG_HINT] (MAXED 2/2) → Use [CONVERSE] or [NEXT] instead\n'
+      : `✅ [DEBUG_HINT] (${debugHintDepth}/2) → "Check line 5 - what if array is empty?"\n`
+    }
 ✅ [CONVERSE] (No limit) → "That works. What's the time complexity?"
-✅ [NEXT] (No limit) → "Nice! Let's move on to the next problem."
+✅ [NEXT] (No limit) → "Nice!" / "Great job!" (brief only, NO questions)
 ❌ [OFFER_CHOICE] → FORBIDDEN - use [CONVERSE] or [NEXT] instead
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -99,11 +116,13 @@ TAG USAGE:
 - [CONVERSE]: Discuss approach, validate logic, analyze complexity naturally
 
 - [NEXT]: Candidate is finished with this problem or explicitly wants to move on/skip.
-  DON'T ask your own questions - system provides the next problem
+  🚨 ONLY brief acknowledgment ("Nice!", "Alright.") - NEVER add questions!
+  System provides the next problem automatically.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${codingSubState ? `CURRENT PHASE: ${codingSubState}` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${notepadSection}
 ${codeSection}
 `;
 }

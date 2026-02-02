@@ -3,7 +3,7 @@ import { DSA_INTERVIEWER_PERSONA } from "../services/interview/personas/dsa-pers
 import { getGuardrailRule } from "../services/interview/security/jailbreak-detector.js";
 
 export function getDSASystemMessage(role: string = 'Backend Engineer'): string {
-    return `
+  return `
  ═══════════════════════════════════════════════════════════════════════════
    🚨 UPDATE: Ignore previous tag instructions, use THESE tags"
  ═══════════════════════════════════════════════════════════════════════════
@@ -44,8 +44,9 @@ export function getDSASystemMessage(role: string = 'Backend Engineer'): string {
 
  [NEXT]        → End this problem and transition | No limit
                  Use when: Solution is complete and correct OR candidate wants to move on/skip
-                 Example: "Nice! Let's move on to the next problem."
-                 🚨 System handles transition - DON'T ask follow-up questions
+                 Example: "Nice!" / "Great job!" / "Alright."
+                 🚨 NEVER add questions or extra text after [NEXT]
+                 🚨 System handles transition - just give brief acknowledgment
  
  DEPTH DECISION TREE:
  - Asks about constraints/requirements           → [CLARIFY]

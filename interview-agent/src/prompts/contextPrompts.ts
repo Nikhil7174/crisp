@@ -17,13 +17,15 @@ import { Orchestrator } from '../services/interview/orchestrator.js';
  * @param stateProvider - The state provider instance (to fetch depths)
  * @param orchestrator - The orchestrator instance (to fetch problem details)
  * @param currentCode - The candidate's current code (if any)
+ * @param currentNotepad - The candidate's notepad content (if any)
  * @returns The context prompt string to inject
  */
 export function getInterviewContextPrompt(
     state: InterviewState,
     stateProvider: StateProvider,
     orchestrator: Orchestrator,
-    currentCode?: string
+    currentCode?: string,
+    currentNotepad?: string
 ): string | null {
     if (!state) return null;
     const { interviewId } = state;
@@ -109,11 +111,14 @@ export function getInterviewContextPrompt(
             (codeLength > 0 ? `preview: "${codePreview}..."` : '(no code)')
         );
 
+        console.log(" currentNotepad  ", currentNotepad);
+
         return getDSADepthContextPrompt(
             hintDepth,
             debugHintDepth,
             state.codingSubState,
-            currentCode
+            currentCode,
+            currentNotepad
         );
     }
 
