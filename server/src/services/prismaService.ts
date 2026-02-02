@@ -136,6 +136,13 @@ export class PrismaService {
                     select: {
                         full_name: true,
                         email: true,
+                        company: true,
+                        company_relation: {
+                            select: {
+                                name: true,
+                                logo_url: true,
+                            }
+                        }
                     },
                 },
             },
@@ -457,6 +464,18 @@ export class PrismaService {
                     select: {
                         title: true,
                         description: true,
+                        creator: {
+                            select: {
+                                company: true,
+                                company_relation: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        logo_url: true,
+                                    }
+                                }
+                            }
+                        }
                     },
                 },
             },
@@ -488,6 +507,9 @@ export class PrismaService {
             updated_at: interview.updated_at,
             title: interview.interview_link?.title,
             description: interview.interview_link?.description,
+            company: interview.interview_link?.creator?.company_relation?.name || interview.interview_link?.creator?.company,
+            companyId: interview.interview_link?.creator?.company_relation?.id,
+            companyLogo: interview.interview_link?.creator?.company_relation?.logo_url,
             interview_link_id: interview.interview_link_id,
         }));
 
@@ -736,6 +758,7 @@ export class PrismaService {
         fullName: string;
         phone?: string;
         company?: string;
+        companyId?: number;
     }) {
         return await prisma.interviewer.create({
             data: {
@@ -744,6 +767,7 @@ export class PrismaService {
                 full_name: interviewerData.fullName,
                 phone: interviewerData.phone,
                 company: interviewerData.company,
+                company_id: interviewerData.companyId,
             },
         });
     }
@@ -774,6 +798,38 @@ export class PrismaService {
         return await prisma.interviewer.update({
             where: { id: interviewerId },
             data: { last_login: new Date() },
+        });
+    }
+
+    // Company management methods
+    public async createCompany(name: string, logoUrl?: string, website?: string) {
+        return await prisma.company.create({
+            data: {
+                name,
+                logo_url: logoUrl,
+                website,
+            },
+        });
+    }
+
+    public async getCompanyByName(name: string) {
+        return await prisma.company.findUnique({
+            where: { name },
+        });
+    }
+
+    public async getCompanyById(id: number) {
+        return await prisma.company.findUnique({
+            where: { id },
+            include: {
+                members: {
+                    select: {
+                        id: true,
+                        full_name: true,
+                        email: true,
+                    }
+                }
+            }
         });
     }
 

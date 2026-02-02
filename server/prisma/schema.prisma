@@ -143,12 +143,26 @@ model Interviewer {
   full_name               String
   phone                   String?
   company                 String?
+  company_id              Int?
+  company_relation        Company?        @relation(fields: [company_id], references: [id])
   created_at              DateTime        @default(now())
   last_login              DateTime?
   is_active               Boolean         @default(true)
   created_interview_links InterviewLink[] @relation("InterviewLinkCreator")
 
   @@map("interviewers")
+}
+
+model Company {
+  id         Int           @id @default(autoincrement())
+  name       String        @unique
+  logo_url   String?
+  website    String?
+  created_at DateTime      @default(now())
+  updated_at DateTime      @updatedAt
+  members    Interviewer[]
+
+  @@map("companies")
 }
 
 model TheoreticalQuestion {

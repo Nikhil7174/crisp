@@ -167,13 +167,35 @@ export class AuthController {
             // Hash password
             const passwordHash = await this.authService.hashPassword(password);
 
-            // Create interviewer
+            // Handle Company Logic
+            let companyId: number | undefined;
+
+            if (company) {
+                // Check if company already exists
+                const existingCompany = await this.dbService.getCompanyByName(company);
+
+                if (existingCompany) {
+                    // Strict Create Mode: Block registration if company exists
+                    res.status(409).json({
+                        error: 'Company already registered',
+                        message: 'This company is already registered. Please contact support or use a different name.'
+                    });
+                    return;
+                } else {
+                    // Create new company
+                    const newCompany = await this.dbService.createCompany(company);
+                    companyId = newCompany.id;
+                }
+            }
+
+            // Create interviewer with companyId
             const interviewer = await this.dbService.createInterviewer({
                 email,
                 passwordHash,
                 fullName,
                 phone,
-                company
+                company, // Legacy string field
+                companyId  // New relation field
             });
 
             // Generate token
@@ -379,7 +401,7 @@ export class AuthController {
             // In a JWT-based system, logout is primarily handled client-side
             // We can log the logout event if needed
             const userId = (req as any).user?.userId;
-            
+
             if (userId) {
                 console.log(`User ${userId} logged out at ${new Date().toISOString()}`);
             }
@@ -404,14 +426,14 @@ export class AuthController {
     async getUserResume(req: Request, res: Response): Promise<void> {
         try {
             const userId = (req as any).user?.userId;
-            
+
             if (!userId) {
                 res.status(401).json({ error: 'User not authenticated' });
                 return;
             }
 
             const resumeData = await this.dbService.getUserResume(userId);
-            
+
             res.json({
                 success: true,
                 resumeData
@@ -432,7 +454,7 @@ export class AuthController {
         try {
             const userId = (req as any).user?.userId;
             const { resumeData } = req.body;
-            
+
             if (!userId) {
                 res.status(401).json({ error: 'User not authenticated' });
                 return;
@@ -444,7 +466,7 @@ export class AuthController {
             }
 
             await this.dbService.updateUserResume(userId, resumeData);
-            
+
             res.json({
                 success: true,
                 message: 'Resume updated successfully'
@@ -466,7 +488,7 @@ export class AuthController {
             console.log('=== GET CANDIDATE INTERVIEWS DEBUG ===');
             console.log('Request received at:', new Date().toISOString());
             console.log('Request headers:', req.headers);
-            
+
             const userId = (req as any).user?.userId;
             console.log('User ID from token:', userId);
 
@@ -502,7 +524,10 @@ export class AuthController {
                 duration: interview.duration,
                 totalQuestions: interview.total_questions,
                 correctAnswers: interview.correct_answers,
-                linkId: interview.interview_link_id
+                linkId: interview.interview_link_id,
+                company: interview.company,
+                companyId: interview.companyId,
+                companyLogo: interview.companyLogo
             }));
 
             console.log('Formatted interviews:', formattedInterviews.length, 'interviews');

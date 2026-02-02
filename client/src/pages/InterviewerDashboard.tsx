@@ -94,7 +94,7 @@ export const InterviewerDashboard: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!linkToDelete) return;
-    
+
     try {
       setLoading(true);
       const response = await axios.delete(
@@ -103,7 +103,7 @@ export const InterviewerDashboard: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      
+
       if (response.data.success) {
         message.success('Link deleted successfully!');
         fetchLinks();
@@ -124,15 +124,7 @@ export const InterviewerDashboard: React.FC = () => {
     navigate(`/interviewer/create-interview?linkId=${link.id}`);
   };
 
-  const handleCopyLink = (url: string, linkId: number) => {
-    navigator.clipboard.writeText(url);
-    message.success('Link copied to clipboard!');
-    setCopiedLinkId(linkId);
-    // Reset after 2 seconds
-    setTimeout(() => {
-      setCopiedLinkId(null);
-    }, 2000);
-  };
+
 
   const handleViewQuestions = (link: InterviewLink) => {
     setSelectedLinkForViewing(link);
@@ -164,7 +156,7 @@ export const InterviewerDashboard: React.FC = () => {
       render: (isActive: boolean, record: InterviewLink) => {
         // Check if link has expired
         const isExpired = Boolean(record.expiryDate) && dayjs(record.expiryDate).isBefore(dayjs());
-        
+
         if (isExpired) {
           return (
             <Tag icon={<CloseCircleOutlined />} color="error">
@@ -172,7 +164,7 @@ export const InterviewerDashboard: React.FC = () => {
             </Tag>
           );
         }
-        
+
         return isActive ? (
           <Tag icon={<CheckCircleOutlined />} color="success">
             Active
@@ -222,7 +214,7 @@ export const InterviewerDashboard: React.FC = () => {
           disabled={!record.totalAttempts}
           onClick={() => navigate(`/interviewer/link/${record.id}/candidates`)}
           className="view-candidates-btn"
-          style={{ 
+          style={{
             color: colors.primary.main,
             borderColor: colors.primary.main,
             background: 'transparent',
@@ -245,7 +237,7 @@ export const InterviewerDashboard: React.FC = () => {
       render: (_: any, record: InterviewLink) => {
         // Check if link is active and not expired
         const isExpired = Boolean(record.expiryDate) && dayjs(record.expiryDate).isBefore(dayjs());
-        
+
         return (
           <Dropdown
             menu={{
@@ -256,12 +248,18 @@ export const InterviewerDashboard: React.FC = () => {
                   icon: <QuestionCircleOutlined />,
                   onClick: () => handleViewQuestions(record),
                 },
+
                 {
-                  key: 'copy',
-                  label: copiedLinkId === record.id ? 'Copied!' : 'Copy Link',
+                  key: 'copyToken',
+                  label: copiedLinkId === record.id * 1000 ? 'Copied Token!' : 'Copy Token',
                   icon: <CopyOutlined />,
                   disabled: isExpired,
-                  onClick: () => handleCopyLink(record.url, record.id),
+                  onClick: () => {
+                    navigator.clipboard.writeText(record.token);
+                    message.success('Token copied to clipboard!');
+                    setCopiedLinkId(record.id * 1000); // Use a different ID range or mechanism to track token copy state distinct from URL copy
+                    setTimeout(() => setCopiedLinkId(null), 2000);
+                  },
                 },
                 {
                   key: 'edit',
