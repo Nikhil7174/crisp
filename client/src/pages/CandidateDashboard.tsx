@@ -150,11 +150,6 @@ export const CandidateDashboard: React.FC = () => {
     return companyIds.size + companyNames.size;
   }, [attempts]);
 
-  const isStale = useMemo(() => {
-    if (!lastFetched) return true;
-    return Date.now() - lastFetched.getTime() > 300000; // 5 minutes
-  }, [lastFetched]);
-
   const handleLogout = useCallback(async () => {
     await logout();
     navigate('/');
