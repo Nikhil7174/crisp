@@ -465,13 +465,18 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     const freshState = stateProvider.getState(interviewId);
     if (freshState) {
       const currentCode = freshState.currentCode || undefined;
+      const currentNotepad = freshState.currentNotepad || undefined;
       console.log(`🔍 [Code Check] currentCode in State: ${currentCode ? currentCode.length + ' chars' : 'UNDEFINED/NULL'}`);
+      if (currentNotepad) {
+        console.log(`📝 [Notepad Check] currentNotepad in State: ${currentNotepad.length} chars`);
+      }
 
       const contextPrompt = getInterviewContextPrompt(
         freshState,
         stateProvider,
         orchestrator,
-        currentCode
+        currentCode,
+        currentNotepad
       );
 
       if (contextPrompt) {
@@ -1000,7 +1005,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
       // State is tracked internally, not stored in conversation history
       console.log(`💬 State Updated: Generic depth ${newDepth}/2`);
-      
+
       // CLEAR BADGES - Generic speech means we're no longer in hint/clarification/follow-up mode
       const { sendEventToUI } = this.session.userData;
       if (sendEventToUI) {

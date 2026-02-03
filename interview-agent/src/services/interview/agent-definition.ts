@@ -443,12 +443,17 @@ export const agent = defineAgent({
               }
             }
           } else if (msg.type === 'code_snapshot') {
-            // Handle code snapshot
+            // Handle code snapshot (and optional notepad)
             if (msg.code !== undefined && session.userData) {
               // Update the currentCode in persistent state
               stateProvider.updateCode(interviewId, msg.code);
-              // session.userData.currentCode = msg.code; // REMOVED: Using stateProvider instead
               console.log(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
+
+              // Also update notepad if provided
+              if (msg.notepad !== undefined) {
+                stateProvider.updateNotepad(interviewId, msg.notepad);
+                console.log(`📝 [Agent] Received notepad (${msg.notepad.length} chars) - Updated State`);
+              }
             } else {
               console.warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
             }

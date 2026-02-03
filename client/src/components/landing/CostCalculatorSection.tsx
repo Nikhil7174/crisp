@@ -71,7 +71,7 @@ const CostCalculatorSection: React.FC = () => {
   const navigate = useNavigate();
   const screens = useBreakpoint();
   const [numHires, setNumHires] = useState<number>(80);
-  const [activeView, setActiveView] = useState<ViewType>('financial');
+  const [activeView, setActiveView] = useState<ViewType>('time');
   const [country, setCountry] = useState<Country>('india');
   const [scenario, setScenario] = useState<Scenario>('mid');
   const [hoveredSegment, setHoveredSegment] = useState<{ barIndex: number; segmentKey: string } | null>(null);
@@ -79,21 +79,23 @@ const CostCalculatorSection: React.FC = () => {
   // Get country-specific constants
   const constants = country === 'india' ? INDIA_CONSTANTS : USA_CONSTANTS;
 
-  const rowGutter: [number, number] = screens.lg 
-  ? [spacing.xxxl * 2, spacing.xxxl]  // Desktop: [128, 64]
-  : [spacing.xxxl, spacing.xxxl];     // Mobile/Tablet: [64, 64]
+  const rowGutter: [number, number] = (() => {
+    if (screens.lg) return [spacing.xxxl * 2, spacing.xxxl];
+    if (screens.sm) return [spacing.xxxl, spacing.xxxl];
+    return [spacing.xl, spacing.xxl]; // xs / very small screens
+  })();
 
   // Calculate costs based on number of hires
   const calculations = useMemo(() => {
     const engCostPerHire = constants.ENG_COST_PER_SCREEN[scenario]; // Cost per hire (not per screen)
     const costBreakdown = constants.COST_BREAKDOWN;
-    
+
     // Break down the per-hire cost into Fixed, Running, and Variable
     // For 1 hire, total cost = engCostPerHire (e.g., ₹1300), split into three categories
     const fixedCostPerHire = engCostPerHire * costBreakdown.fixed;
     const runningCostPerHire = engCostPerHire * costBreakdown.running;
     const variableCostPerHire = engCostPerHire * costBreakdown.variable;
-    
+
     // Financial Cost calculations (all costs are per-hire based)
     const manualFixedCost = numHires * fixedCostPerHire; // Annual (sum of all per-hire fixed costs)
     const manualRunningCost = numHires * runningCostPerHire; // Annual (sum of all per-hire running costs)
@@ -156,7 +158,7 @@ const CostCalculatorSection: React.FC = () => {
       const manualTotal = calc.manual.fixedCost + calc.manual.variableCost + calc.manual.runningCost;
       const shakraCostTotal = calc.shakra.perSessionCost; // Shakra only has per-session cost
       const savings = manualTotal - shakraCostTotal; // Savings is the difference
-      
+
       return [
         {
           name: 'Manual Hiring',
@@ -176,7 +178,7 @@ const CostCalculatorSection: React.FC = () => {
       const manualTotal = calc.manual.engHours + (calc.manual.timeToHire * 8); // Convert days to hours
       const shakraCostTotal = calc.shakra.engHours + (calc.shakra.timeToHire * 8); // Convert days to hours
       const savings = manualTotal - shakraCostTotal;
-      
+
       return [
         {
           name: 'Manual Hiring',
@@ -245,13 +247,13 @@ const CostCalculatorSection: React.FC = () => {
           {/* Top Row - Controls Alignment */}
           <Row gutter={[spacing.xxxl, spacing.lg]} align="middle" style={{ marginBottom: spacing.xl }}>
             <Col xs={24} lg={10}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: spacing.md,
                 flexWrap: 'wrap',
               }}
-              className="cost-calculator-controls">
+                className="cost-calculator-controls">
                 {/* Scenario Selector Dropdown */}
                 <Select
                   value={scenario}
@@ -278,14 +280,14 @@ const CostCalculatorSection: React.FC = () => {
               </div>
             </Col>
             <Col xs={24} lg={14}>
-              <div style={{ 
-                display: 'flex', 
+              <div style={{
+                display: 'flex',
                 justifyContent: 'flex-end',
-                alignItems: 'center', 
+                alignItems: 'center',
                 gap: spacing.md,
                 flexWrap: 'wrap',
               }}
-              className="cost-calculator-tabs-wrap">
+                className="cost-calculator-tabs-wrap">
                 <Tabs
                   activeKey={activeView}
                   onChange={(key) => setActiveView(key as ViewType)}
@@ -293,12 +295,12 @@ const CostCalculatorSection: React.FC = () => {
                   size="middle"
                   items={[
                     {
-                      key: 'financial',
-                      label: 'Financial Cost saved',
-                    },
-                    {
                       key: 'time',
                       label: 'Time/Productivity saved',
+                    },
+                    {
+                      key: 'financial',
+                      label: 'Financial Cost saved',
                     },
                   ]}
                 />
@@ -583,112 +585,71 @@ const CostCalculatorSection: React.FC = () => {
                         margin={{ top: 20, right: 10, left: 10, bottom: 5 }}
                         barCategoryGap="30%"
                       >
-                      <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fill: colors.neutral[600], fontSize: typography.fontSize.sm }}
-                      />
-                      <YAxis
-                        tick={{ 
-                          fill: colors.neutral[600], 
-                          fontSize: typography.fontSize.sm,
-                        }}
-                        tickFormatter={(value: number) => {
-                          if (activeView === 'financial') {
-                            // Format large numbers more compactly
-                            if (value >= 1000) {
-                              const formatted = country === 'usa' 
-                                ? `$${(value / 1000).toFixed(0)}k`
-                                : `₹${(value / 1000).toFixed(0)}k`;
-                              return formatted;
+                        <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fill: colors.neutral[600], fontSize: typography.fontSize.sm }}
+                        />
+                        <YAxis
+                          tick={{
+                            fill: colors.neutral[600],
+                            fontSize: typography.fontSize.sm,
+                          }}
+                          tickFormatter={(value: number) => {
+                            if (activeView === 'financial') {
+                              // Format large numbers more compactly
+                              if (value >= 1000) {
+                                const formatted = country === 'usa'
+                                  ? `$${(value / 1000).toFixed(0)}k`
+                                  : `₹${(value / 1000).toFixed(0)}k`;
+                                return formatted;
+                              }
+                              return country === 'usa' ? `$${value}` : `₹${value}`;
                             }
-                            return country === 'usa' ? `$${value}` : `₹${value}`;
-                          }
-                          // Format hours
-                          if (value >= 1000) {
-                            return `${(value / 1000).toFixed(1)}k`;
-                          }
-                          return `${Math.round(value)}`;
-                        }}
-                        width={60}
-                        domain={[0, 'auto']}
-                        label={{
-                          value: activeView === 'financial' 
-                            ? 'Total cost of ownership (annual)'
-                            : 'Time (hours)',
-                          angle: -90,
-                          position: 'insideLeft',
-                          offset: 0,
-                          style: { fill: colors.neutral[500], fontSize: typography.fontSize.sm, textAnchor: 'middle' },
-                        }}
-                      />
-                      <Tooltip
-                        contentStyle={{ display: 'none' }}
-                        cursor={false}
-                      />
-                      <Legend
-                        wrapperStyle={{ 
-                          paddingTop: spacing.lg,
-                          display: 'flex',
-                          justifyContent: 'center',
-                          gap: spacing.xl,
-                        }}
-                        iconType="circle"
-                      />
-                      <Bar
-                        dataKey={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
-                        stackId="a"
-                        fill="#2c2c2c"
-                        name={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
-                        shape={(props: any) => {
-                          const segmentKey = activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time';
-                          const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
-                          const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
-                          return (
-                            <rect
-                              {...props}
-                              fill={isHovered ? '#383838' : '#2c2c2c'}
-                              onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
-                              onMouseLeave={() => setHoveredSegment(null)}
-                              style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
-                            />
-                          );
-                        }}
-                      />
-                      <Bar
-                        dataKey={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
-                        stackId="a"
-                        fill="#69b7ff"
-                        name={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
-                        shape={(props: any) => {
-                          const segmentKey = activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire';
-                          const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
-                          const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
-                          return (
-                            <rect
-                              {...props}
-                              fill={isHovered ? '#7bc0ff' : '#69b7ff'}
-                              onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
-                              onMouseLeave={() => setHoveredSegment(null)}
-                              style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
-                            />
-                          );
-                        }}
-                      />
-                      {activeView === 'financial' && (
-                        <Bar 
-                          dataKey="Running Cost" 
-                          stackId="a" 
-                          fill="#d3b3e5"
-                          name="Running Cost"
+                            // Format hours
+                            if (value >= 1000) {
+                              return `${(value / 1000).toFixed(1)}k`;
+                            }
+                            return `${Math.round(value)}`;
+                          }}
+                          width={60}
+                          domain={[0, 'auto']}
+                          label={{
+                            value: activeView === 'financial'
+                              ? 'Total cost of ownership (annual)'
+                              : 'Time (hours)',
+                            angle: -90,
+                            position: 'insideLeft',
+                            offset: 0,
+                            style: { fill: colors.neutral[500], fontSize: typography.fontSize.sm, textAnchor: 'middle' },
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{ display: 'none' }}
+                          cursor={false}
+                        />
+                        <Legend
+                          wrapperStyle={{
+                            paddingTop: spacing.lg,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: spacing.xl,
+                          }}
+                          iconType="circle"
+                        />
+                        <Bar
+                          dataKey={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
+                          stackId="a"
+                          fill="#2c2c2c"
+                          name={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
                           shape={(props: any) => {
-                            const segmentKey = 'Running Cost';
+                            const segmentKey = activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time';
                             const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
                             const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
                             return (
                               <rect
                                 {...props}
-                                fill={isHovered ? '#ddc0ed' : '#d3b3e5'}
+                                fill={isHovered ? '#383838' : '#2c2c2c'}
                                 onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
                                 onMouseLeave={() => setHoveredSegment(null)}
                                 style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
@@ -696,27 +657,68 @@ const CostCalculatorSection: React.FC = () => {
                             );
                           }}
                         />
-                      )}
-                      <Bar
-                        dataKey="Savings"
-                        stackId="a"
-                        fill={colors.success.main}
-                        name="Savings"
-                        shape={(props: any) => {
-                          const segmentKey = 'Savings';
-                          const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
-                          const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
-                          return (
-                            <rect
-                              {...props}
-                              fill={isHovered ? '#65d42a' : colors.success.main}
-                              onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
-                              onMouseLeave={() => setHoveredSegment(null)}
-                              style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
-                            />
-                          );
-                        }}
-                      />
+                        <Bar
+                          dataKey={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
+                          stackId="a"
+                          fill="#69b7ff"
+                          name={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
+                          shape={(props: any) => {
+                            const segmentKey = activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire';
+                            const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
+                            const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
+                            return (
+                              <rect
+                                {...props}
+                                fill={isHovered ? '#7bc0ff' : '#69b7ff'}
+                                onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
+                                onMouseLeave={() => setHoveredSegment(null)}
+                                style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
+                              />
+                            );
+                          }}
+                        />
+                        {activeView === 'financial' && (
+                          <Bar
+                            dataKey="Running Cost"
+                            stackId="a"
+                            fill="#d3b3e5"
+                            name="Running Cost"
+                            shape={(props: any) => {
+                              const segmentKey = 'Running Cost';
+                              const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
+                              const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
+                              return (
+                                <rect
+                                  {...props}
+                                  fill={isHovered ? '#ddc0ed' : '#d3b3e5'}
+                                  onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
+                                  onMouseLeave={() => setHoveredSegment(null)}
+                                  style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
+                                />
+                              );
+                            }}
+                          />
+                        )}
+                        <Bar
+                          dataKey="Savings"
+                          stackId="a"
+                          fill={colors.success.main}
+                          name="Savings"
+                          shape={(props: any) => {
+                            const segmentKey = 'Savings';
+                            const barIndex = chartData.findIndex((d: any) => d.name === props.payload?.name);
+                            const isHovered = hoveredSegment?.barIndex === barIndex && hoveredSegment?.segmentKey === segmentKey;
+                            return (
+                              <rect
+                                {...props}
+                                fill={isHovered ? '#65d42a' : colors.success.main}
+                                onMouseEnter={() => setHoveredSegment({ barIndex, segmentKey })}
+                                onMouseLeave={() => setHoveredSegment(null)}
+                                style={{ cursor: 'pointer', transition: 'fill 0.2s ease' }}
+                              />
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

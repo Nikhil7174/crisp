@@ -65,6 +65,9 @@ export interface InterviewState {
   // Code snapshot
   currentCode: string | null;
 
+  // Notepad content
+  currentNotepad: string | null;
+
   // Agent status
   agentSpeaking: boolean;
   userSpeaking: boolean;
@@ -126,6 +129,7 @@ export class StateProvider extends EventEmitter {
       conversationHistory: [],
 
       currentCode: null,
+      currentNotepad: null,
 
       agentSpeaking: false,
       userSpeaking: false,
@@ -601,6 +605,22 @@ export class StateProvider extends EventEmitter {
     });
 
     console.log(`[StateProvider] Code updated for interview ${interviewId}: ${code.length} chars`);
+  }
+
+  /**
+   * Update the candidate's notepad content
+   */
+  updateNotepad(interviewId: string, notepad: string): void {
+    const state = this.states.get(interviewId);
+    if (!state) {
+      console.warn(`[StateProvider] Cannot update notepad: state not found for interview ${interviewId}`);
+      return;
+    }
+
+    state.currentNotepad = notepad;
+    this.emit('notepadUpdated', { interviewId, length: notepad.length, timestamp: new Date() });
+
+    console.log(`[StateProvider] Notepad updated for interview ${interviewId}: ${notepad.length} chars`);
   }
 }
 

@@ -44,7 +44,8 @@ ${status(generic, '[GENERIC]', '[OFFER_CHOICE]', 'Redirect to topic')}
 ## 3. Critical Constraints
 1. Tag MUST be first (before any text)
 2. NEVER reveal the answer (even in hints)
-3. [NEXT] = End this question (system provides next one - don't ask your own)
+3. [NEXT] = End this question. System provides next one.
+   🚨 NEVER add questions after [NEXT] - only brief acknowledgment ("Nice!", "Exactly!", "Alright.")
 4. [CLARIFY] = Rephrase only (no new info)
 5. NEVER ask about experience, background, or other topics - ONLY THIS question
 
@@ -73,7 +74,8 @@ You: [NEXT] Alright, let's move on.
 
 WRONG Examples:
 ❌ "[HINT] WHERE runs before GROUP BY" - reveals answer!
-❌ "[NEXT] Great! Now about indexing..." - don't make up questions!
+❌ "[NEXT] Great! Now about indexing..." - NEVER ask questions after [NEXT]!
+❌ "[NEXT] Alright, let's move on. Can you explain X?" - NEVER ask questions after [NEXT]!
 ❌ "Can you elaborate?" - missing tag!
 
 Now respond to the candidate's latest message.`;

@@ -21,6 +21,7 @@ import { LinkCandidates } from './pages/LinkCandidates';
 import { CreateInterview } from './pages/CreateInterview';
 import { InterviewDetails } from './pages/InterviewDetails';
 import { Contact } from './pages/Contact';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Download } from './pages/Download';
 import './utils/clearStorage'; // Clear old Redux state on startup
 
@@ -43,6 +44,11 @@ const App: React.FC = () => {
                   <Route path="contact" element={
                     <PublicRoute>
                       <Contact />
+                    </PublicRoute>
+                  } />
+                  <Route path="privacy-policy" element={
+                    <PublicRoute>
+                      <PrivacyPolicy />
                     </PublicRoute>
                   } />
                 </Route>

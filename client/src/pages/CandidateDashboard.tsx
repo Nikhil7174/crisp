@@ -39,24 +39,27 @@ interface InterviewAttempt {
   duration?: number;
   totalQuestions: number;
   answeredQuestions: number;
+  company?: string;
+  companyId?: number;
+  companyLogo?: string;
 }
 
 export const CandidateDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   // State management
   const [attempts, setAttempts] = useState<InterviewAttempt[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
-  
+
   // Memoized fetch function - React will handle when to call this
   const fetchAttempts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('authToken');
       if (!token) {
         throw new Error('No authentication token found');
@@ -113,8 +116,8 @@ export const CandidateDashboard: React.FC = () => {
   }, [fetchAttempts, lastFetched]);
 
   // Memoized computed values
-  const completedAttempts = useMemo(() => 
-    attempts.filter((a) => a.status === 'completed'), 
+  const completedAttempts = useMemo(() =>
+    attempts.filter((a) => a.status === 'completed'),
     [attempts]
   );
 
@@ -130,16 +133,22 @@ export const CandidateDashboard: React.FC = () => {
   }, [completedAttempts]);
 
   const companiesCount = useMemo(() => {
-    const titles = attempts
-      .map((attempt) => attempt.title?.trim())
-      .filter((title): title is string => Boolean(title));
-    return new Set(titles).size;
-  }, [attempts]);
+    // Unique companies based on companyId (preferred) or company name
+    const companyIds = new Set(
+      attempts
+        .filter(a => a.companyId)
+        .map(a => a.companyId)
+    );
 
-  const isStale = useMemo(() => {
-    if (!lastFetched) return true;
-    return Date.now() - lastFetched.getTime() > 300000; // 5 minutes
-  }, [lastFetched]);
+    // Fallback to names if IDs aren't available for some logic
+    const companyNames = new Set(
+      attempts
+        .filter(a => !a.companyId && a.company)
+        .map(a => a.company!.trim())
+    );
+
+    return companyIds.size + companyNames.size;
+  }, [attempts]);
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -153,9 +162,30 @@ export const CandidateDashboard: React.FC = () => {
   // Memoized table columns
   const columns = useMemo(() => [
     {
+      title: 'Company',
+      dataIndex: 'company',
+      key: 'company',
+      width: '30%',
+      render: (company: string, record: InterviewAttempt) => (
+        <Space>
+          {record.companyLogo && (
+            <img
+              src={record.companyLogo}
+              alt={company}
+              style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'contain' }}
+            />
+          )}
+          <Text style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
+            {company || 'Unknown Company'}
+          </Text>
+        </Space>
+      ),
+    },
+    {
       title: 'Interview Name',
       dataIndex: 'title',
       key: 'title',
+      width: '50%',
       render: (title: string) => (
         <Text style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: '#111827' }}>
           {title}
@@ -166,6 +196,7 @@ export const CandidateDashboard: React.FC = () => {
       title: 'Date',
       dataIndex: 'startTime',
       key: 'startTime',
+      width: '20%',
       render: (date: string) => (
         <Text style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.6, color: '#6B7280' }}>
           {dayjs(date).format('MMM D, YYYY')}
@@ -195,16 +226,6 @@ export const CandidateDashboard: React.FC = () => {
               <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
                 Welcome back, {user?.fullName}
               </Text>
-              {lastFetched && (
-                <Text style={{ color: '#9CA3AF', fontSize: 12, display: 'block', marginTop: 8, lineHeight: 1.5 }}>
-                  Last updated: {dayjs(lastFetched).format('MMM D, YYYY h:mm A')}
-                  {isStale && (
-                    <Tooltip title="Data is stale - click refresh to get latest updates">
-                      <ExclamationCircleOutlined style={{ marginLeft: 8, color: '#F59E0B' }} />
-                    </Tooltip>
-                  )}
-                </Text>
-              )}
             </Col>
             <Col>
               <Space size={12}>
@@ -349,9 +370,9 @@ export const CandidateDashboard: React.FC = () => {
 
         {/* Error Display */}
         {error && (
-          <Card 
-            style={{ 
-              marginBottom: 32, 
+          <Card
+            style={{
+              marginBottom: 32,
               border: '1px solid #FCA5A5',
               background: '#FEF2F2',
               boxShadow: 'none',
@@ -365,9 +386,9 @@ export const CandidateDashboard: React.FC = () => {
                 <br />
                 <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>{error}</Text>
                 <br />
-                <Button 
-                  type="link" 
-                  onClick={refetch} 
+                <Button
+                  type="link"
+                  onClick={refetch}
                   loading={loading}
                   style={{ padding: 0, marginTop: 4, height: 'auto' }}
                 >

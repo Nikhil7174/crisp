@@ -1,7 +1,6 @@
 // src/components/layout/Header.tsx
 import React from 'react';
 import { Layout, Button, Space } from 'antd';
-import { LoginOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import shakraLogo from '../../assets/images/shakra.png';
@@ -77,12 +76,12 @@ export const Header: React.FC = () => {
           {isAuthenticated ? (
             <Button
               type="primary"
-              icon={<LogoutOutlined />}
               onClick={handleLogoutClick}
               style={{
                 background: '#e63946',
                 borderColor: '#e63946',
-                height: 40,
+                height: 36,
+                fontSize: 14,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = '#d62839';
@@ -98,12 +97,12 @@ export const Header: React.FC = () => {
           ) : (
             <Button
               type="primary"
-              icon={<LoginOutlined />}
               onClick={handleLoginClick}
               style={{
                 background: colors.neutral[900],
                 borderColor: colors.neutral[900],
-                height: 40,
+                height: 36,
+                fontSize: 14,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = colors.neutral[800];
@@ -114,7 +113,7 @@ export const Header: React.FC = () => {
                 e.currentTarget.style.borderColor = colors.neutral[900];
               }}
             >
-              Login
+              Log in
             </Button>
           )}
         </Space>

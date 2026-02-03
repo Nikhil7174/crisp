@@ -15,7 +15,7 @@ import {
 } from 'antd';
 import {
   TrophyOutlined,
-  UserOutlined,
+  IdcardOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   EyeOutlined,
@@ -89,7 +89,7 @@ export const LinkCandidates: React.FC = () => {
       console.log('Fetching candidates for link ID:', linkId);
       console.log('API URL:', `${API_BASE_URL}/interviewer/links/${linkId}/candidates`);
       console.log('Token exists:', token ? 'Yes' : 'No');
-      
+
       const response = await fetch(`${API_BASE_URL}/interviewer/links/${linkId}/candidates`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -103,41 +103,41 @@ export const LinkCandidates: React.FC = () => {
 
         // Calculate statistics
         const completedInterviews = candidateList.filter((c: Candidate) => c.end_time).length;
-        
+
         // Calculate average score using the same priority as admin dashboard
         // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
         const scores: number[] = [];
         candidateList.forEach((c: Candidate) => {
           if (!c.end_time) return; // Skip incomplete interviews
-          
+
           let score: number | null = null;
-          
+
           // Check LLM evaluation first (most accurate)
-          if (c.finalEvaluation?.llmEvaluation?.overall?.score !== null && 
-              c.finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
+          if (c.finalEvaluation?.llmEvaluation?.overall?.score !== null &&
+            c.finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
             score = c.finalEvaluation.llmEvaluation.overall.score;
           }
           // Check finalEvaluation totalScore
-          else if (c.finalEvaluation?.totalScore !== null && 
-                   c.finalEvaluation?.totalScore !== undefined) {
+          else if (c.finalEvaluation?.totalScore !== null &&
+            c.finalEvaluation?.totalScore !== undefined) {
             score = c.finalEvaluation.totalScore;
           }
           // Check interview.score
           else if (c.score !== null && c.score !== undefined) {
             score = c.score;
           }
-          
+
           // Only add if we found a valid score (including 0 as valid)
           if (score !== null && score !== undefined) {
             scores.push(score);
             console.log(`[LinkCandidates] Candidate ${c.id}: score=${score} (from ${c.finalEvaluation?.llmEvaluation ? 'llmEvaluation' : c.finalEvaluation ? 'finalEvaluation.totalScore' : 'interview.score'})`);
           }
         });
-        
+
         const averageScore = scores.length > 0
           ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
           : 0;
-        
+
         console.log(`[LinkCandidates] Total candidates: ${candidateList.length}, Completed: ${completedInterviews}, With scores: ${scores.length}, Average: ${averageScore}`);
 
         setStatistics({
@@ -200,9 +200,9 @@ export const LinkCandidates: React.FC = () => {
       align: 'center' as const,
       render: (_: any, record: Candidate) => {
         // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
-        const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score 
-          ?? record.finalEvaluation?.totalScore 
-          ?? record.score 
+        const overallScore = record.finalEvaluation?.llmEvaluation?.overall?.score
+          ?? record.finalEvaluation?.totalScore
+          ?? record.score
           ?? 0;
         return (
           <Tag
@@ -214,13 +214,13 @@ export const LinkCandidates: React.FC = () => {
         );
       },
       sorter: (a: Candidate, b: Candidate) => {
-        const scoreA = a.finalEvaluation?.llmEvaluation?.overall?.score 
-          ?? a.finalEvaluation?.totalScore 
-          ?? a.score 
+        const scoreA = a.finalEvaluation?.llmEvaluation?.overall?.score
+          ?? a.finalEvaluation?.totalScore
+          ?? a.score
           ?? 0;
-        const scoreB = b.finalEvaluation?.llmEvaluation?.overall?.score 
-          ?? b.finalEvaluation?.totalScore 
-          ?? b.score 
+        const scoreB = b.finalEvaluation?.llmEvaluation?.overall?.score
+          ?? b.finalEvaluation?.totalScore
+          ?? b.score
           ?? 0;
         return scoreA - scoreB;
       },
@@ -366,13 +366,13 @@ export const LinkCandidates: React.FC = () => {
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: '#EFF6FF',
-                border: '1px solid #DBEAFE',
+                background: '#E0F2FE',
+                border: '1px solid #BAE6FD',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <UserOutlined style={{ color: colors.primary.main, fontSize: 20 }} />
+                <IdcardOutlined style={{ color: '#0284C7', fontSize: 20 }} />
               </span>
               <Text style={{ color: '#374151', fontSize: 14 }}>
                 <Text style={{ color: '#6B7280', fontWeight: 500 }}>Total Candidates:</Text>{' '}

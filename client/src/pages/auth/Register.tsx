@@ -16,11 +16,11 @@ export const Register: React.FC = () => {
   const { register, loading, isAuthenticated, user, error } = useAuth();
   const [form] = Form.useForm();
   const { message } = App.useApp();
-  
+
   // Get user type context from navigation state
   const userTypeContext = (location.state as any)?.userType;
   const returnTo = (location.state as any)?.returnTo;
-  
+
   // Set default user type based on context
   const defaultUserType = userTypeContext || 'candidate';
   const [userType, setUserType] = useState<'candidate' | 'interviewer'>(defaultUserType);
@@ -124,205 +124,208 @@ export const Register: React.FC = () => {
           padding: spacing.lg,
         }}
       >
-      <Card
-        style={{
-          width: '100%',
-          maxWidth: 500,
-          border: '1px solid #E5E7EB',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          borderRadius: 16,
-          background: '#FFFFFF',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: spacing.xl }}>
-          <Title level={2} style={{ color: '#111827', marginBottom: spacing.sm }}>
-            Create Account
-          </Title>
-          <Text type="secondary">Join Shakra to get started</Text>
-        </div>
-
-        <Form
-          form={form}
-          name="register"
-          onFinish={handleSubmit}
-          layout="vertical"
-          size="large"
-          autoComplete="off"
-          initialValues={{ userType: defaultUserType }}
+        <Card
+          style={{
+            width: '100%',
+            maxWidth: 500,
+            border: '1px solid #E5E7EB',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            borderRadius: 16,
+            background: '#FFFFFF',
+          }}
         >
-          {error && (
-            <Alert
-              message="Registration Failed"
-              description={error}
-              type="error"
-              showIcon
-              style={{ marginBottom: spacing.lg }}
-            />
-          )}
-          
-          <Form.Item
-            name="userType"
-            rules={[{ required: true }]}
-            style={{ marginBottom: spacing.lg }}
+          <div style={{ textAlign: 'center', marginBottom: spacing.xl }}>
+            <Title level={2} style={{ color: '#111827', marginBottom: spacing.sm }}>
+              Create Account
+            </Title>
+            <Text type="secondary">Join Shakra to get started</Text>
+          </div>
+
+          <Form
+            form={form}
+            name="register"
+            onFinish={handleSubmit}
+            layout="vertical"
+            size="large"
+            autoComplete="off"
+            initialValues={{ userType: defaultUserType }}
           >
-            <div>
-              <Tabs
-                activeKey={userType}
-                onChange={(key) => {
-                  setUserType(key as 'candidate' | 'interviewer');
-                  form.setFieldsValue({ userType: key });
-                }}
-                items={[
-                  {
-                    key: 'candidate',
-                    label: 'Candidate',
-                  },
-                  {
-                    key: 'interviewer',
-                    label: 'Interviewer',
-                  },
-                ]}
-                className="user-type-tabs"
-                style={{
-                  width: '100%',
-                }}
-                tabBarStyle={{
-                  marginBottom: 0,
-                  background: colors.neutral[50],
-                  borderRadius: 8,
-                  padding: 2,
-                }}
-                size="small"
+            {error && (
+              <Alert
+                message="Registration Failed"
+                description={error}
+                type="error"
+                showIcon
+                style={{ marginBottom: spacing.lg }}
               />
-            </div>
-          </Form.Item>
+            )}
 
-          <Form.Item
-            name="fullName"
-            rules={[{ required: true, message: 'Please enter your full name!' }]}
-          >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="Full Name"
-              style={{ borderRadius: 8 }}
-              onChange={handleInputChange}
-            />
-          </Form.Item>
+            <Form.Item
+              name="userType"
+              rules={[{ required: true }]}
+              style={{ marginBottom: spacing.lg }}
+            >
+              <div>
+                <Tabs
+                  activeKey={userType}
+                  onChange={(key) => {
+                    setUserType(key as 'candidate' | 'interviewer');
+                    form.setFieldsValue({ userType: key });
+                  }}
+                  items={[
+                    {
+                      key: 'candidate',
+                      label: 'Candidate',
+                    },
+                    {
+                      key: 'interviewer',
+                      label: 'Interviewer',
+                    },
+                  ]}
+                  className="user-type-tabs"
+                  style={{
+                    width: '100%',
+                  }}
+                  tabBarStyle={{
+                    marginBottom: 0,
+                    background: colors.neutral[50],
+                    borderRadius: 8,
+                    padding: 2,
+                  }}
+                  size="small"
+                />
+              </div>
+            </Form.Item>
 
-          <Form.Item
-            name="email"
-            rules={[
-              { required: true, message: 'Please enter your email!' },
-              { type: 'email', message: 'Please enter a valid email!' },
-            ]}
-          >
-            <Input
-              prefix={<MailOutlined />}
-              placeholder="Email"
-              style={{ borderRadius: 8 }}
-              onChange={handleInputChange}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            rules={[
-              { required: true, message: 'Please enter a password!' },
-              { min: 8, message: 'Password must be at least 8 characters!' },
-              {
-                pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-                message: 'Password must contain uppercase, lowercase, and number!',
-              },
-            ]}
-            hasFeedback
-          >
-            <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="Password"
-              style={{ borderRadius: 8 }}
-              onChange={handleInputChange}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="confirmPassword"
-            dependencies={['password']}
-            hasFeedback
-            rules={[
-              { required: true, message: 'Please confirm your password!' },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue('password') === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Passwords do not match!'));
-                },
-              }),
-            ]}
-          >
-            <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="Confirm Password"
-              style={{ borderRadius: 8 }}
-            />
-          </Form.Item>
-
-          <Form.Item name="phone">
-            <Input
-              prefix={<PhoneOutlined />}
-              placeholder="Phone (Optional)"
-              style={{ borderRadius: 8 }}
-            />
-          </Form.Item>
-
-          {userType === 'interviewer' && (
-            <Form.Item name="company">
+            <Form.Item
+              name="fullName"
+              rules={[{ required: true, message: 'Please enter your full name!' }]}
+            >
               <Input
-                prefix={<BankOutlined />}
-                placeholder="Company (Optional)"
+                prefix={<UserOutlined />}
+                placeholder="Full Name"
+                style={{ borderRadius: 8 }}
+                onChange={handleInputChange}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="email"
+              rules={[
+                { required: true, message: 'Please enter your email!' },
+                { type: 'email', message: 'Please enter a valid email!' },
+              ]}
+            >
+              <Input
+                prefix={<MailOutlined />}
+                placeholder="Email"
+                style={{ borderRadius: 8 }}
+                onChange={handleInputChange}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              rules={[
+                { required: true, message: 'Please enter a password!' },
+                { min: 8, message: 'Password must be at least 8 characters!' },
+                {
+                  pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+                  message: 'Password must contain uppercase, lowercase, and number!',
+                },
+              ]}
+              hasFeedback
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Password"
+                style={{ borderRadius: 8 }}
+                onChange={handleInputChange}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="confirmPassword"
+              dependencies={['password']}
+              hasFeedback
+              rules={[
+                { required: true, message: 'Please confirm your password!' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue('password') === value) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Passwords do not match!'));
+                  },
+                }),
+              ]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Confirm Password"
                 style={{ borderRadius: 8 }}
               />
             </Form.Item>
-          )}
 
-          <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              style={{
-                width: '100%',
-                height: 48,
-                borderRadius: 8,
-                background: colors.primary.main,
-                border: `1px solid ${colors.primary.main}`,
-                boxShadow: 'none',
-              }}
-              className="login-signup-button"
-            >
-              Sign Up
-            </Button>
-          </Form.Item>
-        </Form>
+            <Form.Item name="phone">
+              <Input
+                prefix={<PhoneOutlined />}
+                placeholder="Phone (Optional)"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
 
-        <Divider />
+            {userType === 'interviewer' && (
+              <Form.Item
+                name="company"
+                rules={[{ required: true, message: 'Please enter your company name!' }]}
+              >
+                <Input
+                  prefix={<BankOutlined />}
+                  placeholder="Company Name"
+                  style={{ borderRadius: 8 }}
+                />
+              </Form.Item>
+            )}
 
-        <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              style={{
-                color: '#111827',
-                fontWeight: 500,
-              }}
-            >
-              Sign in
-            </Link>
-          </Text>
-        </div>
-      </Card>
-    </div>
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                style={{
+                  width: '100%',
+                  height: 48,
+                  borderRadius: 8,
+                  background: colors.primary.main,
+                  border: `1px solid ${colors.primary.main}`,
+                  boxShadow: 'none',
+                }}
+                className="login-signup-button"
+              >
+                Sign Up
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <Divider />
+
+          <div style={{ textAlign: 'center' }}>
+            <Text type="secondary">
+              Already have an account?{' '}
+              <Link
+                to="/login"
+                style={{
+                  color: '#111827',
+                  fontWeight: 500,
+                }}
+              >
+                Sign in
+              </Link>
+            </Text>
+          </div>
+        </Card>
+      </div>
     </>
   );
 };
