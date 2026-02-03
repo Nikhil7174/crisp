@@ -1,7 +1,6 @@
 // src/components/layout/Header.tsx
 import React from 'react';
 import { Layout, Button, Space } from 'antd';
-import { LoginOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors, spacing } from '../../styles';
 import shakraLogo from '../../assets/images/shakra.png';
