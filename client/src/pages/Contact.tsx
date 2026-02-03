@@ -21,12 +21,12 @@ const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'YOUR_TE
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'YOUR_PUBLIC_KEY';
 
 // Check if EmailJS is configured (handle both placeholder values and empty strings)
-const isEmailJSConfigured = 
-  EMAILJS_SERVICE_ID && 
-  EMAILJS_SERVICE_ID !== 'YOUR_SERVICE_ID' && 
-  EMAILJS_TEMPLATE_ID && 
-  EMAILJS_TEMPLATE_ID !== 'YOUR_TEMPLATE_ID' && 
-  EMAILJS_PUBLIC_KEY && 
+const isEmailJSConfigured =
+  EMAILJS_SERVICE_ID &&
+  EMAILJS_SERVICE_ID !== 'YOUR_SERVICE_ID' &&
+  EMAILJS_TEMPLATE_ID &&
+  EMAILJS_TEMPLATE_ID !== 'YOUR_TEMPLATE_ID' &&
+  EMAILJS_PUBLIC_KEY &&
   EMAILJS_PUBLIC_KEY !== 'YOUR_PUBLIC_KEY';
 
 // Debug logging (works in both dev and prod to help diagnose issues)
@@ -61,7 +61,7 @@ export const Contact: React.FC = () => {
           templateId: EMAILJS_TEMPLATE_ID,
           publicKey: EMAILJS_PUBLIC_KEY ? `${EMAILJS_PUBLIC_KEY.substring(0, 10)}...` : 'missing'
         });
-        
+
         // Fallback: Create mailto link with form data
         const subject = encodeURIComponent('Contact Form Submission - Shakra AI');
         const body = encodeURIComponent(
@@ -71,7 +71,7 @@ export const Contact: React.FC = () => {
           `Company: ${values.company || 'Not provided'}\n\n` +
           `Message:\n${values.message}`
         );
-        window.location.href = `mailto:nikhilkumarsingh7174@gmail.com?subject=${subject}&body=${body}`;
+        window.location.href = `mailto:contact@shakra.io?subject=${subject}&body=${body}`;
         message.info('Opening your email client. Please send the email to complete your submission.');
         form.resetFields();
         setLoading(false);
@@ -126,7 +126,7 @@ export const Contact: React.FC = () => {
           transition={{ duration: 0.6 }}
         >
           <Space direction="vertical" size="large" style={{ width: '100%', textAlign: 'center', marginBottom: spacing.xxxl }}>
-            <Title level={1} style={{ 
+            <Title level={1} style={{
               margin: 0,
               color: colors.neutral[900],
               fontSize: typography.fontSize['4xl'],
@@ -324,7 +324,7 @@ export const Contact: React.FC = () => {
                   e.currentTarget.style.textDecoration = 'none';
                 }}
               >
-                nikhilkumarsingh7174@gmail.com
+                contact@shakra.io
               </a>
             </Text>
           </div>

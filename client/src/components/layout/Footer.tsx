@@ -61,8 +61,8 @@ export const Footer: React.FC = () => {
         }
       `}</style>
       <div style={{ maxWidth: 1200, margin: '0 auto' }} className="footer-container">
-        <Row 
-          gutter={[spacing.xxxl, spacing.xl]} 
+        <Row
+          gutter={[spacing.xxxl, spacing.xl]}
           className="footer-row"
           style={{
             marginLeft: 0,
@@ -73,8 +73,8 @@ export const Footer: React.FC = () => {
           <Col xs={24} sm={24} md={6}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               <div>
-                <Title level={4} style={{ 
-                  margin: 0, 
+                <Title level={4} style={{
+                  margin: 0,
                   marginBottom: spacing.md,
                   color: colors.neutral[900],
                   fontSize: typography.fontSize.xl,
@@ -82,7 +82,7 @@ export const Footer: React.FC = () => {
                 }}>
                   Shakra
                 </Title>
-                <Text style={{ 
+                <Text style={{
                   color: colors.neutral[600],
                   fontSize: typography.fontSize.sm,
                   lineHeight: 1.6,
@@ -96,8 +96,8 @@ export const Footer: React.FC = () => {
           {/* Product Column */}
           <Col xs={24} sm={12} md={4}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Title level={5} style={{ 
-                margin: 0, 
+              <Title level={5} style={{
+                margin: 0,
                 marginBottom: spacing.sm,
                 color: colors.neutral[900],
                 fontSize: typography.fontSize.base,
@@ -106,11 +106,11 @@ export const Footer: React.FC = () => {
                 Product
               </Title>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -119,11 +119,11 @@ export const Footer: React.FC = () => {
                 >
                   Features
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -132,11 +132,11 @@ export const Footer: React.FC = () => {
                 >
                   Pricing
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -145,11 +145,11 @@ export const Footer: React.FC = () => {
                 >
                   Enterprise
                 </Link>
-                <Link 
-                  to="/login" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/login"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -165,8 +165,8 @@ export const Footer: React.FC = () => {
           {/* Resources Column */}
           <Col xs={24} sm={12} md={4}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Title level={5} style={{ 
-                margin: 0, 
+              <Title level={5} style={{
+                margin: 0,
                 marginBottom: spacing.sm,
                 color: colors.neutral[900],
                 fontSize: typography.fontSize.base,
@@ -175,11 +175,11 @@ export const Footer: React.FC = () => {
                 Resources
               </Title>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -188,11 +188,11 @@ export const Footer: React.FC = () => {
                 >
                   Documentation
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -201,11 +201,11 @@ export const Footer: React.FC = () => {
                 >
                   Blog
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -214,11 +214,11 @@ export const Footer: React.FC = () => {
                 >
                   Help Center
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -234,8 +234,8 @@ export const Footer: React.FC = () => {
           {/* Company Column */}
           <Col xs={24} sm={12} md={4}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Title level={5} style={{ 
-                margin: 0, 
+              <Title level={5} style={{
+                margin: 0,
                 marginBottom: spacing.sm,
                 color: colors.neutral[900],
                 fontSize: typography.fontSize.base,
@@ -244,11 +244,11 @@ export const Footer: React.FC = () => {
                 Company
               </Title>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -257,11 +257,11 @@ export const Footer: React.FC = () => {
                 >
                   About Us
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -270,11 +270,11 @@ export const Footer: React.FC = () => {
                 >
                   Careers
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -283,11 +283,11 @@ export const Footer: React.FC = () => {
                 >
                   Contact
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -303,8 +303,8 @@ export const Footer: React.FC = () => {
           {/* Legal Column */}
           <Col xs={24} sm={24} md={6}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Title level={5} style={{ 
-                margin: 0, 
+              <Title level={5} style={{
+                margin: 0,
                 marginBottom: spacing.sm,
                 color: colors.neutral[900],
                 fontSize: typography.fontSize.base,
@@ -313,11 +313,11 @@ export const Footer: React.FC = () => {
                 Legal
               </Title>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/privacy-policy"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -326,11 +326,11 @@ export const Footer: React.FC = () => {
                 >
                   Privacy Policy
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -339,11 +339,11 @@ export const Footer: React.FC = () => {
                 >
                   Terms of Service
                 </Link>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: colors.neutral[600], 
-                    fontSize: typography.fontSize.sm, 
+                <Link
+                  to="/"
+                  style={{
+                    color: colors.neutral[600],
+                    fontSize: typography.fontSize.sm,
                     textDecoration: 'none',
                     transition: 'color 0.2s',
                   }}
@@ -361,7 +361,7 @@ export const Footer: React.FC = () => {
         <Row className="footer-copyright" style={{ marginTop: spacing.xxxl, paddingTop: spacing.xl, borderTop: `1px solid ${colors.divider}` }}>
           <Col xs={24}>
             <div style={{ textAlign: 'center' }}>
-              <Text style={{ 
+              <Text style={{
                 color: colors.neutral[500],
                 fontSize: typography.fontSize.sm,
               }}>

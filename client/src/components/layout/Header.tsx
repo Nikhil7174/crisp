@@ -77,12 +77,12 @@ export const Header: React.FC = () => {
           {isAuthenticated ? (
             <Button
               type="primary"
-              icon={<LogoutOutlined />}
               onClick={handleLogoutClick}
               style={{
                 background: '#e63946',
                 borderColor: '#e63946',
-                height: 40,
+                height: 36,
+                fontSize: 14,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = '#d62839';
@@ -98,12 +98,12 @@ export const Header: React.FC = () => {
           ) : (
             <Button
               type="primary"
-              icon={<LoginOutlined />}
               onClick={handleLoginClick}
               style={{
                 background: colors.neutral[900],
                 borderColor: colors.neutral[900],
-                height: 40,
+                height: 36,
+                fontSize: 14,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = colors.neutral[800];
@@ -114,7 +114,7 @@ export const Header: React.FC = () => {
                 e.currentTarget.style.borderColor = colors.neutral[900];
               }}
             >
-              Login
+              Log in
             </Button>
           )}
         </Space>

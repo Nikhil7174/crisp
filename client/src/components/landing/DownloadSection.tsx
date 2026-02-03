@@ -59,241 +59,241 @@ export const DownloadSection: React.FC = () => {
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'fixed',
-          padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${spacing.xxxl * 1.5}px ${spacing.lg}px`,
+          padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${spacing.xxl}px ${spacing.lg}px`,
           position: 'relative',
           overflow: 'hidden'
         }}
       >
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: spacing.xxl }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              {/* Header */}
+              <div style={{ textAlign: 'center', marginBottom: spacing.xxl }}>
 
-              <Title
-                level={2}
-                style={{
-                  marginBottom: spacing.md,
-                  color: colors.neutral[900],
-                  fontSize: typography.fontSize['4xl'],
-                  fontWeight: typography.fontWeight.bold,
-                  fontFamily: '"Varela Round", sans-serif',
-                }}
-              >
-                Try Shakra now.
-              </Title>
-              <Paragraph
-                style={{
-                  fontSize: typography.fontSize.lg,
-                  color: colors.neutral[600],
-                  maxWidth: 600,
-                  margin: '0 auto',
-                  lineHeight: typography.lineHeight.relaxed,
-                }}
-              >
-                Join interviews with our secure desktop application for the best experience
-              </Paragraph>
-            </div>
+                <Title
+                  level={2}
+                  style={{
+                    marginBottom: spacing.md,
+                    color: colors.neutral[900],
+                    fontSize: typography.fontSize['4xl'],
+                    fontWeight: typography.fontWeight.bold,
+                    fontFamily: '"Varela Round", sans-serif',
+                  }}
+                >
+                  Try Shakra now.
+                </Title>
+                <Paragraph
+                  style={{
+                    fontSize: typography.fontSize.lg,
+                    color: colors.neutral[600],
+                    maxWidth: 600,
+                    margin: '0 auto',
+                    lineHeight: typography.lineHeight.relaxed,
+                  }}
+                >
+                  Join interviews with our secure desktop application for the best experience
+                </Paragraph>
+              </div>
 
-            {/* Download Options */}
-            <Row gutter={[spacing.lg, spacing.lg]}>
-              {downloadOptions.map((option, index) => (
-                <Col xs={24} md={8} key={option.platform} className="download-option-col">
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.1, duration: 0.4 }}
-                  >
-                    <Card
-                      style={{
-                        borderRadius: borderRadius.xl,
-                        border: 'none',
-                        boxShadow: colors.shadows.md,
-                        background: colors.background.primary,
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                      }}
-                      bodyStyle={{
-                        padding: spacing.xl,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        flex: 1,
-                      }}
+              {/* Download Options */}
+              <Row gutter={[spacing.lg, spacing.lg]}>
+                {downloadOptions.map((option, index) => (
+                  <Col xs={24} md={8} key={option.platform} className="download-option-col">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1, duration: 0.4 }}
                     >
-                      <Space
-                        direction="vertical"
-                        size="middle"
-                        style={{ width: '100%', flex: 1 }}
+                      <Card
+                        style={{
+                          borderRadius: borderRadius.xl,
+                          border: 'none',
+                          boxShadow: colors.shadows.md,
+                          background: colors.background.primary,
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                        bodyStyle={{
+                          padding: spacing.xl,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          flex: 1,
+                        }}
                       >
-                        {/* Platform Header */}
-                        <div style={{ textAlign: 'center' }}>
-                          <div
-                            style={{
-                              fontSize: 40,
-                              color: colors.neutral[900],
-                              marginBottom: spacing.md,
-                            }}
-                          >
-                            {option.icon}
-                          </div>
-                          <Title
-                            level={4}
-                            style={{
-                              margin: 0,
-                              color: colors.neutral[900],
-                              fontSize: typography.fontSize.xl,
-                              fontWeight: typography.fontWeight.medium,
-                            }}
-                          >
-                            {option.platform}
-                          </Title>
-                        </div>
-
-                        {/* Download Buttons */}
-
                         <Space
                           direction="vertical"
-                          size="small"
-                          style={{ width: '100%', marginTop: 'auto', alignItems: 'center' }}
+                          size="middle"
+                          style={{ width: '100%', flex: 1 }}
                         >
-                          {option.platform === 'Linux' ? (
-                            <>
-                              <div style={{ position: 'relative', width: 180, display: 'flex', justifyContent: 'center' }}>
-                                <Button
-                                  type="primary"
-                                  size="small"
-                                  icon={<DownloadOutlined />}
-                                  onClick={() => handleDownload(option.downloads[0].url)}
-                                  style={{
-                                    height: 36,
-                                    fontSize: typography.fontSize.sm,
-                                    fontWeight: typography.fontWeight.medium,
-                                    borderRadius: borderRadius.md,
-                                    width: 180,
-                                    background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                                    border: 'none',
-                                    color: 'white',
-                                    boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
-                                  }}
-                                >
-                                  {option.downloads[0].name}
-                                </Button>
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<DownOutlined />}
-                                  onClick={() => setShowLinuxOptions(!showLinuxOptions)}
-                                  style={{
-                                    position: 'absolute',
-                                    right: -40,
-                                    height: 36,
-                                    width: 36,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: colors.neutral[600],
-                                  }}
-                                />
-                              </div>
-                              {showLinuxOptions && (
-                                <Space
-                                  direction="vertical"
-                                  size="small"
-                                  style={{ width: 180 }}
-                                >
-                                  {option.downloads.slice(1).map((download, downloadIndex) => (
-                                    <Button
-                                      key={downloadIndex}
-                                      type="primary"
-                                      size="small"
-                                      icon={<DownloadOutlined />}
-                                      onClick={() => handleDownload(download.url)}
-                                      style={{
-                                        height: 36,
-                                        fontSize: typography.fontSize.sm,
-                                        fontWeight: typography.fontWeight.medium,
-                                        borderRadius: borderRadius.md,
-                                        width: 180,
-                                        background: colors.background.primary,
-                                        border: `1px solid ${colors.neutral[300]}`,
-                                        color: colors.neutral[700],
-                                        boxShadow: 'none',
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = colors.neutral[50];
-                                        e.currentTarget.style.borderColor = colors.primary.main;
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = colors.background.primary;
-                                        e.currentTarget.style.borderColor = colors.neutral[300];
-                                      }}
-                                    >
-                                      {download.name}
-                                    </Button>
-                                  ))}
-                                </Space>
-                              )}
-                            </>
-                          ) : option.platform === 'macOS' ? (
-                            <Button
-                              type="primary"
-                              size="small"
-                              disabled
+                          {/* Platform Header */}
+                          <div style={{ textAlign: 'center' }}>
+                            <div
                               style={{
-                                height: 36,
-                                fontSize: typography.fontSize.sm,
-                                fontWeight: typography.fontWeight.medium,
-                                borderRadius: borderRadius.md,
-                                width: 180,
-                                background: colors.neutral[200],
-                                border: 'none',
-                                color: colors.neutral[500],
-                                cursor: 'not-allowed',
-                                boxShadow: 'none',
+                                fontSize: 40,
+                                color: colors.neutral[900],
+                                marginBottom: spacing.md,
                               }}
                             >
-                              Coming Soon
-                            </Button>
-                          ) : (
-                            <Button
-                              type="primary"
-                              size="small"
-                              icon={<DownloadOutlined />}
-                              onClick={() => handleDownload(option.downloads[0].url)}
+                              {option.icon}
+                            </div>
+                            <Title
+                              level={4}
                               style={{
-                                height: 36,
-                                fontSize: typography.fontSize.sm,
+                                margin: 0,
+                                color: colors.neutral[900],
+                                fontSize: typography.fontSize.xl,
                                 fontWeight: typography.fontWeight.medium,
-                                borderRadius: borderRadius.md,
-                                width: 180,
-                                background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                                border: 'none',
-                                color: 'white',
-                                boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
                               }}
                             >
-                              {option.downloads[0].name}
-                            </Button>
-                          )}
-                         
+                              {option.platform}
+                            </Title>
+                          </div>
+
+                          {/* Download Buttons */}
+
+                          <Space
+                            direction="vertical"
+                            size="small"
+                            style={{ width: '100%', marginTop: 'auto', alignItems: 'center' }}
+                          >
+                            {option.platform === 'Linux' ? (
+                              <>
+                                <div style={{ position: 'relative', width: 180, display: 'flex', justifyContent: 'center' }}>
+                                  <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<DownloadOutlined />}
+                                    onClick={() => handleDownload(option.downloads[0].url)}
+                                    style={{
+                                      height: 36,
+                                      fontSize: typography.fontSize.sm,
+                                      fontWeight: typography.fontWeight.medium,
+                                      borderRadius: borderRadius.md,
+                                      width: 180,
+                                      background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                                      border: 'none',
+                                      color: 'white',
+                                      boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
+                                    }}
+                                  >
+                                    {option.downloads[0].name}
+                                  </Button>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<DownOutlined />}
+                                    onClick={() => setShowLinuxOptions(!showLinuxOptions)}
+                                    style={{
+                                      position: 'absolute',
+                                      right: -40,
+                                      height: 36,
+                                      width: 36,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: colors.neutral[600],
+                                    }}
+                                  />
+                                </div>
+                                {showLinuxOptions && (
+                                  <Space
+                                    direction="vertical"
+                                    size="small"
+                                    style={{ width: 180 }}
+                                  >
+                                    {option.downloads.slice(1).map((download, downloadIndex) => (
+                                      <Button
+                                        key={downloadIndex}
+                                        type="primary"
+                                        size="small"
+                                        icon={<DownloadOutlined />}
+                                        onClick={() => handleDownload(download.url)}
+                                        style={{
+                                          height: 36,
+                                          fontSize: typography.fontSize.sm,
+                                          fontWeight: typography.fontWeight.medium,
+                                          borderRadius: borderRadius.md,
+                                          width: 180,
+                                          background: colors.background.primary,
+                                          border: `1px solid ${colors.neutral[300]}`,
+                                          color: colors.neutral[700],
+                                          boxShadow: 'none',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = colors.neutral[50];
+                                          e.currentTarget.style.borderColor = colors.primary.main;
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = colors.background.primary;
+                                          e.currentTarget.style.borderColor = colors.neutral[300];
+                                        }}
+                                      >
+                                        {download.name}
+                                      </Button>
+                                    ))}
+                                  </Space>
+                                )}
+                              </>
+                            ) : option.platform === 'macOS' ? (
+                              <Button
+                                type="primary"
+                                size="small"
+                                disabled
+                                style={{
+                                  height: 36,
+                                  fontSize: typography.fontSize.sm,
+                                  fontWeight: typography.fontWeight.medium,
+                                  borderRadius: borderRadius.md,
+                                  width: 180,
+                                  background: colors.neutral[200],
+                                  border: 'none',
+                                  color: colors.neutral[500],
+                                  cursor: 'not-allowed',
+                                  boxShadow: 'none',
+                                }}
+                              >
+                                Coming Soon
+                              </Button>
+                            ) : (
+                              <Button
+                                type="primary"
+                                size="small"
+                                icon={<DownloadOutlined />}
+                                onClick={() => handleDownload(option.downloads[0].url)}
+                                style={{
+                                  height: 36,
+                                  fontSize: typography.fontSize.sm,
+                                  fontWeight: typography.fontWeight.medium,
+                                  borderRadius: borderRadius.md,
+                                  width: 180,
+                                  background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                                  border: 'none',
+                                  color: 'white',
+                                  boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
+                                }}
+                              >
+                                {option.downloads[0].name}
+                              </Button>
+                            )}
+
+                          </Space>
                         </Space>
-                      </Space>
-                    </Card>
-                  </motion.div>
-                </Col>
-              ))}
-            </Row>
-          </Space>
-        </motion.div>
+                      </Card>
+                    </motion.div>
+                  </Col>
+                ))}
+              </Row>
+            </Space>
+          </motion.div>
+        </div>
       </div>
-    </div>
     </>
   );
 };
