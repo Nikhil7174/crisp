@@ -17,7 +17,6 @@ export class PrismaService {
     // User management methods
     public async createUser(userData: {
         email: string;
-        passwordHash: string;
         fullName: string;
         userType: UserType;
         phone?: string;
@@ -26,7 +25,6 @@ export class PrismaService {
         return await prisma.user.create({
             data: {
                 email: userData.email,
-                password_hash: userData.passwordHash,
                 full_name: userData.fullName,
                 user_type: userData.userType,
                 phone: userData.phone,
@@ -754,7 +752,6 @@ export class PrismaService {
     // Interviewer management methods
     public async createInterviewer(interviewerData: {
         email: string;
-        passwordHash: string;
         fullName: string;
         phone?: string;
         company?: string;
@@ -763,7 +760,6 @@ export class PrismaService {
         return await prisma.interviewer.create({
             data: {
                 email: interviewerData.email,
-                password_hash: interviewerData.passwordHash,
                 full_name: interviewerData.fullName,
                 phone: interviewerData.phone,
                 company: interviewerData.company,

@@ -1,87 +1,103 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { AuthService } from '../services/authService';
 import { PrismaService } from '../services/prismaService';
+// @ts-ignore
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
+    auth: any;
     user?: {
         userId: number;
         email: string;
         userType: 'candidate' | 'interviewer';
         type: string;
+        clerkId?: string;
+        isNewUser?: boolean;
+        fullName?: string;
     };
 }
 
 /**
  * Middleware to authenticate users (candidates and interviewers)
  */
-export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const authMiddleware: RequestHandler = async (req, res, next) => {
+    const authReq = req as AuthRequest;
     try {
-        const authHeader = req.headers.authorization;
+        // Debug logging
+        console.log('Auth Middleware - Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Auth Middleware - authReq.auth:', JSON.stringify(authReq.auth, null, 2));
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'Access token required' });
-            return;
-        }
+        // 1. Check for Clerk Authentication
+        if (authReq.auth && authReq.auth.userId) {
+            const clerkId = authReq.auth.userId;
 
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        const authService = AuthService.getInstance();
+            try {
+                // Fetch user details from Clerk
+                const clerkUser = await clerkClient.users.getUser(clerkId);
+                const email = clerkUser.emailAddresses[0]?.emailAddress;
+                // Capture role from unsafeMetadata
+                const clerkRole = clerkUser.unsafeMetadata?.role as string;
 
-        const decoded = authService.verifyToken(token) as any;
+                if (!email) {
+                    res.status(400).json({ error: 'Email required in Clerk profile' });
+                    return;
+                }
 
-        // Ensure this is a user token (candidate or interviewer)
-        if (decoded.type !== 'user') {
-            res.status(403).json({ error: 'Invalid token type' });
-            return;
-        }
+                const dbService = PrismaService.getInstance();
 
-        // Check if user still exists in database
-        const dbService = PrismaService.getInstance();
-        let user = await dbService.getUserById(decoded.userId);
-        
-        // If not found in users table, check interviewers table
-        if (!user && decoded.userType === 'interviewer') {
-            const interviewer = await dbService.getInterviewerById(decoded.userId);
-            if (interviewer) {
-                // Convert interviewer to user format for consistency
-                user = {
-                    id: interviewer.id,
-                    email: interviewer.email,
-                    full_name: interviewer.full_name,
-                    user_type: 'interviewer' as any,
-                    phone: interviewer.phone,
-                    company: interviewer.company,
-                    created_at: interviewer.created_at,
-                    last_login: interviewer.last_login,
-                    is_active: interviewer.is_active
+                // Check if user exists in DB
+                let user = await dbService.getUserByEmail(email);
+                let userType: 'candidate' | 'interviewer' = 'candidate'; // Default
+                let userId = 0;
+
+                // Check interviewer table if not in user table
+                if (!user) {
+                    const interviewer = await dbService.getInterviewerByEmail(email);
+                    if (interviewer) {
+                        // Map interviewer to user format
+                        userId = interviewer.id;
+                        userType = 'interviewer';
+                    } else {
+                        // User doesn't exist in DB yet
+                        authReq.user = {
+                            userId: 0, // Placeholder
+                            email,
+                            userType: (clerkRole === 'interviewer' ? 'interviewer' : 'candidate'),
+                            type: 'user',
+                            clerkId,
+                            isNewUser: true,
+                            fullName: clerkUser.firstName ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`.trim() : 'New User'
+                        };
+                        next();
+                        return;
+                    }
+                } else {
+                    userId = user.id;
+                    userType = user.user_type as any;
+                }
+
+                // Existing user
+                authReq.user = {
+                    userId,
+                    email,
+                    userType,
+                    type: 'user',
+                    clerkId
                 };
+                next();
+                return;
+
+            } catch (err) {
+                console.error("Clerk user fetch error:", err);
+                res.status(500).json({ error: 'Authentication service error' });
+                return;
             }
-        }
-        
-        if (!user) {
-            res.status(401).json({ 
-                error: 'User not found', 
-                message: 'User account no longer exists. Please log in again.' 
-            });
+        } else {
+            // No Clerk token found
+            res.status(401).json({ error: 'Authentication required', message: 'No valid authentication token found' });
             return;
         }
 
-        // Check if user is active
-        if (!user.is_active) {
-            res.status(403).json({ 
-                error: 'Account disabled', 
-                message: 'Your account has been disabled. Please contact support.' 
-            });
-            return;
-        }
-
-        req.user = {
-            userId: decoded.userId,
-            email: decoded.email,
-            userType: decoded.userType,
-            type: decoded.type
-        };
-
-        next();
     } catch (error) {
         console.error('Auth middleware error:', error);
         res.status(401).json({ error: 'Invalid or expired token' });
@@ -91,13 +107,14 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 /**
  * Middleware to check if user is an interviewer
  */
-export const interviewerOnly = (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
+export const interviewerOnly: RequestHandler = (req, res, next) => {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
     }
 
-    if (req.user.userType !== 'interviewer') {
+    if (authReq.user.userType !== 'interviewer') {
         res.status(403).json({ error: 'Interviewer access required' });
         return;
     }
@@ -108,17 +125,17 @@ export const interviewerOnly = (req: AuthRequest, res: Response, next: NextFunct
 /**
  * Middleware to check if user is a candidate
  */
-export const candidateOnly = (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
+export const candidateOnly: RequestHandler = (req, res, next) => {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
     }
 
-    if (req.user.userType !== 'candidate') {
+    if (authReq.user.userType !== 'candidate') {
         res.status(403).json({ error: 'Candidate access required' });
         return;
     }
 
     next();
 };
-

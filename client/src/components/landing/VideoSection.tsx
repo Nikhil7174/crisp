@@ -1,14 +1,9 @@
-// src/components/landing/VideoSection.tsx
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Button } from 'antd';
-import { PlayCircleOutlined, EditOutlined } from '@ant-design/icons';
 import { colors, spacing, borderRadius } from '../../styles';
-import { useNavigate } from 'react-router-dom';
 
 export const VideoSection: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Auto-play video on mount (muted)
@@ -18,19 +13,6 @@ export const VideoSection: React.FC = () => {
       });
     }
   }, []);
-
-  const handleJoinInterview = useCallback(() => {
-    // Scroll to download section
-    const downloadSection = document.getElementById('download-section');
-    if (downloadSection) {
-      downloadSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  const handleCreateInterview = useCallback(() => {
-    // Navigate to login with interviewer context
-    navigate('/login', { state: { userType: 'interviewer', returnTo: '/interviewer/dashboard' } });
-  }, [navigate]);
 
   return (
     <div style={{
@@ -42,66 +24,6 @@ export const VideoSection: React.FC = () => {
       justifyContent: 'center',
       alignItems: 'center',
     }}>
-      {/* Action Buttons */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        style={{
-          marginBottom: spacing.xxl,
-          display: 'flex',
-          justifyContent: 'center',
-          gap: spacing.xl,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Button
-          type="primary"
-          size="large"
-          icon={<PlayCircleOutlined />}
-          onClick={handleJoinInterview}
-          style={{
-            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-            border: 'none',
-            borderRadius: borderRadius.xl,
-            padding: `0 ${spacing.lg}px`,
-            height: 44,
-            fontSize: 16,
-            fontWeight: 600,
-            boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
-          }}
-        >
-          Join Interview
-        </Button>
-        <Button
-          type="default"
-          size="large"
-          icon={<EditOutlined />}
-          onClick={handleCreateInterview}
-          style={{
-            background: colors.neutral[800],
-            border: `1px solid ${colors.neutral[700]}`,
-            borderRadius: borderRadius.xl,
-            padding: `0 ${spacing.md}px`,
-            height: 44,
-            fontSize: 16,
-            fontWeight: 600,
-            color: colors.neutral[100],
-            boxShadow: `0 4px 12px rgba(0, 0, 0, 0.2)`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = colors.neutral[700];
-            e.currentTarget.style.borderColor = colors.neutral[600];
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = colors.neutral[800];
-            e.currentTarget.style.borderColor = colors.neutral[700];
-          }}
-        >
-          Create Interview
-        </Button>
-      </motion.div>
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
