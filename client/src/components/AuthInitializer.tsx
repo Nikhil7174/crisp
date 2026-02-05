@@ -37,10 +37,14 @@ export const AuthInitializer: React.FC = () => {
               );
 
               // Auto-redirect if on public/auth pages
-              const publicPaths = ['/', '/sign-in', '/sign-up', '/login', '/register'];
-              const isPublicPage = publicPaths.some(path => location.pathname.startsWith(path) && location.pathname !== '/join');
+              const publicPaths = ['/sign-in', '/sign-up', '/login', '/register'];
+              const isHomePage = location.pathname === '/';
+              const isPublicAuthPage = publicPaths.some(path => location.pathname.startsWith(path));
 
-              if (isPublicPage) {
+              // Don't auto-redirect if we are in the desktop auth flow
+              const isDesktopAuth = location.pathname.includes('/auth/desktop');
+
+              if ((isHomePage || isPublicAuthPage) && !isDesktopAuth && location.pathname !== '/join') {
                 const dashboardPath = userData.userType === 'interviewer'
                   ? '/interviewer/dashboard'
                   : '/candidate/dashboard';

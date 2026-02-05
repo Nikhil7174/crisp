@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Button,
+  Input,
   Table,
   Modal,
   message,
@@ -27,6 +28,7 @@ import {
   QuestionCircleOutlined,
   UserOutlined,
   EllipsisOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../hooks/useAuth';
@@ -50,6 +52,10 @@ export const InterviewerDashboard: React.FC = () => {
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
   const [selectedLinkForViewing, setSelectedLinkForViewing] = useState<InterviewLink | null>(null);
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
+
+  // Search state
+  const [searchText, setSearchText] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
 
   // Memoized fetch function - React will handle when to call this
   const fetchLinks = useCallback(async () => {
@@ -138,9 +144,42 @@ export const InterviewerDashboard: React.FC = () => {
 
   const columns = [
     {
-      title: 'Title',
+      title: (
+        <div style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {searchVisible ? (
+            <Input
+              placeholder="Search title..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onBlur={() => {
+                if (!searchText) setSearchVisible(false);
+              }}
+              autoFocus
+              prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          ) : (
+            <div
+              onClick={() => setSearchVisible(true)}
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: '100%',
+                height: '100%'
+              }}
+            >
+              Title <SearchOutlined style={{ fontSize: 12, color: '#9CA3AF' }} />
+            </div>
+          )}
+        </div>
+      ),
       dataIndex: 'title',
       key: 'title',
+      width: 350,
       onHeaderCell: () => ({ style: { textAlign: 'center' as const } }),
       render: (title: string) => (
         <Text style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: '#111827' }}>
@@ -248,7 +287,6 @@ export const InterviewerDashboard: React.FC = () => {
                   icon: <QuestionCircleOutlined />,
                   onClick: () => handleViewQuestions(record),
                 },
-
                 {
                   key: 'copyToken',
                   label: copiedLinkId === record.id * 1000 ? 'Copied Token!' : 'Copy Token',
@@ -257,7 +295,7 @@ export const InterviewerDashboard: React.FC = () => {
                   onClick: () => {
                     navigator.clipboard.writeText(record.token);
                     message.success('Token copied to clipboard!');
-                    setCopiedLinkId(record.id * 1000); // Use a different ID range or mechanism to track token copy state distinct from URL copy
+                    setCopiedLinkId(record.id * 1000);
                     setTimeout(() => setCopiedLinkId(null), 2000);
                   },
                 },
@@ -304,6 +342,15 @@ export const InterviewerDashboard: React.FC = () => {
       return link.isActive && !isExpired;
     });
   }, [links]);
+
+  const filteredLinks = useMemo(() => {
+    let result = links || [];
+    if (searchText) {
+      const lower = searchText.toLowerCase();
+      result = result.filter(link => link.title.toLowerCase().includes(lower));
+    }
+    return result;
+  }, [links, searchText]);
 
   const totalAttempts = useMemo(() => {
     return (links || []).reduce((sum, link) => sum + (link.totalAttempts || 0), 0);
@@ -482,7 +529,7 @@ export const InterviewerDashboard: React.FC = () => {
         >
           <Table
             columns={columns}
-            dataSource={links}
+            dataSource={filteredLinks}
             rowKey="id"
             loading={loading}
             className="premium-table"

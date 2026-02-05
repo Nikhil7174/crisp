@@ -12,6 +12,7 @@ import {
   message,
   Spin,
   Tooltip,
+  Input,
 } from 'antd';
 import {
   TrophyOutlined,
@@ -19,6 +20,7 @@ import {
   ClockCircleOutlined,
   CheckCircleOutlined,
   EyeOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { API_BASE_URL } from '../constants/api';
@@ -76,6 +78,10 @@ export const LinkCandidates: React.FC = () => {
     averageScore: 0,
     completedInterviews: 0,
   });
+
+  // Search state
+  const [searchText, setSearchText] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
 
   useEffect(() => {
     if (linkId) {
@@ -165,10 +171,56 @@ export const LinkCandidates: React.FC = () => {
     navigate(`/interviewer/link/${linkId}/candidates/candidate/${candidate.id}`);
   };
 
+  // Filter candidates based on search text
+  const filteredCandidates = React.useMemo(() => {
+    let result = candidates || [];
+    if (searchText) {
+      const lower = searchText.toLowerCase();
+      result = result.filter(c =>
+        c.candidate_name.toLowerCase().includes(lower) ||
+        c.candidate_email.toLowerCase().includes(lower)
+      );
+    }
+    return result;
+  }, [candidates, searchText]);
+
   const columns = [
     {
-      title: 'Candidate',
+      title: (
+        <div style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {searchVisible ? (
+            <Input
+              placeholder="Search candidate..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onBlur={() => {
+                if (!searchText) setSearchVisible(false);
+              }}
+              autoFocus
+              prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          ) : (
+            <div
+              onClick={() => setSearchVisible(true)}
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: '100%',
+                height: '100%'
+              }}
+            >
+              Candidate <SearchOutlined style={{ fontSize: 12, color: '#9CA3AF' }} />
+            </div>
+          )}
+        </div>
+      ),
       key: 'candidate',
+      width: 300,
       onHeaderCell: () => ({ style: { textAlign: 'center' as const } }),
       render: (_: any, record: Candidate) => (
         <div>
@@ -442,7 +494,7 @@ export const LinkCandidates: React.FC = () => {
         >
           <Table
             columns={columns}
-            dataSource={candidates}
+            dataSource={filteredCandidates}
             rowKey="id"
             loading={loading}
             className="premium-table"

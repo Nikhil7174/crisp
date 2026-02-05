@@ -6,15 +6,22 @@ export const SignInPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const role = searchParams.get('role') === 'interviewer' ? 'interviewer' : 'candidate';
 
+    // Check if this is a desktop auth request
+    const isDesktop = searchParams.get('source') === 'desktop';
+
     React.useEffect(() => {
-        if (!searchParams.get('role')) {
+        // Only enforce role default if not in desktop mode (desktop mode has its own flow)
+        if (!searchParams.get('role') && !isDesktop) {
             setSearchParams({ role: 'candidate' }, { replace: true });
         }
-    }, [searchParams, setSearchParams]);
+    }, [searchParams, setSearchParams, isDesktop]);
 
     const handleRoleSwitch = (e: React.MouseEvent) => {
         e.preventDefault();
-        setSearchParams({ role: role === 'candidate' ? 'interviewer' : 'candidate' });
+        setSearchParams({
+            role: role === 'candidate' ? 'interviewer' : 'candidate',
+            ...(isDesktop ? { source: 'desktop' } : {})
+        });
     };
 
     return (
@@ -32,7 +39,8 @@ export const SignInPage = () => {
                 <SignIn
                     path="/sign-in"
                     routing="path"
-                    signUpUrl={`/sign-up?role=${role}`}
+                    signUpUrl={`/sign-up?role=${role}${isDesktop ? '&source=desktop' : ''}`}
+                    forceRedirectUrl={isDesktop ? "/auth/desktop-callback" : undefined}
                 />
             </div>
 
