@@ -30,5 +30,10 @@ router.get('/interviews', authMiddleware, (req: Request, res: Response) => {
     authController.getCandidateInterviews(req, res);
 });
 
+// Ticket generation for Electron app
+router.post('/ticket', authMiddleware, (req: Request, res: Response) => {
+    authController.createSignInTicket(req, res);
+});
+
 export default router;
 

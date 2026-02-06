@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
 export class AuthController {
     private dbService: PrismaService;
@@ -250,6 +251,46 @@ export class AuthController {
             console.error('Get candidate interviews error:', error);
             res.status(500).json({
                 error: 'Failed to fetch interview history',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Create a secure Sign-In Ticket for Electron app transfer
+     */
+    async createSignInTicket(req: Request, res: Response): Promise<void> {
+        try {
+            // We need the CLERK User ID (string), not the local DB ID (number)
+            // authMiddleware populates req.auth with the raw Clerk session
+            // Try req.auth.userId (direct Clerk) first, then fallback to req.user.clerkId
+            const clerkUserId = (req as any).auth?.userId || (req as any).user?.clerkId;
+
+            if (!clerkUserId || typeof clerkUserId !== 'string') {
+                console.error(`❌ [Auth] Invalid/Missing Clerk User ID. Auth obj:`, (req as any).auth, `User obj:`, (req as any).user);
+                res.status(401).json({ error: 'Unauthorized', details: 'Missing Clerk User ID' });
+                return;
+            }
+
+            console.log(`🎟️ [Auth] Attempting to create ticket for Clerk user: ${clerkUserId}`);
+
+            // Generate valid sign-in token using the correct Clerk User ID
+            const signInToken = await clerkClient.signInTokens.createSignInToken({
+                userId: clerkUserId,
+                expiresInSeconds: 2592000 // 30 days
+            });
+
+            console.log(`✅ [Auth] Generated sign-in token for user ${clerkUserId}`);
+
+            res.json({
+                success: true,
+                ticket: signInToken.token
+            });
+
+        } catch (error) {
+            console.error('Create sign-in ticket error:', error);
+            res.status(500).json({
+                error: 'Failed to create sign-in ticket',
                 message: error instanceof Error ? error.message : 'Unknown error'
             });
         }
