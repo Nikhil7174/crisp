@@ -805,7 +805,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
                 // PROCESS TAGS ONLY AT THE START
                 if (!tagProcessed) {
-                  const tagMatch = buffer.match(/^\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE)\]/);
+                  const tagMatch = buffer.match(/^\s*\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE|OFF_TOPIC)\]/);
 
                   if (tagMatch) {
                     const intent = tagMatch[1];
