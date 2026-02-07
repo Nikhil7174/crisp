@@ -44,8 +44,11 @@ export const agent = defineAgent({
 
     try {
       // Load VAD model (Voice Activity Detection) with requested 1.0s threshold
-      console.log('Loading Silero VAD model with 1.0s min speech duration...');
-      proc.userData.vad = await silero.VAD.load({ minSpeechDuration: 1.0 });
+      // Use Silero VAD for robustness against background noise
+      // 100ms ensures high responsiveness when the agent is listening, while voiceOptions
+      // control interruption behavior when the agent is speaking.
+      const vad = await silero.VAD.load({ minSpeechDuration: 100 });
+      proc.userData.vad = vad; // Assign to userData
       console.log('✅ VAD model loaded');
 
       // Initialize shared services
@@ -417,7 +420,14 @@ export const agent = defineAgent({
           role, // Role for persona
           personaInstructions, // Persona instructions (set once)
         },
+        voiceOptions: {
+          allowInterruptions: true,
+          minInterruptionDuration: 2000, // Prevent barge-in unless speech > 2s
+          minInterruptionWords: 3, // Prevent interruption from short completed turns (approx < 2s)
+        },
       });
+
+      console.log('🔧 [Agent] Session options:', JSON.stringify(session.options, null, 2));
 
       // Listen for data from client (e.g. state requests) to handle late joiners/refreshes
       // Use 'dataReceived' string event name to avoid extra imports
