@@ -14,7 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-import { cli, ServerOptions } from '@livekit/agents';
+import { cli, ServerOptions, log } from '@livekit/agents';
 import { agent } from './services/interview/agent-definition.js';
 
 // Re-export questions store functions for external use (e.g., controllers)
@@ -33,20 +33,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const command = process.argv[2] || 'dev';
   const isProduction = command === 'start';
 
-  console.log('🚀 Starting LiveKit Interview Agent...');
-  console.log(`📋 Mode: ${isProduction ? 'Production' : 'Development'}`);
-  console.log('📋 Environment check:');
-  console.log(`   - LIVEKIT_URL: ${process.env.LIVEKIT_URL ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - LIVEKIT_API_KEY: ${process.env.LIVEKIT_API_KEY ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - LIVEKIT_API_SECRET: ${process.env.LIVEKIT_API_SECRET ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - SERVER_URL: ${process.env.SERVER_URL || 'http://localhost:3001 (default)'}`);
-  console.log(`   - OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - OPENAI_LLM_MODEL: ${process.env.OPENAI_LLM_MODEL || 'gpt-4o (default)'}`);
-  console.log(`   - CARTESIA_API_KEY: ${process.env.CARTESIA_API_KEY ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - CARTESIA_ARUSHI_VOICE_ID: ${process.env.CARTESIA_ARUSHI_VOICE_ID ? '✅ Set' : '⚠️  Using default'}`);
-  console.log(`   - DEEPGRAM_API_KEY: ${process.env.DEEPGRAM_API_KEY ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   - DEEPGRAM_MODEL: ${process.env.DEEPGRAM_MODEL || 'nova-2 (default)'}`);
-  console.log('');
+  log().info('🚀 Starting LiveKit Interview Agent...');
+  log().info(`📋 Mode: ${isProduction ? 'Production' : 'Development'}`);
+  log().info('📋 Environment check:');
+  log().info(`   - LIVEKIT_URL: ${process.env.LIVEKIT_URL ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - LIVEKIT_API_KEY: ${process.env.LIVEKIT_API_KEY ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - LIVEKIT_API_SECRET: ${process.env.LIVEKIT_API_SECRET ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - SERVER_URL: ${process.env.SERVER_URL || 'http://localhost:3001 (default)'}`);
+  log().info(`   - OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - OPENAI_LLM_MODEL: ${process.env.OPENAI_LLM_MODEL || 'gpt-4o (default)'}`);
+  log().info(`   - CARTESIA_API_KEY: ${process.env.CARTESIA_API_KEY ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - CARTESIA_ARUSHI_VOICE_ID: ${process.env.CARTESIA_ARUSHI_VOICE_ID ? '✅ Set' : '⚠️  Using default'}`);
+  log().info(`   - DEEPGRAM_API_KEY: ${process.env.DEEPGRAM_API_KEY ? '✅ Set' : '❌ Missing'}`);
+  log().info(`   - DEEPGRAM_MODEL: ${process.env.DEEPGRAM_MODEL || 'nova-2 (default)'}`);
+  log().info('');
 
   // Get the agent file path
   const agentPath = fileURLToPath(import.meta.url);
@@ -63,7 +63,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 
   // Start the agent
-  console.log('🎬 Starting agent worker...');
+  log().info('🎬 Starting agent worker...');
   cli.runApp(opts);
 }
 

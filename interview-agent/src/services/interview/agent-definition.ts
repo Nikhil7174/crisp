@@ -5,7 +5,7 @@
  * This is the main agent configuration that handles interview sessions.
  */
 
-import { defineAgent, JobContext, JobProcess, voice } from '@livekit/agents';
+import { defineAgent, JobContext, JobProcess, voice, log } from '@livekit/agents';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
 import * as silero from '@livekit/agents-plugin-silero';
@@ -40,7 +40,7 @@ export const agent = defineAgent({
    * This runs once when the worker starts, not per job
    */
   prewarm: async (proc: JobProcess) => {
-    console.log('🔥 Prewarming agent resources...');
+    log().info('🔥 Prewarming agent resources...');
 
     try {
       // Load VAD model (Voice Activity Detection) with requested 1.0s threshold
@@ -49,15 +49,15 @@ export const agent = defineAgent({
       // control interruption behavior when the agent is speaking.
       const vad = await silero.VAD.load({ minSpeechDuration: 100 });
       proc.userData.vad = vad; // Assign to userData
-      console.log('✅ VAD model loaded');
+      log().info('✅ VAD model loaded');
 
       // Initialize shared services
       proc.userData.stateProvider = new StateProvider();
-      console.log('✅ State provider initialized');
+      log().info('✅ State provider initialized');
 
-      console.log('🎉 Prewarm complete');
+      log().info('🎉 Prewarm complete');
     } catch (error) {
-      console.error('❌ Prewarm failed:', error);
+      log().error('❌ Prewarm failed:', error);
       throw error;
     }
   },
@@ -67,64 +67,64 @@ export const agent = defineAgent({
    * A job represents a single interview session
    */
   entry: async (ctx: JobContext) => {
-    console.log('🚀 New interview job received');
+    log().info('🚀 New interview job received');
 
     try {
       // Connect to the LiveKit room
       await ctx.connect();
-      console.log('✅ Connected to LiveKit room:', ctx.room.name);
+      log().info('✅ Connected to LiveKit room:', ctx.room.name);
 
       // Wait for participant to join
-      console.log('⏳ Waiting for participant...');
+      log().info('⏳ Waiting for participant...');
       const participant = await ctx.waitForParticipant();
-      console.log('👤 Participant joined:', participant.identity);
+      log().info('👤 Participant joined:', participant.identity);
 
       // Extract interview ID from room name or metadata
       const interviewId = ctx.room.name || 'unknown';
       if (!interviewId || interviewId === 'unknown') {
         throw new Error('Interview ID is required');
       }
-      console.log('📋 Interview ID:', interviewId);
+      log().info('📋 Interview ID:', interviewId);
 
       // Fetch questions from server API
       let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string } | undefined;
       try {
         const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
-        console.log(`🌐 [Agent] Server URL: ${serverUrl}`);
+        log().info(`🌐 [Agent] Server URL: ${serverUrl}`);
 
         // Extract sessionId from roomName (format: interview-${sessionId})
         const sessionId = interviewId.startsWith('interview-')
           ? interviewId.replace('interview-', '')
           : interviewId;
-        console.log(`🔑 [Agent] Extracted sessionId: ${sessionId} from interviewId: ${interviewId}`);
+        log().info(`🔑 [Agent] Extracted sessionId: ${sessionId} from interviewId: ${interviewId}`);
 
         const apiUrl = `${serverUrl}/api/interview/questions?sessionId=${sessionId}&roomName=${encodeURIComponent(interviewId)}`;
-        console.log(`📡 [Agent] Fetching questions from: ${apiUrl}`);
+        log().info(`📡 [Agent] Fetching questions from: ${apiUrl}`);
 
         const fetchStartTime = Date.now();
         const response = await fetch(apiUrl);
         const fetchDuration = Date.now() - fetchStartTime;
-        console.log(`⏱️ [Agent] Fetch completed in ${fetchDuration}ms, status: ${response.status}`);
+        log().info(`⏱️ [Agent] Fetch completed in ${fetchDuration}ms, status: ${response.status}`);
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unable to read error response');
-          console.error(`❌ [Agent] API request failed:`, {
+          log().error({
             status: response.status,
             statusText: response.statusText,
             errorBody: errorText,
             url: apiUrl,
-          });
+          }, `❌ [Agent] API request failed:`);
           throw new Error(`Failed to fetch questions: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json() as QuestionsAPIResponse;
-        console.log(`📦 [Agent] API response received:`, {
+        log().info({
           success: data.success,
           hasQuestions: !!data.questions,
           hasCodingProblems: !!data.codingProblems,
           questionsCount: data.questions?.length || 0,
           codingProblemsCount: data.codingProblems?.length || 0,
-        });
+        }, `📦 [Agent] API response received:`);
 
         if (data.success && data.questions && data.codingProblems) {
           questionsData = {
@@ -133,39 +133,39 @@ export const agent = defineAgent({
             maxTheoreticalQuestions: data.maxTheoreticalQuestions,
             role: data.role || 'Backend Engineer', // Get role from API
           };
-          console.log(`✅ [Agent] Successfully fetched ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems from API`);
-          console.log(`✅ [Agent] Role: ${questionsData.role}`);
+          log().info(`✅ [Agent] Successfully fetched ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems from API`);
+          log().info(`✅ [Agent] Role: ${questionsData.role}`);
         } else {
-          console.error(`❌ [Agent] Invalid response format:`, {
+          log().error({
             success: data.success,
             hasQuestions: !!data.questions,
             hasCodingProblems: !!data.codingProblems,
             responseKeys: Object.keys(data),
-          });
+          }, `❌ [Agent] Invalid response format:`);
           throw new Error('Invalid response format from questions API');
         }
       } catch (error) {
-        console.error('❌ [Agent] Failed to fetch questions from API:', error);
-        console.error('❌ [Agent] Error details:', {
+        log().error('❌ [Agent] Failed to fetch questions from API:', error);
+        log().error({
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           interviewId,
           serverUrl: process.env.SERVER_URL || 'http://localhost:3001',
-        });
+        }, '❌ [Agent] Error details:');
 
         // Fallback to in-memory store (for backward compatibility during migration)
-        console.log(`🔄 [Agent] Attempting fallback to in-memory store...`);
+        log().info(`🔄 [Agent] Attempting fallback to in-memory store...`);
         try {
           const fallbackData = getInterviewQuestions(interviewId);
           if (fallbackData) {
             questionsData = fallbackData;
-            console.log(`📚 [Agent] Using fallback: Loaded ${questionsData.questions.length} questions from in-memory store`);
+            log().info(`📚 [Agent] Using fallback: Loaded ${questionsData.questions.length} questions from in-memory store`);
           } else {
-            console.warn(`⚠️ [Agent] No questions found for interview ${interviewId} (neither API nor store)`);
-            console.warn(`⚠️ [Agent] This will cause the agent to fail initialization`);
+            log().warn(`⚠️ [Agent] No questions found for interview ${interviewId} (neither API nor store)`);
+            log().warn(`⚠️ [Agent] This will cause the agent to fail initialization`);
           }
         } catch (fallbackError) {
-          console.error('❌ [Agent] Fallback also failed:', fallbackError);
+          log().error('❌ [Agent] Fallback also failed:', fallbackError);
         }
       }
 
@@ -181,7 +181,7 @@ export const agent = defineAgent({
 
       // Initialize state if it doesn't exist
       if (!state) {
-        console.log('📊 [Agent] No existing state found, initializing new interview state');
+        log().info('📊 [Agent] No existing state found, initializing new interview state');
 
         // Initialize state with questions data if available
         if (questionsData) {
@@ -194,24 +194,24 @@ export const agent = defineAgent({
             });
             state = stateProvider.getState(interviewId);
             if (state) {
-              console.log(`✅ [Agent] Initialized state with ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems`);
+              log().info(`✅ [Agent] Initialized state with ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems`);
             } else {
-              console.error(`❌ [Agent] State initialization failed - state is still null after initializeState call`);
+              log().error(`❌ [Agent] State initialization failed - state is still null after initializeState call`);
               throw new Error('State initialization failed');
             }
           } catch (stateError) {
-            console.error('❌ [Agent] Failed to initialize state:', stateError);
-            console.error('❌ [Agent] State error details:', {
+            log().error({ error: stateError }, '❌ [Agent] Failed to initialize state:');
+            log().error({
               error: stateError instanceof Error ? stateError.message : String(stateError),
               stack: stateError instanceof Error ? stateError.stack : undefined,
               interviewId,
               candidateId: participant.identity,
-            });
+            }, '❌ [Agent] State error details:');
             throw stateError;
           }
         } else {
           // Fallback: create minimal state if no questions available
-          console.warn('⚠️ [Agent] No questions data available, using minimal state');
+          log().warn('⚠️ [Agent] No questions data available, using minimal state');
           // Use stateProvider to create proper state instead of manual object
           stateProvider.initializeState({
             interviewId,
@@ -223,12 +223,12 @@ export const agent = defineAgent({
           state = stateProvider.getState(interviewId);
         }
       } else {
-        console.log('📊 [Agent] Interview state loaded:', {
+        log().info({
           currentQuestionIndex: state.currentQuestionIndex,
           currentState: state.currentState,
           totalQuestions: state.totalQuestions,
           totalProblems: state.totalProblems,
-        });
+        }, '📊 [Agent] Interview state loaded:');
       }
 
       // Store questions in orchestrator
@@ -248,33 +248,33 @@ export const agent = defineAgent({
       const persona = getPersonaForRole(role);
       const personaInstructions = getPersonaInstructions(persona);
 
-      console.log(`\n👤 [Persona] Using ${persona.role} persona`);
-      console.log(`   Focus areas: ${persona.focusAreas.length}`);
-      console.log(`   Evaluation criteria: ${persona.evaluationCriteria.length}`);
+      log().info(`\n👤 [Persona] Using ${persona.role} persona`);
+      log().info(`   Focus areas: ${persona.focusAreas.length}`);
+      log().info(`   Evaluation criteria: ${persona.evaluationCriteria.length}`);
 
 
       // Build instructions for the LLM (TAG-BASED PROTOCOL)
       const phase = state?.currentState || 'idle';
       const instructions = getInterviewInstructions(role, personaInstructions);
 
-      console.log('\n' + '📜'.repeat(40));
-      console.log('📜 [LLM Instructions] Instructions being sent to LLM:');
-      console.log('📜'.repeat(40));
-      console.log(instructions.substring(0, 500) + '...');
-      console.log('📜'.repeat(40) + '\n');
+      log().info('\n' + '📜'.repeat(40));
+      log().info('📜 [LLM Instructions] Instructions being sent to LLM:');
+      log().info('📜'.repeat(40));
+      log().info(instructions.substring(0, 500) + '...');
+      log().info('📜'.repeat(40) + '\n');
 
       // Ensure we have questions before creating the agent
       if (!questionsData || (!questionsData.questions.length && !questionsData.codingProblems.length)) {
-        console.error(`❌ [Agent] No questions available for interview ${interviewId}`);
-        console.error(`❌ [Agent] Questions data:`, {
+        log().error(`❌ [Agent] No questions available for interview ${interviewId}`);
+        log().error({
           hasData: !!questionsData,
           questionsCount: questionsData?.questions?.length || 0,
           codingProblemsCount: questionsData?.codingProblems?.length || 0,
-        });
+        }, `❌ [Agent] Questions data:`);
         throw new Error(`No questions available for interview ${interviewId}. Please ensure questions are generated and stored.`);
       }
 
-      console.log(`✅ [Agent] Questions validated: ${questionsData.questions.length} questions, ${questionsData.codingProblems.length} coding problems`);
+      log().info(`✅ [Agent] Questions validated: ${questionsData.questions.length} questions, ${questionsData.codingProblems.length} coding problems`);
 
       // Create agent with questions (no tools - direct responses)
       const agent = new InterviewAgent(
@@ -297,10 +297,10 @@ export const agent = defineAgent({
           if (ctx.room.localParticipant) {
             await ctx.room.localParticipant.publishData(encoded, { reliable: true });
           } else {
-            console.warn('⚠️ Local participant not available, cannot send event to UI');
+            log().warn('⚠️ Local participant not available, cannot send event to UI');
           }
         } catch (error) {
-          console.error(`❌ Failed to send ${eventType} to UI:`, error);
+          log().error(`❌ Failed to send ${eventType} to UI:`, error);
         }
       };
 
@@ -359,10 +359,10 @@ export const agent = defineAgent({
             averageTimePerCodingProblem: 0, // Could be specialized if we track section timing
           };
 
-          console.log('📤 [Agent] Sending final evaluation to backend API...', {
+          log().info({
             sessionId,
             conversationHistoryLength: (finalState.conversationHistory || []).length,
-          });
+          }, '📤 [Agent] Sending final evaluation to backend API...');
 
           const response = await fetch(`${serverUrl}/api/interview/final-evaluation`, {
             method: 'POST',
@@ -372,13 +372,13 @@ export const agent = defineAgent({
 
           if (response.ok) {
             const data = await response.json() as { success?: boolean };
-            console.log('✅ [Agent] Final evaluation sent to backend successfully:', data.success);
+            log().info('✅ [Agent] Final evaluation sent to backend successfully:', data.success);
           } else {
             const errorText = await response.text();
-            console.error('❌ [Agent] Backend API error:', response.status, errorText);
+            log().error('❌ [Agent] Backend API error:', response.status, errorText);
           }
         } catch (error) {
-          console.error('❌ [Agent] Failed to send final evaluation to backend:', error);
+          log().error('❌ [Agent] Failed to send final evaluation to backend:', error);
         }
       };
 
@@ -388,11 +388,11 @@ export const agent = defineAgent({
         temperature: 0.3,
       });
 
-      console.log('🔧 [LLM Config] Using TAG-BASED INTENT DETECTION');
-      console.log('   ✅ TAG SYSTEM: LLM uses tags [FOLLOW_UP], [NEXT], [HINT], [CLARIFY] to signal intent');
-      console.log('   ✅ NODE-DRIVEN ARCHITECTURE: Node controls flow, LLM provides conversational responses');
-      console.log('   ✅ JAILBREAK PROTECTION: 0-latency regex checks + context pruning');
-      console.log('   ✅ ROLE PERSONA: Using ' + role + ' persona (set once)');
+      log().info('🔧 [LLM Config] Using TAG-BASED INTENT DETECTION');
+      log().info('   ✅ TAG SYSTEM: LLM uses tags [FOLLOW_UP], [NEXT], [HINT], [CLARIFY] to signal intent');
+      log().info('   ✅ NODE-DRIVEN ARCHITECTURE: Node controls flow, LLM provides conversational responses');
+      log().info('   ✅ JAILBREAK PROTECTION: 0-latency regex checks + context pruning');
+      log().info('   ✅ ROLE PERSONA: Using ' + role + ' persona (set once)');
 
       const session = new voice.AgentSession<InterviewSessionData>({
         vad,
@@ -427,7 +427,7 @@ export const agent = defineAgent({
         },
       });
 
-      console.log('🔧 [Agent] Session options:', JSON.stringify(session.options, null, 2));
+      log().info({ options: JSON.stringify(session.options, null, 2) }, '🔧 [Agent] Session options:');
 
       // Listen for data from client (e.g. state requests) to handle late joiners/refreshes
       // Use 'dataReceived' string event name to avoid extra imports
@@ -457,18 +457,18 @@ export const agent = defineAgent({
             if (msg.code !== undefined && session.userData) {
               // Update the currentCode in persistent state
               stateProvider.updateCode(interviewId, msg.code);
-              console.log(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
+              log().info(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
 
               // Also update notepad if provided
               if (msg.notepad !== undefined) {
                 stateProvider.updateNotepad(interviewId, msg.notepad);
-                console.log(`📝 [Agent] Received notepad (${msg.notepad.length} chars) - Updated State`);
+                log().info(`📝 [Agent] Received notepad (${msg.notepad.length} chars) - Updated State`);
               }
             } else {
-              console.warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
+              log().warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
             }
           } else if (msg.type === 'confirm_next_question') {
-            console.log('✅ [Agent] Received confirm_next_question from UI', msg.metadata);
+            log().info({ metadata: msg.metadata }, '✅ [Agent] Received confirm_next_question from UI');
             // Proceed to next question logic
             const state = stateProvider.getState(interviewId);
 
@@ -496,14 +496,14 @@ export const agent = defineAgent({
                     codeLength: currentCode.length,
                   },
                 });
-                console.log(`📝 [Agent] Stored code submission (${currentCode.length} chars) with complexity in conversation history`);
+                log().info(`📝 [Agent] Stored code submission (${currentCode.length} chars) with complexity in conversation history`);
               }
 
               const { problem, shouldWrapUp } = orchestrator.presentNextProblem();
 
               if (shouldWrapUp || !problem) {
                 // No more problems - complete the interview
-                console.log('🎉 [Agent] All problems completed - wrapping up interview');
+                log().info('🎉 [Agent] All problems completed - wrapping up interview');
                 orchestrator.wrapUpInterview();
 
                 const messageToSpeak = "That completes the interview. Thank you for your time! I'll now generate your evaluation.";
@@ -530,7 +530,7 @@ export const agent = defineAgent({
                     },
                     evaluations: finalState.evaluations,
                   });
-                  console.log('📤 [Agent] Sent interview_completed to UI');
+                  log().info('📤 [Agent] Sent interview_completed to UI');
                 }
               } else {
                 // Present next coding problem
@@ -576,7 +576,7 @@ export const agent = defineAgent({
                   (session.userData as any).pendingProblemInjection = problem;
                 } else {
                   // No coding problems - complete interview
-                  console.log('🎉 [Agent] No coding problems - completing interview');
+                  log().info('🎉 [Agent] No coding problems - completing interview');
                   orchestrator.wrapUpInterview();
                   messageToSpeak = "That completes the interview. Thank you for your time!";
                   await session.say(messageToSpeak);
@@ -600,7 +600,7 @@ export const agent = defineAgent({
                       },
                       evaluations: finalState.evaluations,
                     });
-                    console.log('📤 [Agent] Sent interview_completed to UI');
+                    log().info('📤 [Agent] Sent interview_completed to UI');
                   }
                   return; // Don't speak again
                 }
@@ -611,7 +611,7 @@ export const agent = defineAgent({
                 await sendQuestionToUI(question, questionIndex, 'theoretical');
               } else {
                 // No more questions and no coding - complete
-                console.log('🎉 [Agent] All theoretical questions completed, no coding problems');
+                log().info('🎉 [Agent] All theoretical questions completed, no coding problems');
                 orchestrator.wrapUpInterview();
                 messageToSpeak = "That completes all the questions. Thank you for your time!";
                 await session.say(messageToSpeak);
@@ -635,7 +635,7 @@ export const agent = defineAgent({
                     },
                     evaluations: finalState.evaluations,
                   });
-                  console.log('📤 [Agent] Sent interview_completed to UI');
+                  log().info('📤 [Agent] Sent interview_completed to UI');
                 }
                 return;
               }
@@ -645,7 +645,7 @@ export const agent = defineAgent({
             }
           }
         } catch (error) {
-          console.error('❌ [Agent] Error handling data message:', error);
+          log().error('❌ [Agent] Error handling data message:', error);
         }
       });
 
@@ -660,39 +660,39 @@ export const agent = defineAgent({
         const timings = (agent.session.userData as any).timings;
         if (!timings.sttComplete) {
           timings.sttComplete = sttCompleteTime;
-          console.log(`⏱️ [TIMING] STT transcription complete at ${sttCompleteTime}`);
+          log().info(`⏱️ [TIMING] STT transcription complete at ${sttCompleteTime}`);
         }
 
-        console.log('\n=== SESSION USER SPEECH ===');
-        console.log('TEXT:', text);
-        console.log('===========================\n');
+        log().info('\n=== SESSION USER SPEECH ===');
+        log().info({ text }, 'TEXT:');
+        log().info('===========================\n');
       });
 
       // Listen for agent speech at session level and call onAgentSpeechEnded
       // @ts-ignore
       session.on('agentSpeech', (text: string) => {
-        console.log('\n=== SESSION AGENT SPEECH ===');
-        console.log('TEXT:', text);
-        console.log('============================\n');
+        log().info('\n=== SESSION AGENT SPEECH ===');
+        log().info({ text }, 'TEXT:');
+        log().info('============================\n');
 
         // Call the agent's onAgentSpeechEnded method
         agent.onAgentSpeechEnded(text).catch(err => {
-          console.error('❌ Error in onAgentSpeechEnded:', err);
+          log().error('❌ Error in onAgentSpeechEnded:', err);
         });
       });
 
       // Listen for any LLM response
       // @ts-ignore
       session.on('llmResponse', (response: any) => {
-        console.log('\n=== LLM RESPONSE ===');
-        console.log('Response:', JSON.stringify(response, null, 2));
-        console.log('===================\n');
+        log().info('\n=== LLM RESPONSE ===');
+        log().info({ response: JSON.stringify(response, null, 2) }, 'Response:');
+        log().info('===================\n');
       });
 
-      console.log('✅ [Agent] Session created - TAG-BASED INTENT DETECTION');
-      console.log('   ✅ Jailbreak protection: Regex checks + context pruning');
-      console.log('   ✅ Role persona: ' + role + ' (set once, not in every request)');
-      console.log('   ✅ Tag system: LLM uses tags to signal intent, Node processes tags for flow control');
+      log().info('✅ [Agent] Session created - TAG-BASED INTENT DETECTION');
+      log().info('   ✅ Jailbreak protection: Regex checks + context pruning');
+      log().info('   ✅ Role persona: ' + role + ' (set once, not in every request)');
+      log().info('   ✅ Tag system: LLM uses tags to signal intent, Node processes tags for flow control');
 
       // Intercept all session events to see what's actually happening
       // This will help us understand what events LiveKit is actually emitting
@@ -707,7 +707,7 @@ export const agent = defineAgent({
                 if (event.includes('speech') || event.includes('tool') || event.includes('llm') ||
                   event.includes('user') || event.includes('message') || event.includes('text') ||
                   event.includes('response') || event.includes('say') || event.includes('playout')) {
-                  console.log(`\n=== SESSION EMIT: ${event} ===`);
+                  log().info(`\n=== SESSION EMIT: ${event} ===`);
                   try {
                     const serialized = args.map(arg => {
                       if (typeof arg === 'string') return arg.substring(0, 200);
@@ -720,11 +720,11 @@ export const agent = defineAgent({
                       }
                       return String(arg);
                     });
-                    console.log('Args:', serialized);
+                    log().info({ args: serialized }, 'Args:');
                   } catch (e) {
-                    console.log('Args (non-serializable):', args.length, 'items');
+                    log().info({ count: args.length }, 'Args (non-serializable):');
                   }
-                  console.log('===========================\n');
+                  log().info('===========================\n');
                 }
                 return value.apply(target, [event, ...args]);
               };
@@ -732,36 +732,36 @@ export const agent = defineAgent({
             return value;
           }
         });
-        console.log('✅ Event interception enabled - will log all relevant session events');
+        log().info('✅ Event interception enabled - will log all relevant session events');
         // Note: We can't replace the session object, but the proxy will intercept emits
       } catch (e) {
-        console.error('❌ Failed to intercept events:', e);
+        log().error('❌ Failed to intercept events:', e);
       }
 
       // Handle session errors
       // @ts-ignore
       session.on('error', (error: any) => {
-        console.error('❌ [Agent] Session error:', error);
+        log().error('❌ [Agent] Session error:', error);
       });
 
       // Start the agent session first
-      console.log('🎬 [Agent] Starting interview agent session...');
-      console.log('⚠️  If onUserSpeech/onAgentSpeechEnded are not called, check SESSION EMIT logs above');
+      log().info('🎬 [Agent] Starting interview agent session...');
+      log().info('⚠️  If onUserSpeech/onAgentSpeechEnded are not called, check SESSION EMIT logs above');
       try {
         await session.start({
           agent,
           room: ctx.room,
         });
-        console.log('✅ [Agent] Interview agent session started successfully');
+        log().info('✅ [Agent] Interview agent session started successfully');
       } catch (sessionError) {
-        console.error('❌ [Agent] Failed to start session:', sessionError);
-        console.error('❌ [Agent] Session error details:', {
+        log().error('❌ [Agent] Failed to start session:', sessionError);
+        log().error({
           error: sessionError instanceof Error ? sessionError.message : String(sessionError),
           stack: sessionError instanceof Error ? sessionError.stack : undefined,
           interviewId,
           hasAgent: !!agent,
           hasRoom: !!ctx.room,
-        });
+        }, '❌ [Agent] Session error details:');
         throw sessionError;
       }
 
@@ -769,13 +769,13 @@ export const agent = defineAgent({
       // The tag-based system controls interview flow through intent detection
 
     } catch (error) {
-      console.error('❌ [Agent] Interview job failed:', error);
-      console.error('❌ [Agent] Job error details:', {
+      log().error('❌ [Agent] Interview job failed:', error);
+      log().error({
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         interviewId: ctx.room?.name || 'unknown',
         roomName: ctx.room?.name,
-      });
+      }, '❌ [Agent] Job error details:');
       throw error;
     }
   },

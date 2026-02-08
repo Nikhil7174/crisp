@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - '@ffmpeg-installer/linux-x64'
+  - '@prisma/client'
+  - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp
