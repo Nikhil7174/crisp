@@ -37,9 +37,16 @@ process.on('SIGINT', async () => {
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://crisp-beta.vercel.app', 'https://crisp-1.onrender.com', 'https://shakra.onrender.com', 'https://www.shakraai.com']
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'https://crisp-beta.vercel.app', 'https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app', 'https://crisp-1.onrender.com', 'https://shakra.onrender.com', 'https://www.shakraai.com'],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://shakra.onrender.com',
+      'https://www.shakraai.com',
+      'https://www.shakra.io',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:42424', // Electron App
+    ];
+  },
   credentials: true
 }));
 app.use(morgan('combined'));
