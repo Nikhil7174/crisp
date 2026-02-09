@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { InterviewController } from '../controllers/interviewController';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = Router();
 const interviewController = new InterviewController();
@@ -11,8 +11,8 @@ router.get('/link/:token', (req: Request, res: Response) => {
 });
 
 // Start interview endpoint - requires authentication and link token
-router.post('/start', authMiddleware, (req: Request, res: Response) => {
-    interviewController.startInterview(req, res);
+router.post('/start', authMiddleware as any, (req: Request, res: Response) => {
+    interviewController.startInterview(req as AuthRequest, res);
 });
 
 // Get interview questions endpoint - public (used by agent process)
@@ -32,8 +32,8 @@ router.post('/validate-code', (req: Request, res: Response) => {
 router.post('/save-results', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        authMiddleware(req, res, () => {
-            interviewController.saveResults(req, res);
+        (authMiddleware as any)(req, res, () => {
+            interviewController.saveResults(req as AuthRequest, res);
         });
     } else {
         interviewController.saveResults(req, res);
@@ -41,21 +41,21 @@ router.post('/save-results', (req: Request, res: Response, next) => {
 });
 
 // Update cheating detection endpoint - requires authentication
-router.put('/:sessionId/cheating-detection', authMiddleware, (req: Request, res: Response) => {
-    interviewController.updateCheatingDetection(req, res);
+router.put('/:sessionId/cheating-detection', authMiddleware as any, (req: Request, res: Response) => {
+    interviewController.updateCheatingDetection(req as AuthRequest, res);
 });
 
 // Update vision security endpoint - requires authentication
-router.put('/:sessionId/vision-security', authMiddleware, (req: Request, res: Response) => {
-    interviewController.updateVisionSecurity(req, res);
+router.put('/:sessionId/vision-security', authMiddleware as any, (req: Request, res: Response) => {
+    interviewController.updateVisionSecurity(req as AuthRequest, res);
 });
 
 // Final evaluation endpoint - optional authentication (same pattern as save-results)
 router.post('/final-evaluation', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        authMiddleware(req, res, () => {
-            interviewController.saveFinalEvaluation(req, res);
+        (authMiddleware as any)(req, res, () => {
+            interviewController.saveFinalEvaluation(req as AuthRequest, res);
         });
     } else {
         interviewController.saveFinalEvaluation(req, res);
@@ -66,8 +66,8 @@ router.post('/final-evaluation', (req: Request, res: Response, next) => {
 router.post('/feedback', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        authMiddleware(req, res, () => {
-            interviewController.saveCandidateFeedback(req, res);
+        (authMiddleware as any)(req, res, () => {
+            interviewController.saveCandidateFeedback(req as AuthRequest, res);
         });
     } else {
         interviewController.saveCandidateFeedback(req, res);

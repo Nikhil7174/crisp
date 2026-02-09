@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import { EventEmitter } from 'events'
 import { FinalEvaluationPayload } from '../models/types.js'
 import * as openai from '@livekit/agents-plugin-openai'
-import { llm } from '@livekit/agents'
+import { llm, log } from '@livekit/agents';
 
 export interface Question {
   id: string
@@ -178,16 +178,16 @@ export class LLMService extends EventEmitter {
 
   // Validate follow-up criteria programmatically
   private validateFollowUpCriteria(evaluation: Evaluation, followUpDepth: number): Evaluation {
-    console.log('🔍 [LLM-Server] Validating follow-up criteria:', {
+    log().info({
       score: evaluation.score,
       needsFollowUp: evaluation.needsFollowUp,
       followUpDepth,
       keyPointsCovered: evaluation.keyPointsCovered.length
-    })
+    }, '🔍 [LLM-Server] Validating follow-up criteria:');
 
     // Rule 1: Never ask follow-up if already in a follow-up (followUpDepth > 0)
     if (followUpDepth > 0) {
-      console.log('🚫 [LLM-Server] Blocking follow-up: already in follow-up mode')
+      log().info('🚫 [LLM-Server] Blocking follow-up: already in follow-up mode')
       return {
         ...evaluation,
         needsFollowUp: false,
@@ -197,7 +197,7 @@ export class LLMService extends EventEmitter {
 
     // Rule 2: Only ask follow-up if score < 70
     if (evaluation.needsFollowUp && evaluation.score >= 70) {
-      console.log('🚫 [LLM-Server] Blocking follow-up: score >= 70 (score:', evaluation.score, ')')
+      log().info({ score: evaluation.score }, '🚫 [LLM-Server] Blocking follow-up: score >= 70')
       return {
         ...evaluation,
         needsFollowUp: false,
@@ -207,7 +207,7 @@ export class LLMService extends EventEmitter {
 
     // Rule 3: Must have a follow-up question if needsFollowUp is true
     if (evaluation.needsFollowUp && !evaluation.followUpQuestion) {
-      console.log('🚫 [LLM-Server] Blocking follow-up: no follow-up question provided')
+      log().info('🚫 [LLM-Server] Blocking follow-up: no follow-up question provided')
       return {
         ...evaluation,
         needsFollowUp: false,
@@ -215,10 +215,10 @@ export class LLMService extends EventEmitter {
       }
     }
 
-    console.log('✅ [LLM-Server] Follow-up validation result:', {
+    log().info({
       allowed: evaluation.needsFollowUp,
       reason: evaluation.needsFollowUp ? 'criteria met' : 'not needed'
-    })
+    }, '✅ [LLM-Server] Follow-up validation result:')
 
     return evaluation
   }
@@ -231,11 +231,11 @@ export class LLMService extends EventEmitter {
     originalAnswer?: string,
     followUpQuestion?: string
   ): Promise<Evaluation> {
-    console.log('🔍 [LLM-Server] evaluateAnswer called with:', {
+    log().info({
       questionId: question.id,
       followUpDepth,
       candidateAnswerLength: candidateAnswer.length
-    })
+    }, '🔍 [LLM-Server] evaluateAnswer called with:')
 
     const systemPrompt = `You are a human technical interviewer conducting a voice interview. You're evaluating a candidate's answer naturally, like a real person would.
 
@@ -331,7 +331,7 @@ IMPORTANT:
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔍 [LLM-Server] Calling OpenAI API (attempt ${attempt}/${maxRetries})`)
+        log().info(`🔍 [LLM-Server] Calling OpenAI API (attempt ${attempt}/${maxRetries})`)
         // Build user message with context
         let userMessage = `Candidate's answer: ${candidateAnswer}`;
         if (followUpDepth > 0 && originalAnswer) {
@@ -351,15 +351,15 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
           throw new Error('No response from LLM')
         }
 
-        console.log('LLM Response content:', content)
+        log().info({ content }, 'LLM Response content:')
 
         let evaluation: Omit<Evaluation, 'questionId' | 'candidateAnswer'>
 
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
-          console.error('Failed to parse LLM response as JSON:', content)
-          console.error('Parse error:', parseError)
+          log().error({ content }, 'Failed to parse LLM response as JSON:')
+          log().error({ parseError }, 'Parse error:')
 
           // Fallback: create a basic evaluation
           evaluation = {
@@ -380,13 +380,13 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
         // Validate follow-up criteria programmatically (safety check)
         const validatedResult = this.validateFollowUpCriteria(result, followUpDepth)
 
-        console.log('🔍 [LLM-Server] evaluateAnswer final result:', {
+        log().info({
           questionId: validatedResult.questionId,
           needsFollowUp: validatedResult.needsFollowUp,
           score: validatedResult.score,
           keyPointsCovered: validatedResult.keyPointsCovered.length,
           wasModified: validatedResult.needsFollowUp !== result.needsFollowUp
-        })
+        }, '🔍 [LLM-Server] evaluateAnswer final result:')
 
         return validatedResult
       } catch (error: any) {
@@ -398,11 +398,11 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
           error.type === 'server_error' ||
           error.type === 'rate_limit_error'
 
-        console.error(`❌ [LLM-Server] OpenAI API error (attempt ${attempt}/${maxRetries}):`, error.message || error)
+        log().error({ error: error.message || error }, `❌ [LLM-Server] OpenAI API error (attempt ${attempt}/${maxRetries}):`)
 
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
-          console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
+          log().info(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
@@ -415,7 +415,7 @@ Evaluate the candidate's COMPLETE understanding by considering BOTH answers toge
     }
 
     // All retries failed - throw error
-    console.error('❌ [LLM-Server] All retry attempts failed')
+    log().error('❌ [LLM-Server] All retry attempts failed')
     throw lastError || new Error('Failed to evaluate answer after retries')
   }
 
@@ -437,7 +437,7 @@ Respond with just the follow-up question text.`
       const content = await this.callLLM(systemPrompt, 'Generate a follow-up question.', this.config.maxTokens || 200)
       return content || 'Could you tell me more about that?'
     } catch (error) {
-      console.error('Error generating follow-up:', error)
+      log().error({ error }, 'Error generating follow-up:')
       return 'Could you elaborate on that point?'
     }
   }
@@ -509,15 +509,15 @@ Respond in JSON format with these exact fields:
         jsonContent = jsonMatch[1].trim()
       }
 
-      console.log('[analyzeCode] Raw LLM response:', content.substring(0, 200))
-      console.log('[analyzeCode] Extracted JSON:', jsonContent.substring(0, 200))
+      log().info('[analyzeCode] Raw LLM response:', content.substring(0, 200))
+      log().info('[analyzeCode] Extracted JSON:', jsonContent.substring(0, 200))
 
       return JSON.parse(jsonContent) as CodeAnalysis
     } catch (error) {
-      console.error('Error analyzing code:', error)
+      log().error({ error }, 'Error analyzing code:')
       if (error instanceof Error) {
-        console.error('Error details:', error.message)
-        console.error('Error stack:', error.stack)
+        log().error({ message: error.message }, 'Error details:')
+        log().error({ stack: error.stack }, 'Error stack:')
       }
       throw error
     }
@@ -565,7 +565,7 @@ Respond naturally and professionally. Keep responses concise but helpful.`
         return response.choices[0]?.message?.content || 'I understand. Please continue.'
       }
     } catch (error) {
-      console.error('Error generating response:', error)
+      log().error({ error }, 'Error generating response:')
       return 'I understand. Please continue.'
     }
   }
@@ -595,12 +595,12 @@ Respond naturally and professionally. Keep responses concise but helpful.`
     followUpAnswer: string,
     followUpDepth: number = 1
   ): Promise<Evaluation> {
-    console.log('🔍 [LLM-Server] evaluateFollowUpAnswer called with:', {
+    log().info({
       originalQuestionId: originalQuestion.id,
       followUpDepth,
       followUpAnswerLength: followUpAnswer.length,
       followUpQuestion: followUpQuestion.substring(0, 50) + '...'
-    })
+    }, '🔍 [LLM-Server] evaluateFollowUpAnswer called with:')
 
     const systemPrompt = `You are an AI interviewer evaluating a follow-up answer in a VOICE INTERVIEW. This is a follow-up question based on the original question.
 
@@ -667,7 +667,7 @@ IMPORTANT:
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔍 [LLM-Server] Calling OpenAI API for follow-up (attempt ${attempt}/${maxRetries})`)
+        log().info(`🔍 [LLM-Server] Calling OpenAI API for follow-up (attempt ${attempt}/${maxRetries})`)
         const content = await this.callLLM(
           systemPrompt,
           `Evaluate this follow-up answer: ${followUpAnswer}`,
@@ -683,8 +683,8 @@ IMPORTANT:
         try {
           evaluation = JSON.parse(content)
         } catch (parseError) {
-          console.error('Failed to parse LLM response as JSON:', content)
-          console.error('Parse error:', parseError)
+          log().error({ content }, 'Failed to parse LLM response as JSON:')
+          log().error({ parseError }, 'Parse error:')
 
           // Fallback: create a basic evaluation
           evaluation = {
@@ -702,13 +702,13 @@ IMPORTANT:
           ...evaluation
         }
 
-        console.log('🔍 [LLM-Server] evaluateFollowUpAnswer result:', {
+        log().info({
           questionId: result.questionId,
           needsFollowUp: result.needsFollowUp,
           score: result.score,
           keyPointsCovered: result.keyPointsCovered.length,
           isFollowUp: true
-        })
+        }, '🔍 [LLM-Server] evaluateFollowUpAnswer result:')
 
         return result
       } catch (error: any) {
@@ -720,11 +720,11 @@ IMPORTANT:
           error.type === 'server_error' ||
           error.type === 'rate_limit_error'
 
-        console.error(`❌ [LLM-Server] OpenAI API error for follow-up (attempt ${attempt}/${maxRetries}):`, error.message || error)
+        log().error({ error: error.message || error }, `❌ [LLM-Server] OpenAI API error for follow-up (attempt ${attempt}/${maxRetries}):`)
 
         if (isRetryableError && attempt < maxRetries) {
           const retryDelay = 2000 * attempt // Exponential backoff: 2s, 4s
-          console.log(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
+          log().info(`🔄 [LLM-Server] Retryable error detected, retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           continue
         }
@@ -737,7 +737,7 @@ IMPORTANT:
     }
 
     // All retries failed - throw error
-    console.error('❌ [LLM-Server] All retry attempts failed for follow-up evaluation')
+    log().error('❌ [LLM-Server] All retry attempts failed for follow-up evaluation')
     throw lastError || new Error('Failed to evaluate follow-up answer after retries')
   }
 

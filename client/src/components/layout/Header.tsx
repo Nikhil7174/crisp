@@ -17,7 +17,11 @@ export const Header: React.FC = () => {
   };
 
   const handleLoginClick = () => {
-    navigate('/login');
+    navigate('/sign-in?role=candidate');
+  };
+
+  const handleSignupClick = () => {
+    navigate('/sign-up?role=candidate');
   };
 
   const handleLogoutClick = async () => {
@@ -95,26 +99,43 @@ export const Header: React.FC = () => {
               Logout
             </Button>
           ) : (
-            <Button
-              type="primary"
-              onClick={handleLoginClick}
-              style={{
-                background: colors.neutral[900],
-                borderColor: colors.neutral[900],
-                height: 36,
-                fontSize: 14,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = colors.neutral[800];
-                e.currentTarget.style.borderColor = colors.neutral[800];
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = colors.neutral[900];
-                e.currentTarget.style.borderColor = colors.neutral[900];
-              }}
-            >
-              Log in
-            </Button>
+            <Space size="middle">
+              <Button
+                type="text"
+                onClick={handleLoginClick}
+                style={{
+                  color: colors.neutral[900],
+                  height: 32,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  border: `2px solid ${colors.neutral[900]}`
+                }}
+              >
+                Log in
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleSignupClick}
+                style={{
+                  background: colors.neutral[900],
+                  borderColor: colors.neutral[900],
+                  height: 32,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  borderRadius: 8,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = colors.neutral[800];
+                  e.currentTarget.style.borderColor = colors.neutral[800];
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = colors.neutral[900];
+                  e.currentTarget.style.borderColor = colors.neutral[900];
+                }}
+              >
+                Sign up
+              </Button>
+            </Space>
           )}
         </Space>
       </div>

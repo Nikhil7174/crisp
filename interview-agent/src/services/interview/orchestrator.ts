@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { InterviewState, StateProvider } from './state-provider.js';
+import { log } from '@livekit/agents';
 
 export interface Question {
   id: string;
@@ -53,7 +54,7 @@ export class Orchestrator extends EventEmitter {
     super();
     this.interviewId = interviewId;
     this.stateProvider = stateProvider;
-    console.log(`[Orchestrator ${this.interviewId}] Created`);
+    log().info(`[Orchestrator ${this.interviewId}] Created`);
   }
 
   /**
@@ -62,7 +63,7 @@ export class Orchestrator extends EventEmitter {
   setQuestions(questions: Question[], codingProblems: CodingProblem[]): void {
     this.questions = questions;
     this.codingProblems = codingProblems;
-    console.log(`[Orchestrator ${this.interviewId}] Stored ${questions.length} questions and ${codingProblems.length} coding problems`);
+    log().info(`[Orchestrator ${this.interviewId}] Stored ${questions.length} questions and ${codingProblems.length} coding problems`);
   }
 
   getInterviewId(): string {
@@ -73,7 +74,11 @@ export class Orchestrator extends EventEmitter {
    * Get question by ID
    */
   getQuestionById(questionId: string): Question | null {
-    return this.questions.find(q => q.id === questionId) || null;
+    const question = this.questions.find(q => q.id === questionId);
+    if (!question) {
+      log().warn(`[Orchestrator] Question ID ${questionId} not found`);
+    }
+    return question || null;
   }
 
   /**
@@ -141,7 +146,7 @@ export class Orchestrator extends EventEmitter {
    * Start the interview (updates state only - LiveKit agent handles speaking)
    */
   startInterview(): void {
-    console.log(`[Orchestrator ${this.interviewId}] Starting interview...`);
+    log().info(`[Orchestrator ${this.interviewId}] Starting interview...`);
     this.stateProvider.setFlowState(this.interviewId, 'intro');
     this.emit('interviewStarted', { interviewId: this.interviewId });
   }
@@ -150,7 +155,7 @@ export class Orchestrator extends EventEmitter {
    * Start theoretical questions phase
    */
   startTheoreticalQuestions(): void {
-    console.log(`[Orchestrator ${this.interviewId}] Starting theoretical questions`);
+    log().info(`[Orchestrator ${this.interviewId}] Starting theoretical questions`);
     this.stateProvider.setFlowState(this.interviewId, 'theoretical');
   }
 
@@ -166,11 +171,12 @@ export class Orchestrator extends EventEmitter {
 
     if (state.currentQuestionIndex >= this.questions.length) {
       // No more questions, move to coding
+      log().info(`[Orchestrator] Transitioning to coding section (all questions done)`);
       return { question: null, shouldMoveToCoding: true };
     }
 
     const question = this.questions[state.currentQuestionIndex];
-    console.log(`[Orchestrator ${this.interviewId}] Moving to question ${state.currentQuestionIndex + 1}: ${question.id}`);
+    log().info(`[Orchestrator ${this.interviewId}] Moving to question ${state.currentQuestionIndex + 1}: ${question.id}`);
 
     // Update state
     this.stateProvider.moveToNextQuestion(this.interviewId, question.id);
@@ -189,7 +195,7 @@ export class Orchestrator extends EventEmitter {
    * Start coding phase
    */
   startCodingPhase(): void {
-    console.log(`[Orchestrator ${this.interviewId}] Starting coding phase`);
+    log().info(`[Orchestrator ${this.interviewId}] Starting coding phase`);
     this.stateProvider.setFlowState(this.interviewId, 'coding');
   }
 
@@ -209,7 +215,7 @@ export class Orchestrator extends EventEmitter {
     }
 
     const problem = this.codingProblems[state.currentProblemIndex];
-    console.log(`[Orchestrator ${this.interviewId}] Moving to problem ${state.currentProblemIndex + 1}: ${problem.id}`);
+    log().info(`[Orchestrator ${this.interviewId}] Moving to problem ${state.currentProblemIndex + 1}: ${problem.id}`);
 
     // Update state
     this.stateProvider.moveToNextProblem(this.interviewId, problem.id);

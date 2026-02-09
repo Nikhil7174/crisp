@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { log } from '@livekit/agents';
 
 export interface InterviewState {
   interviewId: string;
@@ -144,7 +145,7 @@ export class StateProvider extends EventEmitter {
     // Start periodic state persistence (every 30 seconds)
     this.startStatePersistence(config.interviewId);
 
-    console.log(`[StateProvider] Initialized state for interview ${config.interviewId}`);
+    log().info(`[StateProvider] Initialized state for interview ${config.interviewId}`);
 
     return state;
   }
@@ -166,7 +167,7 @@ export class StateProvider extends EventEmitter {
 
     this.persistenceIntervals.set(interviewId, interval);
 
-    console.log(`[StateProvider] Started state persistence for interview ${interviewId}`);
+    log().info(`[StateProvider] Started state persistence for interview ${interviewId}`);
   }
 
   /**
@@ -178,17 +179,17 @@ export class StateProvider extends EventEmitter {
 
     try {
       // This is a placeholder - actual implementation would save to Prisma DB
-      console.log(`[StateProvider] Persisting state for interview ${interviewId}`);
-
-      // Example: await prisma.interviewState.upsert({
-      //   where: { interviewId },
+      log().info({
+        questionIndex: state.currentQuestionIndex,
+        currentState: state.currentState
+      }, `[StateProvider] Updated state for interview ${interviewId}`);  //   where: { interviewId },
       //   update: { state: JSON.stringify(state) },
       //   create: { interviewId, state: JSON.stringify(state) }
       // });
 
       this.emit('statePersisted', { interviewId, timestamp: new Date() });
     } catch (error) {
-      console.error(`[StateProvider] Failed to persist state for interview ${interviewId}:`, error);
+      log().error(`[StateProvider] Failed to persist state for interview ${interviewId}:`, error);
       this.emit('persistenceError', { interviewId, error });
     }
   }
@@ -213,7 +214,7 @@ export class StateProvider extends EventEmitter {
   updateState(interviewId: string, updates: Partial<InterviewState>): InterviewState | null {
     const state = this.states.get(interviewId);
     if (!state) {
-      console.warn(`[StateProvider] Cannot update: state not found for interview ${interviewId}`);
+      log().warn(`[StateProvider] Cannot update state: interview ${interviewId} not found`);
       return null;
     }
 
@@ -351,7 +352,7 @@ export class StateProvider extends EventEmitter {
 
     // Check if we've reached max depth
     if (tracker.followUpDepth >= MAX_FOLLOW_UP_DEPTH) {
-      console.log(`[StateProvider] Max follow-up depth (${MAX_FOLLOW_UP_DEPTH}) reached for question ${parentQuestionId}`);
+      log().info(`[StateProvider] Max follow-up depth (${MAX_FOLLOW_UP_DEPTH}) reached for question ${parentQuestionId}`);
       return false;
     }
 
@@ -362,7 +363,7 @@ export class StateProvider extends EventEmitter {
     state.currentQuestionIsFollowUp = true;
     state.parentQuestionId = parentQuestionId;
 
-    console.log(`[StateProvider] Follow-up asked for question ${parentQuestionId} (depth: ${tracker.followUpDepth}/${MAX_FOLLOW_UP_DEPTH})`);
+    log().info(`[StateProvider] Follow-up asked for question ${parentQuestionId} (depth: ${tracker.followUpDepth}/${MAX_FOLLOW_UP_DEPTH})`);
     this.emit('followUpAsked', { interviewId, followUpQuestion, parentQuestionId, depth: tracker.followUpDepth });
     return true;
   }
@@ -566,7 +567,7 @@ export class StateProvider extends EventEmitter {
 
       this.states.delete(interviewId);
       this.emit('stateRemoved', { interviewId });
-      console.log(`[StateProvider] Removed state for interview ${interviewId}`);
+      log().warn(`[StateProvider] No state found for interview ${interviewId}`);
     }
   }
 

@@ -39,12 +39,17 @@ app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? ['https://crisp-beta.vercel.app', 'https://crisp-1.onrender.com', 'https://shakra.onrender.com', 'https://www.shakraai.com']
-    : ['http://localhost:5173','http://localhost:5174', 'http://localhost:3000', 'https://crisp-beta.vercel.app', 'https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app', 'https://crisp-1.onrender.com', 'https://shakra.onrender.com', 'https://www.shakraai.com'],
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'https://crisp-beta.vercel.app', 'https://crisp-7l8d2q9ft-nikhil7174s-projects.vercel.app', 'https://crisp-1.onrender.com', 'https://shakra.onrender.com', 'https://www.shakraai.com'],
   credentials: true
 }));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Clerk Authentication Middleware (Global - Loose)
+// This attaches req.auth to requests if a session token is present, but doesn't block unauthenticated requests.
+import { ClerkExpressWithAuth } from '@clerk/clerk-sdk-node';
+app.use(ClerkExpressWithAuth());
 
 // Routes
 app.use('/api/auth', authRoutes);

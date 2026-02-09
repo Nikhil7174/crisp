@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaService } from '../services/prismaService';
 import { AuthService } from '../services/authService';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
 export class AuthController {
     private dbService: PrismaService;
@@ -11,358 +12,78 @@ export class AuthController {
         this.authService = AuthService.getInstance();
     }
 
-    /**
-     * Register a new candidate
-     */
-    async registerCandidate(req: Request, res: Response): Promise<void> {
-        try {
-            const { email, password, fullName, phone, company } = req.body;
-
-            // Validation
-            if (!email || !password || !fullName) {
-                res.status(400).json({
-                    error: 'Missing required fields',
-                    message: 'Email, password, and full name are required'
-                });
-                return;
-            }
-
-            // Validate email format
-            if (!this.authService.validateEmail(email)) {
-                res.status(400).json({
-                    error: 'Invalid email',
-                    message: 'Please provide a valid email address'
-                });
-                return;
-            }
-
-            // Validate password strength
-            const passwordValidation = this.authService.validatePassword(password);
-            if (!passwordValidation.valid) {
-                res.status(400).json({
-                    error: 'Weak password',
-                    message: passwordValidation.message
-                });
-                return;
-            }
-
-            // Check if user already exists in users table
-            const existingUser = await this.dbService.getUserByEmail(email);
-            if (existingUser) {
-                res.status(409).json({
-                    error: 'User already exists',
-                    message: 'An account with this email already exists'
-                });
-                return;
-            }
-
-            // Check if email exists in interviewers table
-            const existingInterviewer = await this.dbService.getInterviewerByEmail(email);
-            if (existingInterviewer) {
-                res.status(409).json({
-                    error: 'User already exists',
-                    message: 'An account with this email already exists'
-                });
-                return;
-            }
-
-            // Hash password
-            const passwordHash = await this.authService.hashPassword(password);
-
-            // Create user
-            const user = await this.dbService.createUser({
-                email,
-                passwordHash,
-                fullName,
-                userType: 'candidate' as any,
-                phone,
-                company
-            });
-
-            // Generate token
-            const token = this.authService.generateToken({
-                userId: user.id,
-                email,
-                userType: 'candidate'
-            });
-
-            res.status(201).json({
-                success: true,
-                message: 'Registration successful',
-                token,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    userType: user.user_type,
-                    phone: user.phone,
-                    company: user.company
-                }
-            });
-
-        } catch (error) {
-            console.error('Registration error:', error);
-            res.status(500).json({
-                error: 'Registration failed',
-                message: error instanceof Error ? error.message : 'Unknown error'
-            });
-        }
-    }
-
-    /**
-     * Register a new interviewer
-     */
-    async registerInterviewer(req: Request, res: Response): Promise<void> {
-        try {
-            const { email, password, fullName, phone, company } = req.body;
-
-            // Validation
-            if (!email || !password || !fullName) {
-                res.status(400).json({
-                    error: 'Missing required fields',
-                    message: 'Email, password, and full name are required'
-                });
-                return;
-            }
-
-            // Validate email format
-            if (!this.authService.validateEmail(email)) {
-                res.status(400).json({
-                    error: 'Invalid email',
-                    message: 'Please provide a valid email address'
-                });
-                return;
-            }
-
-            // Validate password strength
-            const passwordValidation = this.authService.validatePassword(password);
-            if (!passwordValidation.valid) {
-                res.status(400).json({
-                    error: 'Weak password',
-                    message: passwordValidation.message
-                });
-                return;
-            }
-
-            // Check if interviewer already exists in interviewers table
-            const existingInterviewer = await this.dbService.getInterviewerByEmail(email);
-            if (existingInterviewer) {
-                res.status(409).json({
-                    error: 'Interviewer already exists',
-                    message: 'An account with this email already exists'
-                });
-                return;
-            }
-
-            // Check if email exists in users table
-            const existingUser = await this.dbService.getUserByEmail(email);
-            if (existingUser) {
-                res.status(409).json({
-                    error: 'User already exists',
-                    message: 'An account with this email already exists'
-                });
-                return;
-            }
-
-            // Hash password
-            const passwordHash = await this.authService.hashPassword(password);
-
-            // Handle Company Logic
-            let companyId: number | undefined;
-
-            if (company) {
-                // Check if company already exists
-                const existingCompany = await this.dbService.getCompanyByName(company);
-
-                if (existingCompany) {
-                    // Strict Create Mode: Block registration if company exists
-                    res.status(409).json({
-                        error: 'Company already registered',
-                        message: 'This company is already registered. Please contact support or use a different name.'
-                    });
-                    return;
-                } else {
-                    // Create new company
-                    const newCompany = await this.dbService.createCompany(company);
-                    companyId = newCompany.id;
-                }
-            }
-
-            // Create interviewer with companyId
-            const interviewer = await this.dbService.createInterviewer({
-                email,
-                passwordHash,
-                fullName,
-                phone,
-                company, // Legacy string field
-                companyId  // New relation field
-            });
-
-            // Generate token
-            const token = this.authService.generateToken({
-                userId: interviewer.id,
-                email,
-                userType: 'interviewer'
-            });
-
-            res.status(201).json({
-                success: true,
-                message: 'Registration successful',
-                token,
-                user: {
-                    id: interviewer.id,
-                    email: interviewer.email,
-                    fullName: interviewer.full_name,
-                    userType: 'interviewer',
-                    phone: interviewer.phone,
-                    company: interviewer.company
-                }
-            });
-
-        } catch (error) {
-            console.error('Interviewer registration error:', error);
-            res.status(500).json({
-                error: 'Registration failed',
-                message: error instanceof Error ? error.message : 'Unknown error'
-            });
-        }
-    }
-
-    /**
-     * Login user (candidate or interviewer)
-     */
-    async login(req: Request, res: Response): Promise<void> {
-        try {
-            const { email, password } = req.body;
-
-            // Validation
-            if (!email || !password) {
-                res.status(400).json({
-                    error: 'Missing credentials',
-                    message: 'Email and password are required'
-                });
-                return;
-            }
-
-            // Try to find user in users table first (candidates and interviewers)
-            let user = await this.dbService.getUserByEmail(email);
-            let userType = 'candidate';
-            let isActive = true;
-
-            if (user) {
-                userType = user.user_type;
-                isActive = user.is_active;
-            } else {
-                // Try to find as interviewer in interviewers table (legacy support)
-                const interviewer = await this.dbService.getInterviewerByEmail(email);
-                if (interviewer) {
-                    // Convert interviewer to user format for consistency
-                    user = {
-                        id: interviewer.id,
-                        email: interviewer.email,
-                        password_hash: interviewer.password_hash,
-                        full_name: interviewer.full_name,
-                        user_type: 'interviewer' as any,
-                        phone: interviewer.phone,
-                        company: interviewer.company,
-                        resume_data: null,
-                        created_at: interviewer.created_at,
-                        last_login: interviewer.last_login,
-                        is_active: interviewer.is_active
-                    };
-                    userType = 'interviewer';
-                    isActive = interviewer.is_active;
-                }
-            }
-
-            if (!user) {
-                res.status(401).json({
-                    error: 'Invalid credentials',
-                    message: 'Email or password is incorrect'
-                });
-                return;
-            }
-
-            // Check if user is active
-            if (!isActive) {
-                res.status(403).json({
-                    error: 'Account disabled',
-                    message: 'Your account has been disabled. Please contact support.'
-                });
-                return;
-            }
-
-            // Verify password
-            const isPasswordValid = await this.authService.comparePassword(password, user.password_hash);
-            if (!isPasswordValid) {
-                res.status(401).json({
-                    error: 'Invalid credentials',
-                    message: 'Email or password is incorrect'
-                });
-                return;
-            }
-
-            // Update last login
-            if (userType === 'candidate') {
-                await this.dbService.updateUserLastLogin(user.id);
-            } else {
-                await this.dbService.updateInterviewerLastLogin(user.id);
-            }
-
-            // Generate token
-            const token = this.authService.generateToken({
-                userId: user.id,
-                email: user.email,
-                userType: userType as 'candidate' | 'interviewer'
-            });
-
-            res.json({
-                success: true,
-                message: 'Login successful',
-                token,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    userType: userType,
-                    phone: user.phone,
-                    company: user.company
-                }
-            });
-
-        } catch (error) {
-            console.error('Login error:', error);
-            res.status(500).json({
-                error: 'Login failed',
-                message: error instanceof Error ? error.message : 'Unknown error'
-            });
-        }
-    }
+    // Legacy methods removed: registerCandidate, registerInterviewer, login
 
     /**
      * Get current user profile
      */
     async getCurrentUser(req: Request, res: Response): Promise<void> {
         try {
-            const userId = (req as any).user?.userId;
-            const userType = (req as any).user?.userType;
+            const user = (req as any).user;
 
-            if (!userId) {
-                res.status(401).json({
-                    error: 'Unauthorized',
-                    message: 'User not authenticated'
-                });
-                return;
+            if (!user || !user.userId && !user.isNewUser) {
+                // Check if it's just missing userId because of middleware fallback issues
+                if (!user?.email) {
+                    res.status(401).json({
+                        error: 'Unauthorized',
+                        message: 'User not authenticated'
+                    });
+                    return;
+                }
             }
 
-            let user;
+            // Handle New User Creation (from Clerk)
+            if (user.isNewUser) {
+                try {
+                    const newUser = await this.dbService.createUser({
+                        email: user.email,
+                        fullName: user.fullName || 'New User',
+                        userType: user.userType || 'candidate', // Role passed from Clerk unsafeMetadata via middleware
+                        phone: '',
+                        company: ''
+                    });
+
+                    res.json({
+                        success: true,
+                        user: {
+                            id: newUser.id,
+                            email: newUser.email,
+                            fullName: newUser.full_name,
+                            userType: newUser.user_type,
+                            phone: newUser.phone,
+                            company: newUser.company,
+                            createdAt: newUser.created_at,
+                            lastLogin: newUser.last_login
+                        }
+                    });
+                    return;
+                } catch (creationError) {
+                    console.error("Failed to create new user from Clerk:", creationError);
+                    res.status(500).json({
+                        error: 'Account Creation Failed',
+                        message: 'Could not create local user account.'
+                    });
+                    return;
+                }
+            }
+
+            const userId = user.userId;
+            const userType = user.userType;
+
+            let dbUser;
             if (userType === 'interviewer') {
-                user = await this.dbService.getInterviewerById(userId);
+                dbUser = await this.dbService.getInterviewerById(userId);
+                if (dbUser) {
+                    await this.dbService.updateInterviewerLastLogin(userId);
+                }
             } else {
-                user = await this.dbService.getUserById(userId);
+                dbUser = await this.dbService.getUserById(userId);
+                if (dbUser) {
+                    await this.dbService.updateUserLastLogin(userId);
+                }
             }
 
-            if (!user) {
+            if (!dbUser) {
                 res.status(404).json({
                     error: 'User not found',
                     message: 'User account not found'
@@ -373,14 +94,14 @@ export class AuthController {
             res.json({
                 success: true,
                 user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
+                    id: dbUser.id,
+                    email: dbUser.email,
+                    fullName: dbUser.full_name,
                     userType: userType,
-                    phone: user.phone,
-                    company: user.company,
-                    createdAt: user.created_at,
-                    lastLogin: user.last_login
+                    phone: dbUser.phone,
+                    company: dbUser.company,
+                    createdAt: dbUser.created_at,
+                    lastLogin: dbUser.last_login
                 }
             });
 
@@ -485,33 +206,22 @@ export class AuthController {
      */
     async getCandidateInterviews(req: Request, res: Response): Promise<void> {
         try {
-            console.log('=== GET CANDIDATE INTERVIEWS DEBUG ===');
-            console.log('Request received at:', new Date().toISOString());
-            console.log('Request headers:', req.headers);
-
             const userId = (req as any).user?.userId;
-            console.log('User ID from token:', userId);
 
             if (!userId) {
-                console.log('No user ID found - unauthorized');
                 res.status(401).json({ error: 'Unauthorized' });
                 return;
             }
 
             const user = await this.dbService.getUserById(userId);
-            console.log('User found:', user ? { id: user.id, email: user.email, name: user.full_name } : 'null');
 
             if (!user) {
-                console.log('User not found in database');
                 res.status(404).json({ error: 'User not found' });
                 return;
             }
 
             // Get all interviews for this candidate
-            console.log('Fetching interviews for email:', user.email);
             const interviews = await this.dbService.getInterviewsByCandidate(user.email);
-            console.log('Raw interviews from DB:', interviews.length, 'interviews found');
-            console.log('Sample interview data:', interviews.slice(0, 2));
 
             const formattedInterviews = interviews.map(interview => ({
                 id: interview.id,
@@ -530,21 +240,57 @@ export class AuthController {
                 companyLogo: interview.companyLogo
             }));
 
-            console.log('Formatted interviews:', formattedInterviews.length, 'interviews');
-            console.log('Sample formatted interview:', formattedInterviews.slice(0, 1));
-
             const response = {
                 success: true,
                 interviews: formattedInterviews
             };
 
-            console.log('Sending response:', response);
             res.json(response);
 
         } catch (error) {
             console.error('Get candidate interviews error:', error);
             res.status(500).json({
                 error: 'Failed to fetch interview history',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Create a secure Sign-In Ticket for Electron app transfer
+     */
+    async createSignInTicket(req: Request, res: Response): Promise<void> {
+        try {
+            // We need the CLERK User ID (string), not the local DB ID (number)
+            // authMiddleware populates req.auth with the raw Clerk session
+            // Try req.auth.userId (direct Clerk) first, then fallback to req.user.clerkId
+            const clerkUserId = (req as any).auth?.userId || (req as any).user?.clerkId;
+
+            if (!clerkUserId || typeof clerkUserId !== 'string') {
+                console.error(`❌ [Auth] Invalid/Missing Clerk User ID. Auth obj:`, (req as any).auth, `User obj:`, (req as any).user);
+                res.status(401).json({ error: 'Unauthorized', details: 'Missing Clerk User ID' });
+                return;
+            }
+
+            console.log(`🎟️ [Auth] Attempting to create ticket for Clerk user: ${clerkUserId}`);
+
+            // Generate valid sign-in token using the correct Clerk User ID
+            const signInToken = await clerkClient.signInTokens.createSignInToken({
+                userId: clerkUserId,
+                expiresInSeconds: 2592000 // 30 days
+            });
+
+            console.log(`✅ [Auth] Generated sign-in token for user ${clerkUserId}`);
+
+            res.json({
+                success: true,
+                ticket: signInToken.token
+            });
+
+        } catch (error) {
+            console.error('Create sign-in ticket error:', error);
+            res.status(500).json({
+                error: 'Failed to create sign-in ticket',
                 message: error instanceof Error ? error.message : 'Unknown error'
             });
         }

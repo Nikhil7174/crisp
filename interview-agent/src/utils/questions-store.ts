@@ -4,6 +4,8 @@
  * In-memory store for questions and coding problems for each interview.
  * This provides a fallback mechanism when the API is unavailable.
  */
+import { Question, CodingProblem } from '../services/interview/orchestrator.js';
+import { log } from '@livekit/agents';
 
 /**
  * Store questions and coding problems for each interview
@@ -20,7 +22,7 @@ const interviewQuestionsStore = new Map<string, {
  */
 export function setInterviewQuestions(interviewId: string, questions: any[], codingProblems: any[]): void {
   interviewQuestionsStore.set(interviewId, { questions, codingProblems });
-  console.log(`📚 [QuestionsStore] Stored ${questions.length} questions and ${codingProblems.length} coding problems for ${interviewId}`);
+  log().info(`📚 [QuestionsStore] Stored ${questions.length} questions and ${codingProblems.length} coding problems for ${interviewId}`);
 }
 
 /**

@@ -9,6 +9,7 @@ import { InterviewState, StateProvider } from '../services/interview/state-provi
 import { getDepthContextPrompt } from './eachTurnPrompt.js';
 import { getDSADepthContextPrompt } from './dsaContextPrompt.js';
 import { Orchestrator } from '../services/interview/orchestrator.js';
+import { log } from '@livekit/agents';
 
 /**
  * Generates the appropriate context prompt for the current interview state.
@@ -105,13 +106,13 @@ export function getInterviewContextPrompt(
         const codePreview = currentCode
             ? currentCode.substring(0, 80).replace(/\s+/g, ' ')
             : '';
-        console.log(
+        log().info(
             `🧩 [ContextPrompt] DSA context for problem ${currentProblem.id} ` +
             `– currentCode length: ${codeLength} ` +
             (codeLength > 0 ? `preview: "${codePreview}..."` : '(no code)')
         );
 
-        console.log(" currentNotepad  ", currentNotepad);
+        log().info({ currentNotepad }, " currentNotepad  ");
 
         return getDSADepthContextPrompt(
             hintDepth,

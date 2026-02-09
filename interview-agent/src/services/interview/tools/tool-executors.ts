@@ -1,6 +1,8 @@
 import { StateProvider } from '../state-provider.js';
 import { Orchestrator } from '../orchestrator.js';
 import { createLLMService } from '../../llm-service.js';
+import { z } from 'zod';
+import { JobContext, log } from '@livekit/agents';
 import {
   ToolName,
   ToolResult,
@@ -22,21 +24,21 @@ async function retryWithBackoff<T>(
   baseDelay: number = 1000
 ): Promise<T> {
   let lastError: any;
-  
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < maxAttempts) {
         const delay = baseDelay * Math.pow(2, attempt - 1);
-        console.log(`[ToolExecutor] Attempt ${attempt} failed, retrying in ${delay}ms...`);
+        log().info(`[ToolExecutor] Attempt ${attempt} failed, retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
-  
+
   throw lastError;
 }
 
@@ -49,9 +51,9 @@ async function askNextQuestion(
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
-    console.error(`❌ [askNextQuestion] Interview state not found for ${interviewId}`);
+    log().error(`❌ [askNextQuestion] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -59,11 +61,11 @@ async function askNextQuestion(
     };
   }
 
-  console.log(`\n📝 [askNextQuestion] Executing tool`);
-  console.log(`   🆔 Interview ID: ${interviewId}`);
-  console.log(`   📊 Current State: ${state.currentState}`);
-  console.log(`   📍 Current Question Index: ${state.currentQuestionIndex}`);
-  console.log(`   📋 Total Questions: ${state.totalQuestions}`);
+  log().info(`\n📝 [askNextQuestion] Executing tool`);
+  log().info(`   Interview ID: ${interviewId}`);
+  log().info(`   📊 Current State: ${state.currentState}`);
+  log().info(`   📍 Current Question Index: ${state.currentQuestionIndex}`);
+  log().info(`   📋 Total Questions: ${state.totalQuestions}`);
 
   // Get next question from orchestrator (uses stored questions)
   const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
@@ -99,15 +101,15 @@ async function askNextQuestion(
  * Provide hint for current question/problem
  */
 async function provideHint(
-  params: ProvideHintParams, 
+  params: ProvideHintParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
-    console.error(`❌ [provideHint] Interview state not found for ${interviewId}`);
+    log().error(`❌ [provideHint] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -118,12 +120,12 @@ async function provideHint(
   // Increment hint counter
   const hintsProvided = stateProvider.incrementHints(interviewId);
 
-  console.log(`\n💡 [provideHint] Executing tool`);
-  console.log(`   🆔 Interview ID: ${interviewId}`);
-  console.log(`   🎯 Current Question ID: ${state.currentQuestionId || 'N/A'}`);
-  console.log(`   📊 Current State: ${state.currentState}`);
-  console.log(`   🔢 Hint #${hintsProvided}`);
-  console.log(`   📝 Context: ${params.context || 'none provided'}`);
+  log().info(`\n💡 [provideHint] Executing tool`);
+  log().info(`   Interview ID: ${interviewId}`);
+  log().info(`   Question ID: ${state.currentQuestionId || 'N/A'}`);
+  log().info(`   📊 Current State: ${state.currentState}`);
+  log().info(`   🔢 Hint #${hintsProvided}`);
+  log().info(`   📝 Context: ${params.context || 'none provided'}`);
 
   let hintMessage = '';
 
@@ -153,15 +155,15 @@ async function provideHint(
 }
 
 async function provideClarification(
-  params: ProvideClarificationParams, 
+  params: ProvideClarificationParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
-    console.error(`❌ [provideClarification] Interview state not found for ${interviewId}`);
+    log().error(`❌ [provideClarification] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -172,12 +174,12 @@ async function provideClarification(
   // Increment clarification counter
   const clarificationsGiven = stateProvider.incrementClarifications(interviewId);
 
-  console.log(`\n❓ [provideClarification] Executing tool`);
-  console.log(`   🆔 Interview ID: ${interviewId}`);
-  console.log(`   🎯 Current Question ID: ${state.currentQuestionId || 'N/A'}`);
-  console.log(`   📊 Current State: ${state.currentState}`);
-  console.log(`   🔢 Clarification #${clarificationsGiven}`);
-  console.log(`   📝 Request: "${params.clarification_request}"`);
+  log().info(`\n❓ [provideClarification] Executing tool`);
+  log().info(`   Interview ID: ${interviewId}`);
+  log().info(`   Question ID: ${state.currentQuestionId || 'N/A'}`);
+  log().info(`   📊 Current State: ${state.currentState}`);
+  log().info(`   🔢 Clarification #${clarificationsGiven}`);
+  log().info(`   📝 Request: "${params.clarification_request}"`);
 
   let clarificationMessage = '';
 
@@ -220,9 +222,9 @@ async function updateInterviewState(
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
-    console.error(`❌ [updateInterviewState] Interview state not found for ${interviewId}`);
+    log().error(`❌ [updateInterviewState] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -230,18 +232,18 @@ async function updateInterviewState(
     };
   }
 
-  console.log(`\n📊 [updateInterviewState] Executing tool`);
-  console.log(`   🆔 Interview ID: ${interviewId}`);
-  console.log(`   📋 Parameters:`, JSON.stringify(params, null, 2));
+  log().info(`\n📊 [updateInterviewState] Executing tool`);
+  log().info(`   Interview ID: ${interviewId}`);
+  log().info({ params }, `   Parameters:`);
 
   // Get current follow-up depth for the question
   const currentQuestionId = state.currentQuestionId;
   let followUpDepth = params.followUpDepth;
-  
+
   if (currentQuestionId) {
     // Get current depth from state (this is the source of truth)
     const currentDepth = stateProvider.getFollowUpDepth(interviewId, currentQuestionId);
-    
+
     // If followUpDepth provided in params, it means LLM wants to track a follow-up was asked
     // The LLM should set followUpDepth to (currentDepth + 1) after speaking a follow-up
     if (params.followUpDepth !== undefined && params.followUpDepth > currentDepth) {
@@ -256,30 +258,30 @@ async function updateInterviewState(
           // Increment depth to match what LLM specified
           tracker.followUpDepth = newDepth;
           state.followUpTracker.set(currentQuestionId, tracker);
-          console.log(`📝 [updateInterviewState] Follow-up tracked - depth updated to ${newDepth}/2`);
+          log().info(`📝 [updateInterviewState] Follow-up tracked - depth updated to ${newDepth}/2`);
         }
         followUpDepth = newDepth;
       } else {
-        console.log(`⚠️ [updateInterviewState] Invalid followUpDepth ${newDepth} - max is 2, using current depth ${currentDepth}`);
+        log().info(`⚠️ [updateInterviewState] Invalid followUpDepth ${newDepth} - max is 2, using current depth ${currentDepth}`);
         followUpDepth = currentDepth;
       }
     } else {
       // Use current depth from state
       followUpDepth = currentDepth;
     }
-    
+
     // Check if we can ask follow-up (max depth 2)
     const canAskFollowUp = stateProvider.canAskFollowUp(interviewId, currentQuestionId);
-    
+
     // If LLM wants to ask follow-up but can't, override it
     if (params.needsFollowUp && !canAskFollowUp) {
-      console.log(`⚠️ [updateInterviewState] Cannot ask follow-up - max depth (2) reached for question ${currentQuestionId}`);
+      log().info(`⚠️ [updateInterviewState] Cannot ask follow-up - max depth (2) reached for question ${currentQuestionId}`);
       params.needsFollowUp = false;
     }
-    
+
     // If shouldAskNextQuestion is true, we're moving to next question
     if (params.shouldAskNextQuestion) {
-      console.log(`✅ [updateInterviewState] Moving to next question`);
+      log().info(`✅ [updateInterviewState] Moving to next question`);
     }
   }
 
@@ -308,7 +310,7 @@ async function updateInterviewState(
  * Uses conversational LLM instead of isolated API call
  */
 async function evaluateAnswer(
-  params: EvaluateAnswerParams, 
+  params: EvaluateAnswerParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator,
@@ -316,9 +318,9 @@ async function evaluateAnswer(
   chatCtx?: any // Conversational LLM context
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
-    console.error(`❌ [evaluateAnswer] Interview state not found for ${interviewId}`);
+    log().error(`❌ [evaluateAnswer] Interview state not found for ${interviewId}`);
     return {
       success: false,
       message: 'Interview state not found',
@@ -327,7 +329,7 @@ async function evaluateAnswer(
   }
 
   if (!state.currentQuestionId) {
-    console.warn(`⚠️ [evaluateAnswer] No active question to evaluate for ${interviewId}`);
+    log().warn(`⚠️ [evaluateAnswer] No active question to evaluate for ${interviewId}`);
     return {
       success: false,
       message: 'No active question to evaluate',
@@ -335,15 +337,15 @@ async function evaluateAnswer(
     };
   }
 
-  console.log(`\n✅ [evaluateAnswer] Executing LIGHT evaluation tool`);
-  console.log(`   🆔 Interview ID: ${interviewId}`);
-  console.log(`   🎯 Question ID: ${state.currentQuestionId}`);
-  console.log(`   📝 Answer length: ${params.answer.length} characters`);
+  log().info(`\n✅ [evaluateAnswer] Executing LIGHT evaluation tool`);
+  log().info(`   Interview ID: ${interviewId}`);
+  log().info(`   Question ID: ${state.currentQuestionId}`);
+  log().info(`   Answer length: ${params.answer.length} characters`);
 
   // Get the full question object from orchestrator
   const question = orchestrator.getCurrentQuestion();
   if (!question) {
-    console.error(`❌ [evaluateAnswer] Question not found for ID: ${state.currentQuestionId}`);
+    log().error(`❌ [evaluateAnswer] Question not found for ID: ${state.currentQuestionId}`);
     return {
       success: false,
       message: 'Question not found',
@@ -355,11 +357,11 @@ async function evaluateAnswer(
   // The conversational LLM will evaluate in context and provide feedback
   // We'll use the chat context if available, otherwise fall back to isolated call
   let evaluation: any;
-  
+
   if (chatCtx && llmService.useLiveKitLLM) {
     // Use conversational LLM for evaluation
     console.log(`💬 [evaluateAnswer] Using conversational LLM for evaluation`);
-    
+
     const evaluationPrompt = `Evaluate this answer to the current question. This is a LIGHT evaluation - just check:
 1. Could the answer be more explained? (answerNeedsMoreExplanation: true/false)
 2. Did the answer miss any key points? (missedKeyPoints: array of missed points)
@@ -389,11 +391,11 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
       }
 
       // Parse the evaluation (simplified - in production, use structured output)
-      const needsFollowUp = evaluationText.toLowerCase().includes('follow-up') || 
-                           evaluationText.toLowerCase().includes('needs more');
+      const needsFollowUp = evaluationText.toLowerCase().includes('follow-up') ||
+        evaluationText.toLowerCase().includes('needs more');
       const answerNeedsMoreExplanation = evaluationText.toLowerCase().includes('could be more') ||
-                                        evaluationText.toLowerCase().includes('needs more explanation');
-      
+        evaluationText.toLowerCase().includes('needs more explanation');
+
       // Extract missed key points (simplified)
       const missedKeyPoints: string[] = [];
       const keyPoints = (question as any).keyPoints || [];
@@ -430,7 +432,7 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
   } else {
     // Fallback to isolated evaluation (lighter version)
     console.log(`🔍 [evaluateAnswer] Using isolated LLM for evaluation (fallback)`);
-    
+
     const questionForEvaluation = {
       id: question.id,
       question: question.question,
@@ -459,8 +461,8 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
 
     // Convert to light evaluation format
     const keyPoints = (question as any).keyPoints || [];
-    const missedKeyPoints = keyPoints.filter((p: string) => 
-      !fullEvaluation.keyPointsCovered.some((covered: string) => 
+    const missedKeyPoints = keyPoints.filter((p: string) =>
+      !fullEvaluation.keyPointsCovered.some((covered: string) =>
         covered.toLowerCase().includes(p.toLowerCase().substring(0, 10))
       )
     );
@@ -483,7 +485,7 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
   stateProvider.addConversationMessage(interviewId, {
     role: 'assistant',
     content: evaluation.feedback,
-    metadata: { 
+    metadata: {
       type: 'evaluation',
       score: evaluation.score,
       needsFollowUp: evaluation.needsFollowUp,
@@ -500,14 +502,14 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
     success: true,
     message: evaluation.feedback, // Just feedback, LLM will add follow-up if needed
     shouldSpeak: true,
-    data: { 
+    data: {
       evaluation,
       currentFollowUpDepth,
       maxFollowUpDepth: 2,
       canAskFollowUp,
       // If follow-up is needed and allowed, include the question for LLM to speak
-      followUpQuestion: (evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion) 
-        ? evaluation.followUpQuestion 
+      followUpQuestion: (evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion)
+        ? evaluation.followUpQuestion
         : undefined,
       // LLM should use update_interview_state after speaking follow-up
       shouldAskNextQuestion: !(evaluation.needsFollowUp && canAskFollowUp && 'followUpQuestion' in evaluation && evaluation.followUpQuestion),
@@ -521,13 +523,13 @@ Provide a brief, conversational feedback and indicate if follow-up is needed.`;
  * Skip current question
  */
 async function skipQuestion(
-  params: SkipQuestionParams, 
+  params: SkipQuestionParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
     console.error(`❌ [skipQuestion] Interview state not found for ${interviewId}`);
     return {
@@ -565,13 +567,13 @@ async function skipQuestion(
  * Analyze candidate's code
  */
 async function analyzeCode(
-  params: AnalyzeCodeParams, 
+  params: AnalyzeCodeParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
     return {
       success: false,
@@ -620,13 +622,13 @@ async function analyzeCode(
  * Submit and evaluate final solution
  */
 async function submitSolution(
-  params: SubmitSolutionParams, 
+  params: SubmitSolutionParams,
   interviewId: string,
   stateProvider: StateProvider,
   orchestrator: Orchestrator
 ): Promise<ToolResult> {
   const state = stateProvider.getState(interviewId);
-  
+
   if (!state) {
     return {
       success: false,
@@ -652,7 +654,7 @@ async function submitSolution(
   stateProvider.addConversationMessage(interviewId, {
     role: 'assistant',
     content: evaluation.feedback,
-    metadata: { 
+    metadata: {
       type: 'solution_evaluation',
       score: evaluation.score,
     },
@@ -700,12 +702,12 @@ async function analyzeCodeSimple(code: string, problemId: string, question?: str
   // Simplified code analysis - should be replaced with actual analysis service
   const codeLength = code.length;
   const progress = Math.min(100, (codeLength / 500) * 100);
-  
+
   return {
     progress,
     approach: 'iterative',
     issues: codeLength < 50 ? ['Code seems incomplete'] : [],
-    feedback: question 
+    feedback: question
       ? `Regarding your question about ${question}: Your approach looks reasonable. Keep working on it!`
       : `Your code is about ${progress.toFixed(0)}% complete. Keep going!`,
   };
@@ -715,10 +717,10 @@ async function evaluateSolution(code: string, problemId: string, explanation?: s
   // Simplified solution evaluation - should be replaced with actual test execution
   const hasCode = code.length > 100;
   const score = hasCode ? 85 : 50;
-  
+
   return {
     score,
-    feedback: hasCode 
+    feedback: hasCode
       ? `Excellent work! Your solution demonstrates good understanding. Score: ${score}/100.`
       : `Your solution needs more work. Score: ${score}/100. Try to complete the implementation.`,
     testsPassed: hasCode ? 8 : 3,
@@ -750,37 +752,37 @@ export function createToolExecutors(
       const interviewId = orchestrator.getInterviewId();
       return await askNextQuestion(interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.PROVIDE_HINT]: async (params: ProvideHintParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await provideHint(params, interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.PROVIDE_CLARIFICATION]: async (params: ProvideClarificationParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await provideClarification(params, interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.EVALUATE_ANSWER]: async (params: EvaluateAnswerParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await evaluateAnswer(params, interviewId, stateProvider, orchestrator, service, chatCtx);
     },
-    
+
     [ToolName.UPDATE_INTERVIEW_STATE]: async (params: UpdateInterviewStateParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await updateInterviewState(params, interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.SKIP_QUESTION]: async (params: SkipQuestionParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await skipQuestion(params, interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.ANALYZE_CODE]: async (params: AnalyzeCodeParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await analyzeCode(params, interviewId, stateProvider, orchestrator);
     },
-    
+
     [ToolName.SUBMIT_SOLUTION]: async (params: SubmitSolutionParams) => {
       const interviewId = orchestrator.getInterviewId();
       return await submitSolution(params, interviewId, stateProvider, orchestrator);

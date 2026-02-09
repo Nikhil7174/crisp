@@ -1,34 +1,30 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import { useAuth } from '../hooks/useAuth';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedUserTypes?: Array<'candidate' | 'interviewer'>;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  allowedUserTypes 
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedUserTypes
 }) => {
-  const { isAuthenticated, user, loading, getCurrentUser } = useAuth();
+  const { user, loading: reduxLoading } = useAuth();
+  const { isLoaded, isSignedIn } = useClerkAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    if (isAuthenticated && !user) {
-      getCurrentUser();
-    }
-  }, [isAuthenticated, user, getCurrentUser]);
-
-  if (loading || (isAuthenticated && !user)) {
+  if (!isLoaded || reduxLoading) {
     return (
-      <div 
-        style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh'
         }}
       >
         <Spin size="large" />
@@ -36,14 +32,30 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (!isSignedIn) {
+    return <Navigate to="/sign-in" state={{ from: location.pathname }} replace />;
+  }
+
+  // If signed in but user not yet synced to Redux, show loading
+  if (isSignedIn && !user) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh'
+        }}
+      >
+        <Spin size="large" tip="Syncing profile..." />
+      </div>
+    );
   }
 
   if (allowedUserTypes && user && !allowedUserTypes.includes(user.userType)) {
     // Redirect to their appropriate dashboard
-    const redirectTo = user.userType === 'interviewer' 
-      ? '/interviewer/dashboard' 
+    const redirectTo = user.userType === 'interviewer'
+      ? '/interviewer/dashboard'
       : '/candidate/dashboard';
     return <Navigate to={redirectTo} replace />;
   }

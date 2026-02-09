@@ -78,5 +78,7 @@ WRONG Examples:
 ❌ "[NEXT] Alright, let's move on. Can you explain X?" - NEVER ask questions after [NEXT]!
 ❌ "Can you elaborate?" - missing tag!
 
-Now respond to the candidate's latest message.`;
+Now respond to the candidate's latest message.
+    
+IMPORTANT: You MUST start your response with a TAG (e.g., [FOLLOW_UP], [NEXT], [GENERIC]). Do not output any text before the tag.`;
 }

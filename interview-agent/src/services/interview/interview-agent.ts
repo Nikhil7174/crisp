@@ -5,7 +5,7 @@
  * Uses tag-based intent detection for interview orchestration.
  */
 
-import { voice, llm } from '@livekit/agents';
+import { voice, llm, log } from '@livekit/agents';
 import { ReadableStream } from 'stream/web';
 import { StateProvider } from './state-provider.js';
 import { Orchestrator } from './orchestrator.js';
@@ -47,17 +47,17 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       instructions,
     });
 
-    console.log('InterviewAgent constructor called - TAG-BASED INTENT DETECTION');
+    log().info('InterviewAgent constructor called - TAG-BASED INTENT DETECTION');
   }
 
   /**
    * Called when the agent enters the conversation
    */
   async onEnter() {
-    console.log('🎙️ [Agent] Interview agent entered, starting conversation');
+    log().info('🎙️ [Agent] Interview agent entered, starting conversation');
 
     try {
-      console.log('💬 [Agent] Speaking greeting and first question...');
+      log().info('💬 [Agent] Speaking greeting and first question...');
 
       // Speak greeting
       await this.session.say('Hello! I\'m your AI interviewer today. Let\'s begin with some technical questions.');
@@ -81,11 +81,11 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
         let isNewQuestion = false;
 
         if (state && state.currentQuestionId) {
-          console.log(`🔄 [Agent] Resuming existing theoretical question: ${state.currentQuestionId}`);
+          log().info(`🔄 [Agent] Resuming existing theoretical question: ${state.currentQuestionId}`);
           question = orchestrator.getQuestionById(state.currentQuestionId);
         } else {
           // No active question, get the next one
-          console.log(`🆕 [Agent] No active question, asking next one`);
+          log().info(`🆕 [Agent] No active question, asking next one`);
           const result = orchestrator.askNextQuestion();
           question = result.question;
           shouldMoveToCoding = result.shouldMoveToCoding;
@@ -111,7 +111,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
               metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
             });
           }
-          console.log('📝 [Agent] Speaking question:', question.question);
+          log().info({ question: question.question }, '📝 [Agent] Speaking question:');
           await this.session.say(question.question);
         }
       }
@@ -198,9 +198,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
         }
       }
 
-      console.log('✅ [Agent] Greeting and first question spoken');
+      log().info('✅ [Agent] Greeting and first question spoken');
     } catch (error) {
-      console.error('❌ [Agent] Failed in onEnter:', error);
+      log().error({ error }, '❌ [Agent] Failed in onEnter:');
     }
   }
 
@@ -208,7 +208,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
    * Called when the agent exits
    */
   async onExit() {
-    console.log('👋 Interview agent exiting');
+    log().info('👋 Interview agent exiting');
   }
 
 
@@ -229,18 +229,18 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     timings.onUserTurnCompletedStart = sttCompleteTime;
     (this.session.userData as any).timings = timings;
 
-    console.log('\n' + '='.repeat(80));
-    console.log('=== onUserTurnCompleted - JAILBREAK CHECK + NODE DETECTS INTENT ===');
-    console.log('User message:', newMessage.textContent);
-    console.log('TIMESTAMP:', new Date().toISOString());
-    console.log('⏱️ [TIMING] STT Complete → onUserTurnCompleted started');
-    console.log('='.repeat(80) + '\n');
+    log().info('\n' + '='.repeat(80));
+    log().info('=== onUserTurnCompleted - JAILBREAK CHECK + NODE DETECTS INTENT ===');
+    log().info({ text: newMessage.textContent }, 'User message:');
+    log().info('TIMESTAMP:', new Date().toISOString());
+    log().info('⏱️ [TIMING] STT Complete → onUserTurnCompleted started');
+    log().info('='.repeat(80) + '\n');
 
     const { interviewId, stateProvider, orchestrator, role } = this.session.userData;
     const state = stateProvider.getState(interviewId);
 
     if (!state) {
-      console.error('❌ [onUserTurnCompleted] No state found');
+      log().error('❌ [onUserTurnCompleted] No state found');
       return;
     }
 
@@ -256,7 +256,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
           content: dsaSystemPrompt
         });
         (this.session.userData as any).dsaPromptInjected = true;
-        console.log('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt (from pending injection)');
+        log().info('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt (from pending injection)');
       }
 
       // THEN inject problem context
@@ -272,7 +272,7 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
         role: 'user',
         content: problemContextMessage
       });
-      console.log('📝 [onUserTurnCompleted] Injected PENDING coding problem context (from onEnter)');
+      log().info('📝 [onUserTurnCompleted] Injected PENDING coding problem context (from onEnter)');
 
       // Clear flag
       (this.session.userData as any).pendingProblemInjection = undefined;
@@ -300,17 +300,17 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
           phase: state.currentState
         },
       });
-      console.log('📝 [onUserTurnCompleted] Stored user message in conversation history');
+      log().info('📝 [onUserTurnCompleted] Stored user message in conversation history');
     }
 
-    console.log('📊 Current State:', state.currentState);
+    log().info({ state: state.currentState }, '📊 Current State:');
     // Log correct ID/index based on current phase
     if (state.currentState === 'coding' || state.currentState === 'coding_problem' || state.currentState === 'coding_intro') {
-      console.log('📍 Current Problem Index:', state.currentProblemIndex);
-      console.log('🎯 Current Problem ID:', state.currentProblemId || 'N/A');
+      log().info({ index: state.currentProblemIndex }, '📍 Current Problem Index:');
+      log().info({ id: state.currentProblemId || 'N/A' }, '🎯 Current Problem ID:');
     } else {
-      console.log('📍 Current Question Index:', state.currentQuestionIndex);
-      console.log('🎯 Current Question ID:', state.currentQuestionId || 'N/A');
+      log().info({ index: state.currentQuestionIndex }, '📍 Current Question Index:');
+      log().info({ id: state.currentQuestionId || 'N/A' }, '🎯 Current Question ID:');
     }
 
     // ⏱️ TIMING: Jailbreak Detection Start
@@ -322,11 +322,11 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     // ⏱️ TIMING: Jailbreak Detection Complete
     const jailbreakEndTime = Date.now();
     timings.jailbreakDetection = jailbreakEndTime - jailbreakStartTime;
-    console.log(`⏱️ [TIMING] Jailbreak detection: ${timings.jailbreakDetection}ms`);
+    log().info(`⏱️ [TIMING] Jailbreak detection: ${timings.jailbreakDetection}ms`);
 
     if (jailbreakCheck.isJailbreak) {
-      console.log(`🚫 [Jailbreak] Detected ${jailbreakCheck.type} - confidence: ${jailbreakCheck.confidence}`);
-      console.log(`   Response type: ${jailbreakCheck.responseType}`);
+      log().info(`🚫 [Jailbreak] Detected ${jailbreakCheck.type} - confidence: ${jailbreakCheck.confidence}`);
+      log().info(`   Response type: ${jailbreakCheck.responseType}`);
 
       // Get pre-defined safe response (0ms latency - can be replaced with static audio)
       const safeResponse = getSafeResponse(
@@ -360,7 +360,7 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
 
     if (isSkip && state.currentState === 'theoretical') {
       // NODE DECIDES: Skip current question - handle directly
-      console.log('🎯 [Node] Detected skip intent - handling skip directly');
+      log().info('🎯 [Node] Detected skip intent - handling skip directly');
 
       const skipMessage = 'No problem, let\'s move on to the next question.';
 
@@ -399,7 +399,7 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
               content: dsaSystemPrompt
             });
             (this.session.userData as any).dsaPromptInjected = true;
-            console.log('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt');
+            log().info('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt');
           }
 
           // THEN inject problem context
@@ -415,7 +415,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
             role: 'user',
             content: problemContextMessage
           });
-          console.log('📝 [onUserTurnCompleted] Injected coding problem into ChatContext (hidden from speech)');
+          log().info('📝 [onUserTurnCompleted] Injected coding problem into ChatContext (hidden from speech)');
         } else if (question) {
           messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
         }
@@ -433,8 +433,8 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       }
 
       // Inject response into turnCtx
-      console.log('🗣️ [Node] Injecting skip message + next question into turnCtx');
-      console.log('📝 Message:', messageToSpeak.substring(0, 100) + '...');
+      log().info('🗣️ [Node] Injecting skip message + next question into turnCtx');
+      log().info({ message: messageToSpeak.substring(0, 100) + '...' }, '📝 Message:');
 
       turnCtx.addMessage({
         role: 'assistant',
@@ -466,9 +466,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     if (freshState) {
       const currentCode = freshState.currentCode || undefined;
       const currentNotepad = freshState.currentNotepad || undefined;
-      console.log(`🔍 [Code Check] currentCode in State: ${currentCode ? currentCode.length + ' chars' : 'UNDEFINED/NULL'}`);
+      log().info(`🔍 [Code Check] currentCode in State: ${currentCode ? currentCode.length + ' chars' : 'UNDEFINED/NULL'}`);
       if (currentNotepad) {
-        console.log(`📝 [Notepad Check] currentNotepad in State: ${currentNotepad.length} chars`);
+        log().info(`📝 [Notepad Check] currentNotepad in State: ${currentNotepad.length} chars`);
       }
 
       const contextPrompt = getInterviewContextPrompt(
@@ -485,7 +485,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
           content: `\n\n${contextPrompt}`,
         });
 
-        console.log(`📊 [onUserTurnCompleted] Injected Unified Context for state: ${freshState.currentState}`);
+        log().info(`📊 [onUserTurnCompleted] Injected Unified Context for state: ${freshState.currentState}`);
       }
     }
 
@@ -497,8 +497,8 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     const preProcessingEndTime = Date.now();
     timings.preProcessing = preProcessingEndTime - timings.onUserTurnCompletedStart;
     timings.preProcessingEnd = preProcessingEndTime;
-    console.log(`⏱️ [TIMING] Pre-processing (onUserTurnCompleted) total: ${timings.preProcessing}ms`);
-    console.log(`⏱️ [TIMING] Breakdown: jailbreak=${timings.jailbreakDetection || 0}ms, context=${preProcessingEndTime - (jailbreakEndTime || timings.onUserTurnCompletedStart)}ms`);
+    log().info(`⏱️ [TIMING] Pre-processing (onUserTurnCompleted) total: ${timings.preProcessing}ms`);
+    log().info(`⏱️ [TIMING] Breakdown: jailbreak=${timings.jailbreakDetection || 0}ms, context=${preProcessingEndTime - (jailbreakEndTime || timings.onUserTurnCompletedStart)}ms`);
 
     // Persist chat context changes
     await this.updateChatCtx(turnCtx);
@@ -514,18 +514,18 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     timings.ttsStart = ttsStartTime;
     if (timings.llmStreamEnd) {
       timings.llmToTtsGap = ttsStartTime - timings.llmStreamEnd;
-      console.log(`⏱️ [TIMING] Gap between LLM stream end and TTS start: ${timings.llmToTtsGap}ms`);
+      log().info(`⏱️ [TIMING] Gap between LLM stream end and TTS start: ${timings.llmToTtsGap}ms`);
     }
     if (timings.llmFirstToken) {
       timings.llmFirstTokenToTts = ttsStartTime - timings.llmFirstToken;
-      console.log(`⏱️ [TIMING] Time from LLM first token to TTS start: ${timings.llmFirstTokenToTts}ms`);
+      log().info(`⏱️ [TIMING] Time from LLM first token to TTS start: ${timings.llmFirstTokenToTts}ms`);
     }
 
-    console.log('\n' + '='.repeat(80));
-    console.log('=== onAgentSpeechStarted METHOD CALLED ===');
-    console.log('TIMESTAMP:', new Date().toISOString());
-    console.log(`⏱️ [TIMING] TTS started speaking at ${ttsStartTime}`);
-    console.log('='.repeat(80) + '\n');
+    log().info('\n' + '='.repeat(80));
+    log().info('=== onAgentSpeechStarted METHOD CALLED ===');
+    log().info('TIMESTAMP:', new Date().toISOString());
+    log().info(`⏱️ [TIMING] TTS started speaking at ${ttsStartTime}`);
+    log().info('='.repeat(80) + '\n');
   }
 
 
@@ -550,8 +550,8 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       if (sessionData.nodeHandledJailbreak) scenario = 'jailbreak';
       else if (sessionData.nodeHandledSkip) scenario = 'skip';
 
-      console.log(`🎯 [llmNode] Node handled ${scenario} - using injected message directly`);
-      console.log('📝 Injected message:', sessionData.nodeInjectedMessage.substring(0, 100) + '...');
+      log().info(`🎯 [llmNode] Node handled ${scenario} - using injected message directly`);
+      log().info({ message: sessionData.nodeInjectedMessage.substring(0, 100) + '...' }, '📝 Injected message:');
 
       // Clear the flags
       sessionData.nodeHandledSkip = false;
@@ -574,9 +574,9 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     timings.llmCallStart = llmCallStartTime;
     if (timings.preProcessingEnd) {
       timings.sttToLlmGap = llmCallStartTime - timings.preProcessingEnd;
-      console.log(`⏱️ [TIMING] Gap between pre-processing and LLM call: ${timings.sttToLlmGap}ms`);
+      log().info(`⏱️ [TIMING] Gap between pre-processing and LLM call: ${timings.sttToLlmGap}ms`);
     }
-    console.log(`⏱️ [TIMING] LLM call started at ${llmCallStartTime}`);
+    log().info(`⏱️ [TIMING] LLM call started at ${llmCallStartTime}`);
 
     // Get default LLM stream
     const stream = await voice.Agent.default.llmNode(this, chatCtx, toolCtx, modelSettings);
@@ -601,7 +601,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
               controller.enqueue(text);
             } catch (err) {
               streamClosed = true;
-              console.warn('⚠️ [llmNode] Attempted to enqueue after close, skipping', err);
+              log().warn('⚠️ [llmNode] Attempted to enqueue after close, skipping', err);
             }
           };
 
@@ -615,34 +615,34 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                 timings.llmStreamEnd = llmStreamEndTime;
                 if (timings.llmCallStart) {
                   timings.llmTotalTime = llmStreamEndTime - timings.llmCallStart;
-                  console.log(`⏱️ [TIMING] LLM total generation time: ${timings.llmTotalTime}ms`);
+                  log().info(`⏱️ [TIMING] LLM total generation time: ${timings.llmTotalTime}ms`);
                 }
                 if (timings.llmFirstToken) {
                   timings.llmGenerationTime = llmStreamEndTime - timings.llmFirstToken;
-                  console.log(`⏱️ [TIMING] LLM generation time (after first token): ${timings.llmGenerationTime}ms`);
+                  log().info(`⏱️ [TIMING] LLM generation time (after first token): ${timings.llmGenerationTime}ms`);
                 }
 
                 // Log the complete unfiltered response before any processing
-                console.log('\n' + '='.repeat(80));
-                console.log('📥 [LLM RAW RESPONSE] Complete unfiltered response from LLM:');
-                console.log('='.repeat(80));
-                console.log(rawUnfilteredResponse);
-                console.log('='.repeat(80));
-                console.log(`📏 [LLM RAW RESPONSE] Total length: ${rawUnfilteredResponse.length} characters`);
-                console.log(`📏 [LLM RAW RESPONSE] Buffer length (after tag processing): ${buffer.length} characters`);
-                console.log('='.repeat(80) + '\n');
+                log().info('\n' + '='.repeat(80));
+                log().info('📥 [LLM RAW RESPONSE] Complete unfiltered response from LLM:');
+                log().info('='.repeat(80));
+                log().info(rawUnfilteredResponse);
+                log().info('='.repeat(80));
+                log().info(`📏 [LLM RAW RESPONSE] Total length: ${rawUnfilteredResponse.length} characters`);
+                log().info(`📏 [LLM RAW RESPONSE] Buffer length (after tag processing): ${buffer.length} characters`);
+                log().info('='.repeat(80) + '\n');
 
                 if (buffer) {
                   // Flush remaining buffer (ensure no partial tags)
                   const cleaned = cleanResponseText(buffer);
-                  console.log(`🧹 [LLM CLEANED RESPONSE] After cleaning: ${cleaned.length} characters`);
-                  console.log(`🧹 [LLM CLEANED RESPONSE] Content: "${cleaned.substring(0, 200)}${cleaned.length > 200 ? '...' : ''}"`);
+                  log().info(`🧹 [LLM CLEANED RESPONSE] After cleaning: ${cleaned.length} characters`);
+                  log().info(`🧹 [LLM CLEANED RESPONSE] Content: "${cleaned.substring(0, 200)}${cleaned.length > 200 ? '...' : ''}"`);
                   safeEnqueue(cleaned);
                 }
 
                 // Check if tag was missing and inject it into chat context
                 if (!tagFound) {
-                  console.error('🚨🚨🚨 [llmNode] CRITICAL: LLM response missing tag! Injecting fallback tag into chat context.');
+                  log().error('🚨🚨🚨 [llmNode] CRITICAL: LLM response missing tag! Injecting fallback tag into chat context.');
 
                   const { stateProvider, interviewId } = agent.session.userData;
                   const state = stateProvider.getState(interviewId);
@@ -667,7 +667,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                       fallbackTag = 'NEXT';
                     }
 
-                    console.log(`🔧 [llmNode] Determined fallback tag: ${fallbackTag} (depths: hint=${hintDepth}, clarify=${clarificationDepth}, generic=${genericDepth}, followup=${followUpDepth})`);
+                    log().info(`🔧 [llmNode] Determined fallback tag: ${fallbackTag} (depths: hint=${hintDepth}, clarify=${clarificationDepth}, generic=${genericDepth}, followup=${followUpDepth})`);
 
                     // Update state with the fallback tag
                     agent.handleIntentTag(fallbackTag);
@@ -682,13 +682,13 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     content: responseWithTag
                   });
 
-                  console.log(`✅ [llmNode] Added tagged message to chat context: [${fallbackTag}] ${cleanedBuffer.substring(0, 100)}${cleanedBuffer.length > 100 ? '...' : ''}`);
+                  log().info(`✅ [llmNode] Added tagged message to chat context: [${fallbackTag}] ${cleanedBuffer.substring(0, 100)}${cleanedBuffer.length > 100 ? '...' : ''}`);
                 }
 
                 // If a [NEXT] tag was detected, append the next question (or coding transition)
                 if (nextTagDetected) {
                   try {
-                    console.log('🚀 [llmNode] [NEXT] tag previously detected - appending next question after full LLM response');
+                    log().info('🚀 [llmNode] [NEXT] tag previously detected - appending next question after full LLM response');
 
                     const { orchestrator, stateProvider, interviewId } = agent.session.userData;
                     const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
@@ -728,7 +728,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                             content: dsaSystemPrompt
                           });
                           (agent.session.userData as any).dsaPromptInjected = true;
-                          console.log('🔄 [llmNode] HOT SWAPPED to DSA system prompt');
+                          log().info('🔄 [llmNode] HOT SWAPPED to DSA system prompt');
                         }
 
                         // THEN inject problem context
@@ -744,14 +744,14 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                           role: 'user',
                           content: problemContextMessage
                         });
-                        console.log('📝 [llmNode] Injected coding problem into ChatContext (hidden from speech)');
+                        log().info('📝 [llmNode] Injected coding problem into ChatContext (hidden from speech)');
                       } else {
                         responseAppendix = ' That completes the interview. Thank you!';
                       }
                     } else if (question) {
                       // Next theoretical question
                       responseAppendix = ` ${question.question}`;
-                      console.log('📝 [llmNode] Next question from orchestrator (appended):', question.question);
+                      log().info({ question: question.question }, '📝 [llmNode] Next question from orchestrator (appended):');
                       const { sendQuestionToUI } = agent.session.userData;
                       if (sendQuestionToUI) {
                         const state = stateProvider.getState(interviewId);
@@ -764,8 +764,8 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                       responseAppendix = ' That completes all the questions. Thank you!';
                     }
 
-                    console.log('🗣️ [llmNode] Appending response with next question / transition');
-                    console.log('📝 Appendix:', responseAppendix.substring(0, 150) + '...');
+                    log().info('🗣️ [llmNode] Appending response with next question / transition');
+                    log().info({ appendix: responseAppendix.substring(0, 150) + '...' }, '📝 Appendix:');
 
                     if (responseAppendix) {
                       safeEnqueue(responseAppendix);
@@ -774,7 +774,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     // Clear the pending flag since we handled it here
                     (agent.session.userData as any).pendingNextQuestion = false;
                   } catch (err) {
-                    console.error('❌ [llmNode] Failed while appending next question after [NEXT] tag:', err);
+                    log().error('❌ [llmNode] Failed while appending next question after [NEXT] tag:', err);
                   }
                 }
 
@@ -796,7 +796,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                   timings.llmFirstToken = firstTokenTime;
                   if (timings.llmCallStart) {
                     timings.llmTTFT = firstTokenTime - timings.llmCallStart;
-                    console.log(`⏱️ [TIMING] LLM Time to First Token (TTFT): ${timings.llmTTFT}ms`);
+                    log().info(`⏱️ [TIMING] LLM Time to First Token (TTFT): ${timings.llmTTFT}ms`);
                   }
                 }
 
@@ -805,7 +805,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
                 // PROCESS TAGS ONLY AT THE START
                 if (!tagProcessed) {
-                  const tagMatch = buffer.match(/^\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE)\]/);
+                  const tagMatch = buffer.match(/^\s*\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE|OFF_TOPIC)\]/);
 
                   if (tagMatch) {
                     const intent = tagMatch[1];
