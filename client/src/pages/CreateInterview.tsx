@@ -31,6 +31,7 @@ import {
   PlusOutlined,
   CaretRightOutlined,
   DownloadOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -132,15 +133,13 @@ export const CreateInterview: React.FC = () => {
   const jobId = Form.useWatch('jobId', form);
   const yearsOfExperience = Form.useWatch('yearsOfExperience', form);
   const roleValue = Form.useWatch('role', form);
-  const maxInterviewQuestions = Form.useWatch('maxInterviewQuestions', form);
-  const maxMachineCodingQuestions = Form.useWatch('maxMachineCodingQuestions', form);
+  const maxInterviewQuestions = 30;
+  const maxMachineCodingQuestions = 5;
   const hasFilledInterviewDetails =
     Boolean(jobTitle) &&
     Boolean(jobId) &&
     (yearsOfExperience || yearsOfExperience === 0) &&
-    Boolean(roleValue) &&
-    (maxInterviewQuestions || maxInterviewQuestions === 0) &&
-    (maxMachineCodingQuestions || maxMachineCodingQuestions === 0);
+    Boolean(roleValue);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -271,10 +270,18 @@ export const CreateInterview: React.FC = () => {
     try {
       const text = await file.text();
       const result = parseTheoreticalQuestionCsv(text);
-      setManualTheoreticalQuestions(result.questions);
+
+      let validQuestions = result.questions;
+      if (validQuestions.length > 30) {
+        validQuestions = validQuestions.slice(0, 30);
+        message.warning(`CSV contained more than 30 questions. Truncated to first 30.`);
+      }
+
+      setManualTheoreticalQuestions(validQuestions);
       setCsvErrors(result.errors);
-      if (result.questions.length > 0) {
-        message.success(`Parsed ${result.questions.length} theoretical questions`);
+
+      if (validQuestions.length > 0) {
+        message.success(`Parsed ${validQuestions.length} theoretical questions`);
       } else if (result.errors.length > 0) {
         message.error(result.errors[0]);
       }
@@ -318,6 +325,12 @@ export const CreateInterview: React.FC = () => {
           updated[editingCodingQuestionIndex] = values;
           return updated;
         }
+
+        if (prev.length >= 5) {
+          message.warning('Maximum of 5 manual coding questions allowed.');
+          return prev;
+        }
+
         return [...prev, values];
       });
       setCodingModalVisible(false);
@@ -425,7 +438,6 @@ export const CreateInterview: React.FC = () => {
 
       const descriptionParts = [
         `Interview for ${values.jobTitle} (${values.jobId}) - ${roleText} with ${values.yearsOfExperience} years experience.`,
-        `Max Questions: ${values.maxInterviewQuestions}, Max Machine Coding: ${values.maxMachineCodingQuestions}.`,
         topicsDescription,
         machineCodingDescription
       ].filter(part => part.length > 0); // Remove empty parts
@@ -443,8 +455,8 @@ export const CreateInterview: React.FC = () => {
         jobId: values.jobId,
         role: Array.isArray(values.role) ? values.role.join(', ') : values.role,
         yearsOfExperience: values.yearsOfExperience,
-        maxInterviewQuestions: values.maxInterviewQuestions,
-        maxMachineCodingQuestions: values.maxMachineCodingQuestions,
+        maxInterviewQuestions: 30,
+        maxMachineCodingQuestions: 5,
         topics: JSON.stringify(enabledTopics),
         machineQuestions: JSON.stringify(machineQuestions),
         questionSource: selectedSource,
@@ -491,24 +503,24 @@ export const CreateInterview: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: spacing.xl }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '32px 0' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
         {/* Header */}
         <div
           style={{
-            background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-            borderRadius: 16,
-            padding: spacing.xl,
-            marginBottom: spacing.xl,
-            color: 'white',
+            background: colors.primary.main,
+            borderRadius: 8,
+            padding: '24px 32px',
+            marginBottom: 32,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
           }}
         >
           <Row justify="space-between" align="middle">
             <Col>
-              <Title level={2} style={{ color: 'white', margin: 0 }}>
+              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1, color: '#FFFFFF' }}>
                 {isEditMode ? 'Edit Interview' : 'Create a New Interview'}
               </Title>
-              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16 }}>
+              <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: 14, lineHeight: 1.6 }}>
                 {isEditMode
                   ? 'Update interview details and adjust question configuration.'
                   : 'Set up interview details and configure question topics'}
@@ -519,10 +531,15 @@ export const CreateInterview: React.FC = () => {
                 icon={<ArrowLeftOutlined />}
                 onClick={handleBack}
                 size="large"
+                type="text"
                 style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  color: 'white',
+                  color: '#FFFFFF',
+                  background: 'rgba(255, 255, 255, 0.2)',
                   border: 'none',
+                  borderRadius: 6,
+                  height: 36,
+                  fontSize: 14,
+                  padding: '0 16px',
                 }}
               >
                 Back to Dashboard
@@ -534,10 +551,12 @@ export const CreateInterview: React.FC = () => {
         {/* Main Form */}
         <Card
           style={{
-            borderRadius: 16,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            padding: spacing.xl,
+            borderRadius: 8,
+            border: '1px solid #E5E7EB',
+            boxShadow: 'none',
+            background: '#FFFFFF',
           }}
+          bodyStyle={{ padding: 32 }}
         >
           <Spin spinning={prefillLoading}>
             <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -553,669 +572,684 @@ export const CreateInterview: React.FC = () => {
                   manualCodingQuestions: [],
                 }}
               >
-            <Row gutter={[60, 32]}>
-              {/* Left Section - Basic Details */}
-              <Col xs={24} lg={24} style={{ marginBottom: spacing.xl }}>
-                <Title level={4} style={{ marginBottom: spacing.lg }}>
-                  Interview Details
-                </Title>
-
-                <Form.Item
-                  name="jobTitle"
-                  label="Job Title"
-                  rules={[{ required: true, message: 'Please enter job title' }]}
-                >
-                  <Input placeholder="e.g., Senior Frontend Developer" size="large" />
-                </Form.Item>
-
-                <Row gutter={16}>
-                  <Col xs={24} sm={12}>
-                    <Form.Item
-                      name="jobId"
-                      label="Job ID"
-                      rules={[{ required: true, message: 'Please enter job ID' }]}
-                    >
-                      <Input placeholder="e.g., JOB-2024-001" size="large" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item
-                      name="yearsOfExperience"
-                      label="Years of Experience"
-                      rules={[{ required: true, message: 'Please enter years of experience' }]}
-                    >
-                      <InputNumber
-                        placeholder="e.g., 3"
-                        min={0}
-                        max={20}
-                        style={{ width: '100%' }}
-                        size="large"
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
-                <Form.Item
-                  name="role"
-                  label="Choose Role"
-                  rules={[{ required: true, message: 'Please select a role' }]}
-                >
-                  <Select
-                    placeholder="Search and select role"
-                    size="large"
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    options={INTERVIEW_ROLES}
-                  />
-                </Form.Item>
-
-                <Row gutter={16}>
-                  <Col xs={24} sm={12}>
-                    <Form.Item
-                      name="maxInterviewQuestions"
-                      label="Max Theoretical Questions"
-                      rules={[{ required: true, message: 'Please enter max interview questions' }]}
-                    >
-                      <InputNumber
-                        placeholder="e.g., 10"
-                        min={1}
-                        max={60}
-                        style={{ width: '100%' }}
-                        size="large"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item
-                      name="maxMachineCodingQuestions"
-                      label="Max Machine Coding Questions"
-                      rules={[{ required: true, message: 'Please enter max machine coding questions' }]}
-                    >
-                      <InputNumber
-                        placeholder="e.g., 2"
-                        min={0}
-                        max={6}
-                        style={{ width: '100%' }}
-                        size="large"
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
-                {/* Expiry Date Field */}
-                <Form.Item
-                  name="expiryDate"
-                  label="Expiry Date (Optional)"
-                >
-                  <DatePicker
-                    placeholder="Select expiry date"
-                    size="large"
-                    style={{
-                      width: '100%',
-                      borderRadius: 8,
-                    }}
-                    format="YYYY-MM-DD"
-                    showTime={false}
-                    allowClear
-                    disabledDate={(current) => {
-                      // Disable dates before today
-                      return current && current < dayjs().startOf('day');
-                    }}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Right Section - Question Topics */}
-                            
-              <Col xs={24} lg={24}>
-                <div
-                  style={{
-                    border: '1px solid #f0f0f0',
-                    borderRadius: 12,
-                    background: '#fff',
-                    marginBottom: spacing.lg,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: spacing.md,
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setQuestionPanelOpen((prev) => !prev)}
-                  >
-                    <Title level={5} style={{ margin: 0 }}>
-                      Question Source & Topics
+                <Row gutter={[60, 32]}>
+                  {/* Left Section - Basic Details */}
+                  <Col xs={24} lg={24} style={{ marginBottom: spacing.xl }}>
+                    <Title level={4} style={{ marginBottom: spacing.lg }}>
+                      Interview Details
                     </Title>
-                    <CaretRightOutlined rotate={questionPanelOpen ? 90 : 0} />
-                  </div>
-                  {questionPanelOpen && (
-                    <div style={{ padding: spacing.md, paddingTop: 0 }}>
-                      <Form.Item name="questionSource" label="Question Source" style={{ marginBottom: spacing.md }}>
-                        <Radio.Group>
-                          <Radio.Button value="auto">AI / Question Bank</Radio.Button>
-                          <Radio.Button value="manual">Manual Upload</Radio.Button>
-                        </Radio.Group>
-                      </Form.Item>
-                      {!isManualSource ? (
-                        <>
-                          <Title level={5} style={{ marginBottom: spacing.md }}>
-                            Interview Questions Topics:
-                          </Title>
-                          <div style={{ marginBottom: spacing.lg }}>
-                            <Select
-                              placeholder="Search and select technology"
-                              showSearch
-                              size="large"
-                              style={{ width: '100%' }}
-                              filterOption={(input, option) =>
-                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                              }
-                              options={TECH_STACKS}
-                              onSelect={(value) => {
-                                const currentTopics = form.getFieldValue('topics') || [];
-                                const techExists = currentTopics.some((topic: any) => topic.name === value);
-                                if (!techExists) {
-                                  form.setFieldsValue({
-                                    topics: [...currentTopics, { name: value, questionCount: 1, enabled: true }],
-                                  });
-                                }
-                              }}
-                            />
-                          </div>
-                          <div style={{ marginBottom: spacing.lg }}>
-                            <div
-                              style={{
-                                minHeight: '120px',
-                                border: '2px dashed #d9d9d9',
-                                borderRadius: '8px',
-                                padding: spacing.md,
-                                background: '#fafafa',
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: spacing.sm,
-                                alignItems: 'flex-start',
-                                alignContent: 'flex-start',
-                              }}
-                            >
-                              <Form.List name="topics">
-                                {(fields, { remove }) => (
-                                  <>
-                                    {fields
-                                      .filter(({ name }) => {
-                                        const techName = form.getFieldValue(['topics', name, 'name']);
-                                        return techName && techName.trim() !== '';
-                                      })
-                                      .map(({ key, name, ...restField }) => (
-                                        <div
-                                          key={key}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            background: 'white',
-                                            color: '#333',
-                                            padding: '4px 8px',
-                                            borderRadius: '20px',
-                                            border: '1px solid #d9d9d9',
-                                            minWidth: '160px',
-                                            justifyContent: 'space-between',
-                                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                                            gap: '12px',
-                                          }}
-                                        >
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                                            <Button
-                                              type="text"
-                                              size="small"
-                                              icon={<MinusCircleOutlined />}
-                                              onClick={() => remove(name)}
+
+                    <Form.Item
+                      name="jobTitle"
+                      label="Job Title"
+                      rules={[{ required: true, message: 'Please enter job title' }]}
+                    >
+                      <Input placeholder="e.g., Senior Java Developer - Payments Team" size="large" />
+                    </Form.Item>
+
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
+                        <Form.Item
+                          name="jobId"
+                          label="Job ID"
+                          rules={[{ required: true, message: 'Please enter job ID' }]}
+                        >
+                          <Input placeholder="e.g., JOB-2024-001" size="large" />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12}>
+                        <Form.Item
+                          name="yearsOfExperience"
+                          label="Years of Experience"
+                          rules={[{ required: true, message: 'Please enter years of experience' }]}
+                        >
+                          <InputNumber
+                            placeholder="e.g., 3"
+                            min={0}
+                            max={20}
+                            style={{ width: '100%' }}
+                            size="large"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
+                        <Form.Item
+                          name="role"
+                          label="Choose Role"
+                          rules={[{ required: true, message: 'Please select a role' }]}
+                        >
+                          <Select
+                            placeholder="Search and select role"
+                            size="large"
+                            showSearch
+                            filterOption={(input, option) =>
+                              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                            options={INTERVIEW_ROLES}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12}>
+                        {/* Expiry Date Field */}
+                        <Form.Item
+                          name="expiryDate"
+                          label="Expiry Date (Optional)"
+                        >
+                          <DatePicker
+                            placeholder="Select expiry date"
+                            size="large"
+                            style={{
+                              width: '100%',
+                              borderRadius: 8,
+                            }}
+                            format="YYYY-MM-DD"
+                            showTime={false}
+                            allowClear
+                            disabledDate={(current) => {
+                              // Disable dates before today
+                              return current && current < dayjs().startOf('day');
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Col>
+
+                  {/* Right Section - Question Topics */}
+
+                  <Col xs={24} lg={24}>
+                    <div
+                      style={{
+                        border: '1px solid #f0f0f0',
+                        borderRadius: 12,
+                        background: '#fff',
+                        marginBottom: spacing.lg,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: spacing.md,
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => setQuestionPanelOpen((prev) => !prev)}
+                      >
+                        <Title level={5} style={{ margin: 0 }}>
+                          Question Source & Topics
+                        </Title>
+                        <CaretRightOutlined rotate={questionPanelOpen ? 90 : 0} />
+                      </div>
+                      {questionPanelOpen && (
+                        <div style={{ padding: spacing.md, paddingTop: spacing.md }}>
+                          <Form.Item name="questionSource" style={{ marginBottom: spacing.xl }}>
+                            <Radio.Group style={{ display: 'flex', width: '100%' }}>
+                              <Radio.Button value="auto" style={{ flex: 1, textAlign: 'center' }}>Shakra's Question Bank</Radio.Button>
+                              <Radio.Button value="manual" style={{ flex: 1, textAlign: 'center' }}>Upload Your Own Questions</Radio.Button>
+                            </Radio.Group>
+                          </Form.Item>
+                          {!isManualSource ? (
+                            <>
+                              <Title level={5} style={{ marginBottom: spacing.md, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                Theoretical Questions Topics:
+                                <Tooltip title="Max questions: 30">
+                                  <InfoCircleOutlined style={{ color: '#9CA3AF', fontSize: 14, cursor: 'pointer' }} />
+                                </Tooltip>
+                              </Title>
+                              <div style={{ marginBottom: spacing.lg }}>
+                                <Select
+                                  placeholder="Search and select technology"
+                                  showSearch
+                                  size="large"
+                                  style={{ width: '100%' }}
+                                  filterOption={(input, option) =>
+                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                  }
+                                  options={TECH_STACKS}
+                                  onSelect={(value) => {
+                                    const currentTopics = form.getFieldValue('topics') || [];
+                                    const techExists = currentTopics.some((topic: any) => topic.name === value);
+
+                                    // Check global limit
+                                    const currentTotal = currentTopics.reduce((sum: number, t: TopicItem) => sum + (t.questionCount || 0), 0);
+                                    if (currentTotal >= maxInterviewQuestions) {
+                                      message.warning(`Maximum total of ${maxInterviewQuestions} theoretical questions reached.`);
+                                      return;
+                                    }
+
+                                    if (!techExists) {
+                                      form.setFieldsValue({
+                                        topics: [...currentTopics, { name: value, questionCount: 1, enabled: true }],
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div style={{ marginBottom: spacing.lg }}>
+                                <div
+                                  style={{
+                                    minHeight: '120px',
+                                    border: '2px dashed #d9d9d9',
+                                    borderRadius: '8px',
+                                    padding: spacing.md,
+                                    background: '#fafafa',
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: spacing.sm,
+                                    alignItems: 'flex-start',
+                                    alignContent: 'flex-start',
+                                  }}
+                                >
+                                  <Form.List name="topics">
+                                    {(fields, { remove }) => (
+                                      <>
+                                        {fields
+                                          .filter(({ name }) => {
+                                            const techName = form.getFieldValue(['topics', name, 'name']);
+                                            return techName && techName.trim() !== '';
+                                          })
+                                          .map(({ key, name, ...restField }) => (
+                                            <div
+                                              key={key}
                                               style={{
-                                                color: '#ff4d4f',
-                                                padding: '0',
-                                                minWidth: 'auto',
-                                                height: 'auto',
-                                                background: 'transparent',
-                                                borderRadius: '50%',
-                                                border: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                background: 'white',
+                                                color: '#333',
+                                                padding: '4px 8px',
+                                                borderRadius: '20px',
+                                                border: '1px solid #d9d9d9',
+                                                minWidth: '160px',
+                                                justifyContent: 'space-between',
+                                                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                                                gap: '12px',
                                               }}
-                                            />
-                                            <Form.Item {...restField} name={[name, 'name']} style={{ margin: 0, flex: 1 }}>
-                                              <span
-                                                style={{
-                                                  fontSize: '14px',
-                                                  fontWeight: 500,
-                                                  color: '#333',
-                                                  minWidth: '80px',
-                                                  textAlign: 'left',
-                                                }}
+                                            >
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                                                <Button
+                                                  type="text"
+                                                  size="small"
+                                                  icon={<MinusCircleOutlined />}
+                                                  onClick={() => remove(name)}
+                                                  style={{
+                                                    color: '#ff4d4f',
+                                                    padding: '0',
+                                                    minWidth: 'auto',
+                                                    height: 'auto',
+                                                    background: 'transparent',
+                                                    borderRadius: '50%',
+                                                    border: 'none',
+                                                  }}
+                                                />
+                                                <Form.Item {...restField} name={[name, 'name']} style={{ margin: 0, flex: 1 }}>
+                                                  <span
+                                                    style={{
+                                                      fontSize: '14px',
+                                                      fontWeight: 500,
+                                                      color: '#333',
+                                                      minWidth: '80px',
+                                                      textAlign: 'left',
+                                                    }}
+                                                  >
+                                                    {form.getFieldValue(['topics', name, 'name']) || ''}
+                                                  </span>
+                                                </Form.Item>
+                                              </div>
+                                              <Form.Item
+                                                {...restField}
+                                                name={[name, 'questionCount']}
+                                                style={{ margin: 0 }}
+                                                initialValue={1}
                                               >
-                                                {form.getFieldValue(['topics', name, 'name']) || ''}
-                                              </span>
-                                            </Form.Item>
-                                          </div>
-                                          <Form.Item
-                                            {...restField}
-                                            name={[name, 'questionCount']}
-                                            style={{ margin: 0 }}
-                                            initialValue={1}
-                                          >
-                                            <Tooltip title="Number of questions for this topic">
-                                              <InputNumber
-                                                min={1}
-                                                max={50}
-                                                size="small"
-                                                bordered={false}
-                                                controls
-                                                value={form.getFieldValue(['topics', name, 'questionCount']) || 1}
-                                                style={{
-                                                  width: '50px',
-                                                  textAlign: 'center',
-                                                  color: '#333',
-                                                  background: '#fafafa',
-                                                  borderRadius: '12px',
-                                                  fontWeight: 'bold',
-                                                  fontSize: '12px',
-                                                }}
-                                                onChange={(value) => {
-                                                  const newTopics = form.getFieldValue('topics');
-                                                  if (newTopics && newTopics[name]) {
-                                                    newTopics[name].questionCount = value || 1;
-                                                    form.setFieldValue('topics', newTopics);
-                                                  }
-                                                }}
-                                              />
-                                            </Tooltip>
-                                          </Form.Item>
-                                        </div>
-                                      ))}
-                                    {fields.length === 0 && (
-                                      <div
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          width: '100%',
-                                          height: '60px',
-                                          color: '#999',
-                                          fontSize: '14px',
-                                        }}
-                                      >
-                                        No technologies selected. Use the search above to add some.
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </Form.List>
-                            </div>
-                          </div>
+                                                <Tooltip title="Number of questions for this topic">
+                                                  <InputNumber
+                                                    min={1}
+                                                    size="small"
+                                                    bordered={false}
+                                                    controls
+                                                    value={form.getFieldValue(['topics', name, 'questionCount']) || 1}
+                                                    style={{
+                                                      width: '50px',
+                                                      textAlign: 'center',
+                                                      color: '#333',
+                                                      background: '#fafafa',
+                                                      borderRadius: '12px',
+                                                      fontWeight: 'bold',
+                                                      fontSize: '12px',
+                                                    }}
+                                                    onChange={(value) => {
+                                                      const newTopics = form.getFieldValue('topics');
+                                                      if (newTopics && newTopics[name]) {
+                                                        // Calculate potential new total
+                                                        const otherTopicsTotal = newTopics.reduce((sum: number, t: TopicItem, idx: number) => {
+                                                          return idx === name ? sum : sum + (t.questionCount || 0);
+                                                        }, 0);
 
-                          <Title level={5} style={{ marginBottom: spacing.md }}>
-                            Machine Coding Questions:
-                          </Title>
-                          <div style={{ marginBottom: spacing.lg }}>
-                            <Select
-                              placeholder="Search and select machine coding topic"
-                              showSearch
-                              size="large"
-                              style={{ width: '100%' }}
-                              filterOption={(input, option) =>
-                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                              }
-                              options={MACHINE_CODING_TOPICS}
-                              onSelect={(value) => {
-                                const current = form.getFieldValue('machineQuestions') || [];
-                                const topicCount = current.filter((q: MachineQuestionItem) => q.topic === value).length;
-                                if (topicCount < 2) {
-                                  form.setFieldsValue({
-                                    machineQuestions: [...current, { topic: value, difficulty: 'easy' }],
-                                  });
-                                } else {
-                                  message.warning('This topic can only be selected twice maximum');
-                                }
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <div
-                              style={{
-                                minHeight: '120px',
-                                border: '2px dashed #d9d9d9',
-                                borderRadius: '8px',
-                                padding: spacing.md,
-                                background: '#fafafa',
-                              }}
-                            >
-                              <Form.List name="machineQuestions">
-                                {(fields, { remove }) => (
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }}>
-                                    {fields.map(({ key, name, ...restField }) => {
-                                      const currentQuestions = form.getFieldValue('machineQuestions') || [];
-                                      const currentTopic = form.getFieldValue(['machineQuestions', name, 'topic']);
-                                      const topicCount = currentQuestions.filter((q: MachineQuestionItem) => q.topic === currentTopic).length;
-                                      const isDuplicate = currentQuestions.filter((q: MachineQuestionItem, index: number) =>
-                                        q.topic === currentTopic && index <= name
-                                      ).length > 1;
+                                                        if (otherTopicsTotal + (value || 0) > maxInterviewQuestions) {
+                                                          message.warning(`Total questions cannot exceed ${maxInterviewQuestions}`);
+                                                          // Reset to max possible for this field or keep old value
+                                                          // For now just don't update if it exceeds
+                                                          return;
+                                                        }
 
-                                      return (
-                                        <div
-                                          key={key}
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            background: 'white',
-                                            border: '1px solid #d9d9d9',
-                                            borderRadius: 8,
-                                            padding: '12px',
-                                            gap: '8px',
-                                          }}
-                                        >
+                                                        newTopics[name].questionCount = value || 1;
+                                                        form.setFieldValue('topics', newTopics);
+                                                      }
+                                                    }}
+                                                  />
+                                                </Tooltip>
+                                              </Form.Item>
+                                            </div>
+                                          ))}
+                                        {fields.length === 0 && (
                                           <div
                                             style={{
                                               display: 'flex',
                                               alignItems: 'center',
-                                              justifyContent: 'space-around',
-                                              gap: '8px',
+                                              justifyContent: 'center',
+                                              width: '100%',
+                                              height: '60px',
+                                              color: '#999',
+                                              fontSize: '14px',
                                             }}
                                           >
-                                            <Button
-                                              type="text"
-                                              size="small"
-                                              icon={<MinusCircleOutlined />}
-                                              onClick={() => remove(name)}
-                                              style={{ color: '#ff4d4f' }}
-                                            />
-                                            <Form.Item {...restField} name={[name, 'topic']} style={{ margin: 0, flex: 1 }}>
-                                              <span style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
-                                                {currentTopic || ''}
-                                                {isDuplicate && (
-                                                  <span
-                                                    style={{
-                                                      marginLeft: 6,
-                                                      background: '#1890ff',
-                                                      color: 'white',
-                                                      borderRadius: '50%',
-                                                      width: 18,
-                                                      height: 18,
-                                                      display: 'inline-flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      fontSize: 9,
-                                                      fontWeight: 'bold',
-                                                      lineHeight: 1,
-                                                      verticalAlign: 'middle',
-                                                    }}
-                                                  >
-                                                    {topicCount}
-                                                  </span>
-                                                )}
-                                              </span>
-                                            </Form.Item>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                              <Form.Item {...restField} name={[name, 'difficulty']} style={{ margin: 0, flex: 1 }}>
-                                                <Select
-                                                  size="small"
-                                                  style={{ width: '100%', minWidth: '80px' }}
-                                                  dropdownStyle={{ minWidth: '92px' }}
-                                                  options={[
-                                                    { value: 'easy', label: 'Easy' },
-                                                    { value: 'medium', label: 'Medium' },
-                                                    { value: 'hard', label: 'Hard' },
-                                                  ]}
-                                                  optionRender={(option) => (
-                                                    <div
-                                                      style={{
-                                                        backgroundColor: option.value === 'easy' ? '#52c41a' : option.value === 'medium' ? '#faad14' : '#ff4d4f',
-                                                        color: 'white',
-                                                        borderRadius: '12px',
-                                                        padding: '2px 8px',
-                                                        fontSize: '11px',
-                                                        fontWeight: '500',
-                                                        display: 'inline-block',
-                                                        minWidth: '50px',
-                                                        textAlign: 'center',
-                                                      }}
-                                                    >
-                                                      {option.label}
-                                                    </div>
-                                                  )}
-                                                />
-                                              </Form.Item>
-                                            </div>
+                                            No technologies selected. Use the search above to add some.
                                           </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {fields.length === 0 && (
-                                      <div
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          width: '100%',
-                                          height: '60px',
-                                          color: '#999',
-                                          fontSize: '14px',
-                                          gridColumn: '1 / -1',
-                                        }}
-                                      >
-                                        No machine coding questions added. Use the search above to add some.
-                                      </div>
+                                        )}
+                                      </>
                                     )}
-                                  </div>
-                                )}
-                              </Form.List>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <Card style={{ borderRadius: 12, marginBottom: spacing.lg }} bodyStyle={{ padding: spacing.md }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: spacing.md,
-                                marginBottom: spacing.sm,
-                              }}
-                            >
-                              <Title level={5} style={{ margin: 0 }}>
-                                Manual Theoretical Questions (CSV Upload)
-                              </Title>
-                              <Button
-                                type="link"
-                                icon={<DownloadOutlined />}
-                                href="/manual-theoretical-sample.csv"
-                                download
-                                style={{ paddingRight: 0 }}
-                              >
-                                Download sample CSV
-                              </Button>
-                            </div>
-                            <Upload.Dragger
-                              accept=".csv"
-                              multiple={false}
-                              showUploadList={false}
-                              beforeUpload={handleCsvUpload}
-                              style={{ background: '#fafafa', borderRadius: 12 }}
-                            >
-                              <div style={{ padding: spacing.lg }}>
-                                <p className="ant-upload-drag-icon" style={{ marginBottom: spacing.sm }}>
-                                  <UploadOutlined />
-                                </p>
-                                <p className="ant-upload-text" style={{ fontSize: 13 }}>
-                                  Click or drag CSV file with theoretical questions
-                                </p>
-                                <p className="ant-upload-hint" style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
-                                  Required columns (marked *): question*, topic*, difficulty*, expectedAnswer*. Optional: explanation, keyPoints.
-                                </p>
-                              </div>
-                            </Upload.Dragger>
-                            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
-                              Sample file includes * on compulsory headers; uploads will accept those markers automatically.
-                            </Text>
-                            {csvErrors.length > 0 && (
-                              <div style={{ marginTop: spacing.md }}>
-                                {csvErrors.map((error, idx) => (
-                                  <Alert key={idx} message={error} type="warning" showIcon style={{ marginBottom: spacing.xs }} />
-                                ))}
-                              </div>
-                            )}
-                            {manualTheoreticalQuestions.length > 0 && (
-                              <div style={{ marginTop: spacing.md }}>
-                                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8 }}>
-                                  <Table
-                                    size="small"
-                                    pagination={false}
-                                    rowKey="id"
-                                    dataSource={manualTheoreticalQuestions}
-                                    columns={[
-                                      { title: 'Question', dataIndex: 'question', ellipsis: true },
-                                      { title: 'Topic', dataIndex: 'topic' },
-                                      { title: 'Difficulty', dataIndex: 'difficulty' },
-                                      {
-                                        title: 'Key Points',
-                                        dataIndex: 'keyPoints',
-                                        render: (value?: string[]) => value?.join(', ') || '-',
-                                      },
-                                    ]}
-                                  />
+                                  </Form.List>
                                 </div>
-                                <Button
-                                  type="link"
-                                  danger
-                                  style={{ paddingLeft: 0, marginTop: spacing.sm }}
-                                  onClick={() => {
-                                    setManualTheoreticalQuestions([]);
-                                    setCsvErrors([]);
+                              </div>
+
+                              <Title level={5} style={{ marginBottom: spacing.md, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                Coding Questions:
+                                <Tooltip title="Max questions: 5">
+                                  <InfoCircleOutlined style={{ color: '#9CA3AF', fontSize: 14, cursor: 'pointer' }} />
+                                </Tooltip>
+                              </Title>
+                              <div style={{ marginBottom: spacing.lg }}>
+                                <Select
+                                  placeholder="Search and select machine coding topic"
+                                  showSearch
+                                  size="large"
+                                  style={{ width: '100%' }}
+                                  filterOption={(input, option) =>
+                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                  }
+                                  options={MACHINE_CODING_TOPICS}
+                                  onSelect={(value) => {
+                                    const current = form.getFieldValue('machineQuestions') || [];
+
+                                    // Check global limit
+                                    if (current.length >= maxMachineCodingQuestions) {
+                                      message.warning(`Maximum of ${maxMachineCodingQuestions} machine coding questions reached.`);
+                                      return;
+                                    }
+
+                                    const topicCount = current.filter((q: MachineQuestionItem) => q.topic === value).length;
+                                    if (topicCount < 2) {
+                                      form.setFieldsValue({
+                                        machineQuestions: [...current, { topic: value, difficulty: 'easy' }],
+                                      });
+                                    } else {
+                                      message.warning('This topic can only be selected twice maximum');
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <div
+                                  style={{
+                                    minHeight: '120px',
+                                    border: '2px dashed #d9d9d9',
+                                    borderRadius: '8px',
+                                    padding: spacing.md,
+                                    background: '#fafafa',
                                   }}
                                 >
-                                  Clear uploaded questions
-                                </Button>
-                              </div>
-                            )}
-                          </Card>
+                                  <Form.List name="machineQuestions">
+                                    {(fields, { remove }) => (
+                                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }}>
+                                        {fields.map(({ key, name, ...restField }) => {
+                                          const currentQuestions = form.getFieldValue('machineQuestions') || [];
+                                          const currentTopic = form.getFieldValue(['machineQuestions', name, 'topic']);
+                                          const topicCount = currentQuestions.filter((q: MachineQuestionItem) => q.topic === currentTopic).length;
+                                          const isDuplicate = currentQuestions.filter((q: MachineQuestionItem, index: number) =>
+                                            q.topic === currentTopic && index <= name
+                                          ).length > 1;
 
-                          <Card
-                            style={{ borderRadius: 12 }}
-                            title="Manual Coding Questions"
-                            extra={
-                              <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => openCodingModal()}
-                                style={{
-                                  height: 32,
-                                  padding: '0 14px',
-                                  fontSize: 13,
-                                  borderRadius: 8,
-                                }}
-                              >
-                                Add Coding Question
-                              </Button>
-                            }
-                          >
-                            {manualCodingQuestions.length === 0 ? (
-                              <Empty description="No coding questions added yet" />
-                            ) : (
-                              <Space direction="vertical" style={{ width: '100%' }}>
-                                {manualCodingQuestions.map((question, idx) => (
-                                  <Card
-                                    key={`manual-coding-${idx}`}
-                                    type="inner"
-                                    title={question.title || 'Untitled'}
-                                    extra={
-                                      <Space size="small">
-                                        <Button type="link" onClick={() => openCodingModal(question, idx)}>
-                                          Edit
-                                        </Button>
-                                        <Button
-                                          type="link"
-                                          danger
-                                          onClick={() =>
-                                            setManualCodingQuestions((prev) => prev.filter((_, questionIdx) => questionIdx !== idx))
-                                          }
-                                        >
-                                          Remove
-                                        </Button>
-                                      </Space>
-                                    }
+                                          return (
+                                            <div
+                                              key={key}
+                                              style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                background: 'white',
+                                                border: '1px solid #d9d9d9',
+                                                borderRadius: 8,
+                                                padding: '12px',
+                                                gap: '8px',
+                                              }}
+                                            >
+                                              <div
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'space-around',
+                                                  gap: '8px',
+                                                }}
+                                              >
+                                                <Button
+                                                  type="text"
+                                                  size="small"
+                                                  icon={<MinusCircleOutlined />}
+                                                  onClick={() => remove(name)}
+                                                  style={{ color: '#ff4d4f' }}
+                                                />
+                                                <Form.Item {...restField} name={[name, 'topic']} style={{ margin: 0, flex: 1 }}>
+                                                  <span style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
+                                                    {currentTopic || ''}
+                                                    {isDuplicate && (
+                                                      <span
+                                                        style={{
+                                                          marginLeft: 6,
+                                                          background: '#1890ff',
+                                                          color: 'white',
+                                                          borderRadius: '50%',
+                                                          width: 18,
+                                                          height: 18,
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          fontSize: 9,
+                                                          fontWeight: 'bold',
+                                                          lineHeight: 1,
+                                                          verticalAlign: 'middle',
+                                                        }}
+                                                      >
+                                                        {topicCount}
+                                                      </span>
+                                                    )}
+                                                  </span>
+                                                </Form.Item>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                  <Form.Item {...restField} name={[name, 'difficulty']} style={{ margin: 0, flex: 1 }}>
+                                                    <Select
+                                                      size="small"
+                                                      style={{ width: '100%', minWidth: '80px' }}
+                                                      dropdownStyle={{ minWidth: '92px' }}
+                                                      options={[
+                                                        { value: 'easy', label: 'Easy' },
+                                                        { value: 'medium', label: 'Medium' },
+                                                        { value: 'hard', label: 'Hard' },
+                                                      ]}
+                                                      optionRender={(option) => (
+                                                        <div
+                                                          style={{
+                                                            backgroundColor: option.value === 'easy' ? '#52c41a' : option.value === 'medium' ? '#faad14' : '#ff4d4f',
+                                                            color: 'white',
+                                                            borderRadius: '12px',
+                                                            padding: '2px 8px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '500',
+                                                            display: 'inline-block',
+                                                            minWidth: '50px',
+                                                            textAlign: 'center',
+                                                          }}
+                                                        >
+                                                          {option.label}
+                                                        </div>
+                                                      )}
+                                                    />
+                                                  </Form.Item>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                        {fields.length === 0 && (
+                                          <div
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              width: '100%',
+                                              height: '60px',
+                                              color: '#999',
+                                              fontSize: '14px',
+                                              gridColumn: '1 / -1',
+                                            }}
+                                          >
+                                            No machine coding questions added. Use the search above to add some.
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </Form.List>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <Card style={{ borderRadius: 12, marginBottom: spacing.lg }} bodyStyle={{ padding: spacing.md }}>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: spacing.md,
+                                    marginBottom: spacing.sm,
+                                  }}
+                                >
+                                  <Title level={5} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    Theoretical Questions (CSV Upload)
+                                    <Tooltip title="Maximum 30 theoretical questions allowed in total">
+                                      <InfoCircleOutlined style={{ color: '#9CA3AF', fontSize: 14, cursor: 'pointer' }} />
+                                    </Tooltip>
+                                  </Title>
+                                  <Button
+                                    type="link"
+                                    icon={<DownloadOutlined />}
+                                    href="/manual-theoretical-sample.csv"
+                                    download
+                                    style={{ paddingRight: 0 }}
                                   >
-                                    <Row gutter={16}>
-                                      <Col xs={24} md={12}>
-                                        <Text strong>Topic:</Text> <Text>{question.topic || '—'}</Text>
-                                      </Col>
-                                      <Col xs={24} md={12}>
-                                        <Text strong>Difficulty:</Text> <Text>{question.difficulty || '—'}</Text>
-                                      </Col>
-                                    </Row>
-                                    <Row gutter={16} style={{ marginTop: spacing.sm }}>
-                                      <Col xs={24} md={12}>
-                                        <Text strong>Time Limit:</Text> <Text>{question.timeLimit ? `${Math.round(question.timeLimit / 60)} min` : '—'}</Text>
-                                      </Col>
-                                      <Col xs={24} md={12}>
-                                        <Text strong>Test Cases:</Text> <Text>{question.testCases?.length || 0}</Text>
-                                      </Col>
-                                    </Row>
-                                  {question.starterCodes && Object.keys(question.starterCodes).length > 0 && (
-                                    <Row gutter={16} style={{ marginTop: spacing.sm }}>
-                                      <Col xs={24}>
-                                        <Text strong>Starter Code:</Text>{' '}
-                                        <Text>
-                                          {Object.keys(question.starterCodes || {}).join(', ')}
-                                        </Text>
-                                      </Col>
-                                    </Row>
-                                  )}
-                                  </Card>
-                                ))}
-                              </Space>
-                            )}
-                          </Card>
-                        </>
+                                    Download sample CSV
+                                  </Button>
+                                </div>
+                                <Upload.Dragger
+                                  accept=".csv"
+                                  multiple={false}
+                                  showUploadList={false}
+                                  beforeUpload={handleCsvUpload}
+                                  style={{ background: '#fafafa', borderRadius: 12 }}
+                                >
+                                  <div style={{ padding: spacing.lg }}>
+                                    <p className="ant-upload-drag-icon" style={{ marginBottom: spacing.sm }}>
+                                      <UploadOutlined />
+                                    </p>
+                                    <p className="ant-upload-text" style={{ fontSize: 13 }}>
+                                      Click or drag CSV file with theoretical questions
+                                    </p>
+                                    <p className="ant-upload-hint" style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+                                      Required columns (marked *): question*, topic*, difficulty*, expectedAnswer*. Optional: explanation, keyPoints.
+                                    </p>
+                                  </div>
+                                </Upload.Dragger>
+                                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: spacing.xs }}>
+                                  Sample file includes * on compulsory headers; uploads will accept those markers automatically.
+                                </Text>
+                                {csvErrors.length > 0 && (
+                                  <div style={{ marginTop: spacing.md }}>
+                                    {csvErrors.map((error, idx) => (
+                                      <Alert key={idx} message={error} type="warning" showIcon style={{ marginBottom: spacing.xs }} />
+                                    ))}
+                                  </div>
+                                )}
+                                {manualTheoreticalQuestions.length > 0 && (
+                                  <div style={{ marginTop: spacing.md }}>
+                                    <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                                      <Table
+                                        size="small"
+                                        pagination={false}
+                                        rowKey="id"
+                                        dataSource={manualTheoreticalQuestions}
+                                        columns={[
+                                          { title: 'Question', dataIndex: 'question', ellipsis: true },
+                                          { title: 'Topic', dataIndex: 'topic' },
+                                          { title: 'Difficulty', dataIndex: 'difficulty' },
+                                          {
+                                            title: 'Key Points',
+                                            dataIndex: 'keyPoints',
+                                            render: (value?: string[]) => value?.join(', ') || '-',
+                                          },
+                                        ]}
+                                      />
+                                    </div>
+                                    <Button
+                                      type="link"
+                                      danger
+                                      style={{ paddingLeft: 0, marginTop: spacing.sm }}
+                                      onClick={() => {
+                                        setManualTheoreticalQuestions([]);
+                                        setCsvErrors([]);
+                                      }}
+                                    >
+                                      Clear uploaded questions
+                                    </Button>
+                                  </div>
+                                )}
+                              </Card>
+
+                              <Card
+                                style={{ borderRadius: 12 }}
+                                title={
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    Manual Coding Questions
+                                    <Tooltip title="Maximum 5 machine coding questions allowed">
+                                      <InfoCircleOutlined style={{ color: '#9CA3AF', fontSize: 14, cursor: 'pointer' }} />
+                                    </Tooltip>
+                                  </div>
+                                }
+                                extra={
+                                  <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => openCodingModal()}
+                                    style={{
+                                      height: 32,
+                                      padding: '0 14px',
+                                      fontSize: 13,
+                                      borderRadius: 8,
+                                    }}
+                                  >
+                                    Add Coding Question
+                                  </Button>
+                                }
+                              >
+                                {manualCodingQuestions.length === 0 ? (
+                                  <Empty description="No coding questions added yet" />
+                                ) : (
+                                  <Space direction="vertical" style={{ width: '100%' }}>
+                                    {manualCodingQuestions.map((question, idx) => (
+                                      <Card
+                                        key={`manual-coding-${idx}`}
+                                        type="inner"
+                                        title={question.title || 'Untitled'}
+                                        extra={
+                                          <Space size="small">
+                                            <Button type="link" onClick={() => openCodingModal(question, idx)}>
+                                              Edit
+                                            </Button>
+                                            <Button
+                                              type="link"
+                                              danger
+                                              onClick={() =>
+                                                setManualCodingQuestions((prev) => prev.filter((_, questionIdx) => questionIdx !== idx))
+                                              }
+                                            >
+                                              Remove
+                                            </Button>
+                                          </Space>
+                                        }
+                                      >
+                                        <Row gutter={16}>
+                                          <Col xs={24} md={12}>
+                                            <Text strong>Topic:</Text> <Text>{question.topic || '—'}</Text>
+                                          </Col>
+                                          <Col xs={24} md={12}>
+                                            <Text strong>Difficulty:</Text> <Text>{question.difficulty || '—'}</Text>
+                                          </Col>
+                                        </Row>
+                                        <Row gutter={16} style={{ marginTop: spacing.sm }}>
+                                          <Col xs={24} md={12}>
+                                            <Text strong>Time Limit:</Text> <Text>{question.timeLimit ? `${Math.round(question.timeLimit / 60)} min` : '—'}</Text>
+                                          </Col>
+                                          <Col xs={24} md={12}>
+                                            <Text strong>Test Cases:</Text> <Text>{question.testCases?.length || 0}</Text>
+                                          </Col>
+                                        </Row>
+                                        {question.starterCodes && Object.keys(question.starterCodes).length > 0 && (
+                                          <Row gutter={16} style={{ marginTop: spacing.sm }}>
+                                            <Col xs={24}>
+                                              <Text strong>Starter Code:</Text>{' '}
+                                              <Text>
+                                                {Object.keys(question.starterCodes || {}).join(', ')}
+                                              </Text>
+                                            </Col>
+                                          </Row>
+                                        )}
+                                      </Card>
+                                    ))}
+                                  </Space>
+                                )}
+                              </Card>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </Col>
+                  </Col>
 
-            </Row>
+                </Row>
 
-            <Divider />
+                <Divider />
 
-            {/* Submit Section */}
-            <Row justify="center" style={{ marginTop: spacing.xl }}>
-              <Space size="large">
-                <Button
-                  size="large"
-                  onClick={handleBack}
-                  style={{ minWidth: 120 }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={loading || prefillLoading}
-                  size="large"
-                  icon={<CheckOutlined />}
-                  style={{
-                    minWidth: 200,
-                    height: 48,
-                    fontSize: 16,
-                    background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  }}
-                >
-                  {isEditMode ? 'Update Interview' : 'Generate Interview'}
-                </Button>
-              </Space>
-            </Row>
+                {/* Submit Section */}
+                <Row justify="center" style={{ marginTop: spacing.xl }}>
+                  <Space size="large">
+                    <Button
+                      size="large"
+                      onClick={handleBack}
+                      style={{ minWidth: 120, height: 44, borderRadius: 6 }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      loading={loading || prefillLoading}
+                      size="large"
+                      icon={<CheckOutlined />}
+                      style={{
+                        minWidth: 200,
+                        height: 44,
+                        fontSize: 16,
+                        background: colors.primary.main,
+                        border: 'none',
+                        borderRadius: 6,
+                        boxShadow: 'none',
+                      }}
+                    >
+                      {isEditMode ? 'Update Interview' : 'Generate Interview'}
+                    </Button>
+                  </Space>
+                </Row>
               </Form>
             </div>
           </Spin>
