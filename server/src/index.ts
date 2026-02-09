@@ -44,7 +44,6 @@ app.use(cors({
       'https://www.shakra.io',
       'http://localhost:5173',
       'http://localhost:5174',
-      'http://localhost:3000',
       'http://localhost:42424', // Electron App
     ];
   },
