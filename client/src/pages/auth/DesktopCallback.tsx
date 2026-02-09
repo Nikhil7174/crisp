@@ -21,7 +21,7 @@ export default function DesktopCallback() {
 
                     // Call backend to generate a secure sign-in ticket
                     // Use configured API URL or fallback to localhost
-                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+                    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
                     const response = await fetch(`${apiUrl}/api/auth/ticket`, {
                         method: 'POST',

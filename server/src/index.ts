@@ -42,10 +42,16 @@ app.use(cors({
       'https://shakra.onrender.com',
       'https://www.shakraai.com',
       'https://www.shakra.io',
+      'https://shakra.io',
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:42424', // Electron App
     ];
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
   },
   credentials: true
 }));
