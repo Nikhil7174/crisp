@@ -20,10 +20,9 @@ export default function DesktopCallback() {
                     console.log("🎟️ [DesktopCallback] Requesting sign-in ticket from backend...");
 
                     // Call backend to generate a secure sign-in ticket
-                    // Use configured API URL or fallback to localhost
-                    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+                    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
-                    const response = await fetch(`${apiUrl}/api/auth/ticket`, {
+                    const response = await fetch(`${baseUrl}/auth/ticket`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`,
