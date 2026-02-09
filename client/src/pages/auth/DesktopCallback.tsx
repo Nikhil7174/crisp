@@ -40,7 +40,7 @@ export default function DesktopCallback() {
                     if (data.success && data.ticket) {
                         console.log("✅ [DesktopCallback] Ticket received");
                         const deepLink = `shakra-app://auth/callback?ticket=${data.ticket}`;
-                        const localServerUrl = `http://127.0.0.1:3000/api/auth/callback?ticket=${data.ticket}`;
+                        const localServerUrl = `http://127.0.0.1:42424/api/auth/callback?ticket=${data.ticket}`;
 
                         setDeepLinkUrl(deepLink);
                         setStatus('ready');
