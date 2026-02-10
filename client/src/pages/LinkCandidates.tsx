@@ -23,144 +23,45 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { API_BASE_URL } from '../constants/api';
 import { useAuth } from '../hooks/useAuth';
 import { colors } from '../styles';
 import './LinkCandidates.css';
 import { BackButton } from '../components/ui/BackButton';
+import { useAppDispatch, useAppSelector } from '../store';
+import { fetchCandidates, type Candidate } from '../store/slices/candidatesSlice';
 
 const { Title, Text } = Typography;
-
-interface Candidate {
-  id: number;
-  session_id: string;
-  candidate_name: string;
-  candidate_email: string;
-  candidate_phone: string;
-  start_time: string;
-  end_time: string;
-  duration: number;
-  score: number;
-  total_questions: number;
-  correct_answers: number;
-  time_spent: number;
-  strengths: string[];
-  areasForImprovement: string[];
-  overall_feedback: string;
-  detailed_answers: any[];
-  question_analysis: any[];
-  created_at: string;
-  finalEvaluation?: {
-    totalScore: number;
-    duration: number;
-    llmEvaluation?: {
-      overall: {
-        score: number;
-      };
-    } | null;
-  } | null;
-}
-
-interface LinkInfo {
-  title: string;
-  description?: string;
-}
 
 export const LinkCandidates: React.FC = () => {
   const { linkId } = useParams<{ linkId: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
-  const [linkInfo, setLinkInfo] = useState<LinkInfo | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statistics, setStatistics] = useState({
+  const dispatch = useAppDispatch();
+
+  // Redux state
+  const linkData = useAppSelector((state) =>
+    linkId ? state.candidates.byLinkId[linkId] : undefined
+  );
+
+  const candidates = linkData?.candidates || [];
+  const linkInfo = linkData?.linkInfo || null;
+  const loading = linkData?.loading ?? true;
+  const statistics = linkData?.statistics || {
     totalCandidates: 0,
     averageScore: 0,
     completedInterviews: 0,
-  });
+  };
 
   // Search state
   const [searchText, setSearchText] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
 
   useEffect(() => {
-    if (linkId) {
-      fetchLinkCandidates();
+    if (linkId && token) {
+      dispatch(fetchCandidates({ linkId, token }));
     }
-  }, [linkId]);
+  }, [linkId, token, dispatch]);
 
-  const fetchLinkCandidates = async () => {
-    try {
-      setLoading(true);
-      console.log('Fetching candidates for link ID:', linkId);
-      console.log('API URL:', `${API_BASE_URL}/interviewer/links/${linkId}/candidates`);
-      console.log('Token exists:', token ? 'Yes' : 'No');
-
-      const response = await fetch(`${API_BASE_URL}/interviewer/links/${linkId}/candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      console.log('API Response:', data);
-
-      if (data.success) {
-        const candidateList = Array.isArray(data.candidates) ? data.candidates : [];
-        setLinkInfo(data.link);
-        setCandidates(candidateList);
-
-        // Calculate statistics
-        const completedInterviews = candidateList.filter((c: Candidate) => c.end_time).length;
-
-        // Calculate average score using the same priority as admin dashboard
-        // Priority: LLM evaluation overall score > finalEvaluation totalScore > legacy score
-        const scores: number[] = [];
-        candidateList.forEach((c: Candidate) => {
-          if (!c.end_time) return; // Skip incomplete interviews
-
-          let score: number | null = null;
-
-          // Check LLM evaluation first (most accurate)
-          if (c.finalEvaluation?.llmEvaluation?.overall?.score !== null &&
-            c.finalEvaluation?.llmEvaluation?.overall?.score !== undefined) {
-            score = c.finalEvaluation.llmEvaluation.overall.score;
-          }
-          // Check finalEvaluation totalScore
-          else if (c.finalEvaluation?.totalScore !== null &&
-            c.finalEvaluation?.totalScore !== undefined) {
-            score = c.finalEvaluation.totalScore;
-          }
-          // Check interview.score
-          else if (c.score !== null && c.score !== undefined) {
-            score = c.score;
-          }
-
-          // Only add if we found a valid score (including 0 as valid)
-          if (score !== null && score !== undefined) {
-            scores.push(score);
-            console.log(`[LinkCandidates] Candidate ${c.id}: score=${score} (from ${c.finalEvaluation?.llmEvaluation ? 'llmEvaluation' : c.finalEvaluation ? 'finalEvaluation.totalScore' : 'interview.score'})`);
-          }
-        });
-
-        const averageScore = scores.length > 0
-          ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
-          : 0;
-
-        console.log(`[LinkCandidates] Total candidates: ${candidateList.length}, Completed: ${completedInterviews}, With scores: ${scores.length}, Average: ${averageScore}`);
-
-        setStatistics({
-          totalCandidates: candidateList.length,
-          averageScore,
-          completedInterviews,
-        });
-      } else {
-        message.error(data.message || 'Failed to fetch candidates');
-      }
-    } catch (error) {
-      console.error('Error fetching link candidates:', error);
-      message.error('Failed to fetch candidates');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleViewDetails = (candidate: Candidate) => {
     console.log('Navigating to interview details for candidate:', candidate);
