@@ -1,39 +1,26 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { Spin } from 'antd';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 
 interface PublicRouteProps {
   children: React.ReactNode;
 }
 
+/**
+ * PublicRoute - Simplified version that just checks if user is signed in
+ * If signed in, redirect to auth callback to handle the sync
+ */
 export const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-  const { isAuthenticated, user, loading, getCurrentUser } = useAuth();
+  const { isLoaded, isSignedIn } = useClerkAuth();
 
-  useEffect(() => {
-    if (isAuthenticated && !user) {
-      getCurrentUser();
-    }
-  }, [isAuthenticated, user, getCurrentUser]);
-
-  if (loading || (isAuthenticated && !user)) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-      }}>
-        <Spin size="large" />
-      </div>
-    );
+  // Wait for Clerk to load
+  if (!isLoaded) {
+    return null; // Don't show anything while loading
   }
 
-  if (isAuthenticated && user) {
-    const redirectTo = user.userType === 'interviewer' 
-      ? '/interviewer/dashboard' 
-      : '/candidate/dashboard';
-    return <Navigate to={redirectTo} replace />;
+  // If signed in, redirect to auth callback which will handle the rest
+  if (isSignedIn) {
+    return <Navigate to="/auth/callback" replace />;
   }
 
   return <>{children}</>;
