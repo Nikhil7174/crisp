@@ -24,6 +24,7 @@ import { Download } from './pages/Download';
 import './utils/clearStorage'; // Clear old Redux state on startup
 import { SignInPage } from './pages/auth/SignIn';
 import { SignUpPage } from './pages/auth/SignUp';
+import { AuthCallback } from './pages/auth/AuthCallback';
 import DesktopCallback from './pages/auth/DesktopCallback';
 import DesktopLogin from './pages/auth/DesktopLogin';
 
@@ -41,6 +42,8 @@ const ClerkProviderWithRoutes = ({ children }: { children: React.ReactNode }) =>
       publishableKey={PUBLISHABLE_KEY}
       routerPush={(to) => navigate(to)}
       routerReplace={(to) => navigate(to, { replace: true })}
+      afterSignInUrl="/auth/callback"
+      afterSignUpUrl="/auth/callback"
       afterSignOutUrl="/"
     >
       {children}
@@ -73,6 +76,7 @@ const AppContent = () => {
       {/* Auth Routes */}
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/auth/desktop-callback" element={<DesktopCallback />} />
       <Route path="/auth/desktop-login/*" element={<DesktopLogin />} />
       <Route path="/login" element={<Navigate to="/sign-in" replace />} />

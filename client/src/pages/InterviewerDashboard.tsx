@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Button,
@@ -31,6 +31,9 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
+import { useAppDispatch, useAppSelector } from '../store';
+import { fetchDashboardData, removeLink } from '../store/slices/dashboardSlice';
+
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../constants/api';
@@ -44,9 +47,11 @@ const { Title, Text } = Typography;
 export const InterviewerDashboard: React.FC = () => {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [links, setLinks] = useState<InterviewLink[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const dispatch = useAppDispatch();
+
+  // Redux state
+  const { links, loading } = useAppSelector((state) => state.dashboard);
+
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [linkToDelete, setLinkToDelete] = useState<InterviewLink | null>(null);
   const [viewQuestionsModalVisible, setViewQuestionsModalVisible] = useState(false);
@@ -57,40 +62,33 @@ export const InterviewerDashboard: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
 
-  // Memoized fetch function - React will handle when to call this
-  const fetchLinks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/interviewer/links`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success) {
-        setLinks(response.data.links);
-        setLastFetched(new Date());
-      }
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Failed to fetch links');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  // Initial fetch
+  // Fetch data on mount or when token changes
   useEffect(() => {
-    fetchLinks();
-  }, [fetchLinks]);
+    if (token) {
+      dispatch(fetchDashboardData({ token }));
+    }
+  }, [dispatch, token]);
 
-  // Optional: Refetch on window focus (if data is very stale - 5 minutes)
+  // Refetch on window focus if cache is expired (handled by thunk) or data is stale
   useEffect(() => {
     const handleFocus = () => {
-      if (lastFetched && Date.now() - lastFetched.getTime() > 600000) {
-        fetchLinks();
+      if (token) {
+        // Force fetch if it's been more than 30 mins (double check against local time just in case)
+        // actually the thunk handles cache expiry, so simply dispatching is enough
+        dispatch(fetchDashboardData({ token }));
       }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchLinks, lastFetched]);
+  }, [dispatch, token]);
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    if (token) {
+      dispatch(fetchDashboardData({ token, force: true }));
+    }
+  };
 
 
   const handleDeleteLink = (link: InterviewLink) => {
@@ -102,7 +100,7 @@ export const InterviewerDashboard: React.FC = () => {
     if (!linkToDelete) return;
 
     try {
-      setLoading(true);
+      // We still use axios directly for delete, but update redux state on success
       const response = await axios.delete(
         `${API_BASE_URL}/interviewer/links/${linkToDelete.id}`,
         {
@@ -112,7 +110,8 @@ export const InterviewerDashboard: React.FC = () => {
 
       if (response.data.success) {
         message.success('Link deleted successfully!');
-        fetchLinks();
+        // Update Redux state
+        dispatch(removeLink(linkToDelete.id));
       } else {
         message.error(response.data.message || 'Failed to delete link');
       }
@@ -120,7 +119,6 @@ export const InterviewerDashboard: React.FC = () => {
       console.error('Delete error:', error);
       message.error(error.response?.data?.message || 'Failed to delete link');
     } finally {
-      setLoading(false);
       setDeleteModalVisible(false);
       setLinkToDelete(null);
     }
@@ -129,8 +127,6 @@ export const InterviewerDashboard: React.FC = () => {
   const handleEditLink = (link: InterviewLink) => {
     navigate(`/interviewer/create-interview?linkId=${link.id}`);
   };
-
-
 
   const handleViewQuestions = (link: InterviewLink) => {
     setSelectedLinkForViewing(link);
@@ -382,7 +378,7 @@ export const InterviewerDashboard: React.FC = () => {
               <Space size={12}>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={fetchLinks}
+                  onClick={handleRefresh}
                   loading={loading}
                   size="large"
                   type="text"

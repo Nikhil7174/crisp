@@ -1,71 +1,86 @@
-import { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react';
 import { useAppDispatch } from '../store';
 import { loginSuccess, logout } from '../store/slices/authSlice';
 import axios from 'axios';
 import { API_BASE_URL } from '../constants/api';
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
 export const AuthInitializer: React.FC = () => {
   const { getToken, isSignedIn } = useClerkAuth();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [syncAttempts, setSyncAttempts] = useState(0);
 
   useEffect(() => {
-    const syncUser = async () => {
-      if (isSignedIn && user) {
-        try {
-          const token = await getToken();
-          if (token) {
-            // Set default header for future requests
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-            // Fetch user from our backend
-            const response = await axios.get(`${API_BASE_URL}/auth/me`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (response.data.success) {
-              const userData = response.data.user;
-              dispatch(
-                loginSuccess({
-                  user: userData,
-                  token: token,
-                })
-              );
-
-              // Auto-redirect if on public/auth pages
-              const publicPaths = ['/sign-in', '/sign-up', '/login', '/register'];
-              const isHomePage = location.pathname === '/';
-              const isPublicAuthPage = publicPaths.some(path => location.pathname.startsWith(path));
-
-              // Don't auto-redirect if we are in the desktop auth flow
-              const isDesktopAuth = location.pathname.includes('/auth/desktop');
-
-              if ((isHomePage || isPublicAuthPage) && !isDesktopAuth && location.pathname !== '/join') {
-                const dashboardPath = userData.userType === 'interviewer'
-                  ? '/interviewer/dashboard'
-                  : '/candidate/dashboard';
-                navigate(dashboardPath, { replace: true });
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to sync user:', error);
-          // If 404, it means user exists in Clerk but not in our DB.
-          // We might need to handle this via a redirection to onboarding.
-        }
-      } else if (!isSignedIn && !user) {
-        // If Clerk says not signed in, ensure Redux is cleared
+    const syncUserWithBackend = async () => {
+      if (!isSignedIn || !clerkUser) {
+        // Clear Redux state if not signed in
         dispatch(logout());
         delete axios.defaults.headers.common['Authorization'];
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          console.error('[Auth] No token available');
+          return;
+        }
+
+        // Set default header for all requests
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+        console.log('[Auth] Syncing user with backend...');
+
+        // Try to fetch user from backend
+        const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data.success) {
+          const userData = response.data.user;
+          console.log('[Auth] ✅ User synced successfully:', userData.email);
+
+          dispatch(
+            loginSuccess({
+              user: userData,
+              token: token,
+            })
+          );
+
+          // Reset retry counter on success
+          setSyncAttempts(0);
+        }
+      } catch (error: any) {
+        console.error('[Auth] Sync error:', error.response?.status, error.message);
+
+        // If user not found (404), it means backend hasn't created the user yet
+        if (error.response?.status === 404 && syncAttempts < MAX_RETRIES) {
+          console.log(`[Auth] User not found in backend. Retry ${syncAttempts + 1}/${MAX_RETRIES} in ${RETRY_DELAY}ms...`);
+
+          setSyncAttempts(prev => prev + 1);
+
+          // Retry after delay
+          setTimeout(() => {
+            syncUserWithBackend();
+          }, RETRY_DELAY * (syncAttempts + 1)); // Exponential backoff
+        } else if (error.response?.status === 404) {
+          console.error('[Auth] ❌ Max retries reached. User still not found in backend.');
+          console.error('[Auth] This likely means the Clerk webhook failed to create the user.');
+          // Don't logout - let the user stay signed in to Clerk
+          // The dashboard will show an error state
+        } else if (error.response?.status === 401) {
+          console.error('[Auth] ❌ Unauthorized. Logging out...');
+          dispatch(logout());
+        }
       }
     };
 
-    syncUser();
-  }, [isSignedIn, user, getToken, dispatch, navigate, location.pathname]);
+    syncUserWithBackend();
+  }, [isSignedIn, clerkUser, getToken, dispatch, syncAttempts]);
 
   return null;
 };

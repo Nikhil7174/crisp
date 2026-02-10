@@ -9,22 +9,27 @@ import uiReducer from './slices/uiSlice';
 import userReducer from './slices/userSlice';
 import authReducer from './slices/authSlice';
 
+import dashboardReducer from './slices/dashboardSlice';
+import candidatesReducer from './slices/candidatesSlice';
+
 const authPersistConfig = {
   key: 'auth',
   storage,
-  whitelist: ['user', 'token', 'isAuthenticated'], 
+  whitelist: ['user', 'token', 'isAuthenticated'],
 };
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user'],
+  whitelist: ['user', 'dashboard'], // candidates NOT persisted (in-memory only)
 };
 
 const rootReducer = combineReducers({
   ui: uiReducer,
   user: userReducer,
   auth: persistReducer(authPersistConfig, authReducer),
+  dashboard: dashboardReducer,
+  candidates: candidatesReducer, // In-memory only
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
