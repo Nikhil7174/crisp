@@ -467,6 +467,12 @@ export const agent = defineAgent({
             } else {
               log().warn(`⚠️ [Agent] code_snapshot received but msg.code or session.userData was undefined`);
             }
+          } else if (msg.type === 'security_warning') {
+            const warningMessage = msg.message;
+            log().info(`🚨 [Agent] Received security warning: ${warningMessage}`);
+
+            await session.say(`Attention: ${warningMessage}`);
+
           } else if (msg.type === 'confirm_next_question') {
             log().info({ metadata: msg.metadata }, '✅ [Agent] Received confirm_next_question from UI');
             // Proceed to next question logic
