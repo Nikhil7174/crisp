@@ -45,7 +45,7 @@ import './InterviewerDashboard.css';
 const { Title, Text } = Typography;
 
 export const InterviewerDashboard: React.FC = () => {
-  const { user, token, logout, getFreshToken } = useAuth();
+  const { user, logout, getFreshToken } = useAuth();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
