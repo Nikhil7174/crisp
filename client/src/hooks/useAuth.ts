@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import axios from 'axios';
-import { useClerk } from '@clerk/clerk-react';
+import { useClerk, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setUser, logout as logoutAction } from '../store/slices/authSlice';
 import { API_BASE_URL } from '../constants/api';
@@ -9,6 +9,7 @@ export const useAuth = () => {
   const dispatch = useAppDispatch();
   const { user, token, isAuthenticated, loading, error } = useAppSelector((state) => state.auth);
   const { signOut } = useClerk();
+  const { getToken } = useClerkAuth();
 
   const logout = useCallback(async () => {
     try {
@@ -64,6 +65,6 @@ export const useAuth = () => {
     error,
     logout,
     getCurrentUser,
+    getFreshToken: getToken,
   };
 };
-

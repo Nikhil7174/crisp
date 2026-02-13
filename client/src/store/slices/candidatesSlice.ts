@@ -34,6 +34,14 @@ export interface Candidate {
 interface LinkInfo {
     title: string;
     description?: string;
+    jobTitle?: string;
+    jobId?: string;
+    role?: string;
+    yearsOfExperience?: number;
+    maxInterviewQuestions?: number;
+    maxMachineCodingQuestions?: number;
+    topics?: any[];
+    machineQuestions?: any[];
 }
 
 interface CandidateData {

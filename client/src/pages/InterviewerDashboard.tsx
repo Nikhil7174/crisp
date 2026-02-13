@@ -45,7 +45,7 @@ import './InterviewerDashboard.css';
 const { Title, Text } = Typography;
 
 export const InterviewerDashboard: React.FC = () => {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, getFreshToken } = useAuth();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -62,31 +62,47 @@ export const InterviewerDashboard: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
 
-  // Fetch data on mount or when token changes
+  // Fetch data on mount
   useEffect(() => {
-    if (token) {
-      dispatch(fetchDashboardData({ token }));
-    }
-  }, [dispatch, token]);
+    const loadData = async () => {
+      try {
+        const freshToken = await getFreshToken();
+        if (freshToken) {
+          dispatch(fetchDashboardData({ token: freshToken }));
+        }
+      } catch (error) {
+        console.error('Error fetching fresh token:', error);
+      }
+    };
+    loadData();
+  }, [dispatch, getFreshToken]);
 
-  // Refetch on window focus if cache is expired (handled by thunk) or data is stale
+  // Refetch on window focus
   useEffect(() => {
-    const handleFocus = () => {
-      if (token) {
-        // Force fetch if it's been more than 30 mins (double check against local time just in case)
-        // actually the thunk handles cache expiry, so simply dispatching is enough
-        dispatch(fetchDashboardData({ token }));
+    const handleFocus = async () => {
+      try {
+        const freshToken = await getFreshToken();
+        if (freshToken) {
+          dispatch(fetchDashboardData({ token: freshToken }));
+        }
+      } catch (error) {
+        console.error('Error fetching fresh token on focus:', error);
       }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [dispatch, token]);
+  }, [dispatch, getFreshToken]);
 
   // Manual refresh function
-  const handleRefresh = () => {
-    if (token) {
-      dispatch(fetchDashboardData({ token, force: true }));
+  const handleRefresh = async () => {
+    try {
+      const freshToken = await getFreshToken();
+      if (freshToken) {
+        dispatch(fetchDashboardData({ token: freshToken, force: true }));
+      }
+    } catch (error) {
+      console.error('Error fetching fresh token for refresh:', error);
     }
   };
 
@@ -100,11 +116,12 @@ export const InterviewerDashboard: React.FC = () => {
     if (!linkToDelete) return;
 
     try {
+      const freshToken = await getFreshToken();
       // We still use axios directly for delete, but update redux state on success
       const response = await axios.delete(
         `${API_BASE_URL}/interviewer/links/${linkToDelete.id}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${freshToken}` },
         }
       );
 
@@ -573,4 +590,3 @@ export const InterviewerDashboard: React.FC = () => {
     </div>
   );
 };
-

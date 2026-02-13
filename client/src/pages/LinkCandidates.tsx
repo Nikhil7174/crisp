@@ -20,6 +20,8 @@ import {
   CheckCircleOutlined,
   EyeOutlined,
   SearchOutlined,
+  DownOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../hooks/useAuth';
@@ -34,7 +36,7 @@ const { Title, Text } = Typography;
 export const LinkCandidates: React.FC = () => {
   const { linkId } = useParams<{ linkId: string }>();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { getFreshToken } = useAuth();
   const dispatch = useAppDispatch();
 
   // Redux state
@@ -54,12 +56,27 @@ export const LinkCandidates: React.FC = () => {
   // Search state
   const [searchText, setSearchText] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
+  const [theoreticalOpen, setTheoreticalOpen] = useState(false);
+  const [machineCodingOpen, setMachineCodingOpen] = useState(false);
 
   useEffect(() => {
-    if (linkId && token) {
-      dispatch(fetchCandidates({ linkId, token }));
+    const loadCandidates = async () => {
+      if (linkId) {
+        try {
+          const freshToken = await getFreshToken();
+          if (freshToken) {
+            dispatch(fetchCandidates({ linkId, token: freshToken }));
+          }
+        } catch (error) {
+          console.error('Error fetching fresh token:', error);
+        }
+      }
+    };
+
+    if (linkId) {
+      loadCandidates();
     }
-  }, [linkId, token, dispatch]);
+  }, [linkId, dispatch, getFreshToken]);
 
 
   const handleViewDetails = (candidate: Candidate) => {
@@ -287,17 +304,181 @@ export const LinkCandidates: React.FC = () => {
             marginBottom: 32,
           }}
         >
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
-                {linkInfo?.title || 'Interview Link Candidates'}
-              </Title>
-              {linkInfo?.description && (
-                <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
-                  {linkInfo.description}
-                </Text>
-              )}
+          <Row gutter={[24, 24]}>
+            <Col span={24}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <Title level={2} style={{ margin: 0, marginBottom: 8, fontSize: 24, fontWeight: 700, color: '#111827' }}>
+                    {linkInfo?.title || 'Interview Link Candidates'}
+                  </Title>
+                  <Space size={16} style={{ color: '#6B7280', fontSize: 14 }}>
+                    {linkInfo?.jobId && (
+                      <Space size={4}>
+                        <Text strong style={{ color: '#374151' }}>Job ID:</Text>
+                        <Tag style={{ margin: 0 }}>{linkInfo.jobId}</Tag>
+                      </Space>
+                    )}
+                    {linkInfo?.role && (
+                      <Space size={4}>
+                        <Text strong style={{ color: '#374151' }}>Role:</Text>
+                        <Text>{linkInfo.role}</Text>
+                      </Space>
+                    )}
+                    {(linkInfo?.yearsOfExperience !== undefined && linkInfo?.yearsOfExperience !== null) && (
+                      <Space size={4}>
+                        <Text strong style={{ color: '#374151' }}>Experience:</Text>
+                        <Text>{linkInfo.yearsOfExperience} years</Text>
+                      </Space>
+                    )}
+                  </Space>
+                </div>
+              </div>
             </Col>
+
+            {/* Topics and Machine Coding Section */}
+            {(linkInfo?.topics || linkInfo?.machineQuestions) && (
+              <Col span={24}>
+                <Row gutter={[24, 24]}>
+                  {/* Theoretical Topics Box */}
+                  {linkInfo?.topics && linkInfo.topics.length > 0 && (
+                    <Col xs={24} md={12}>
+                      <div
+                        style={{
+                          borderRadius: 8,
+                          padding: 8,
+                          height: 'fit-content',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          cursor: 'pointer',
+                          marginBottom: 0,
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => setTheoreticalOpen(!theoreticalOpen)}
+                        className="topic-box-hover"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Space align="center">
+                            <div
+                              style={{
+                                width: 4,
+                                height: 16,
+                                background: '#3B82F6', // Blue accent
+                                borderRadius: 2,
+                              }}
+                            />
+                            <Text
+                              strong
+                              style={{
+                                color: '#374151',
+                                fontSize: 14,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                              }}
+                            >
+                              Theoretical Topics
+                            </Text>
+                          </Space>
+                          {theoreticalOpen ? <DownOutlined style={{ fontSize: 12, color: '#6B7280' }} /> : <RightOutlined style={{ fontSize: 12, color: '#6B7280' }} />}
+                        </div>
+
+                        {theoreticalOpen && (
+                          <div style={{ marginTop: 16, animation: 'fadeIn 0.2s ease-in-out' }}>
+                            <Space size={[8, 12]} wrap>
+                              {linkInfo.topics.map((t: any, i: number) => (
+                                <Tag
+                                  key={i}
+                                  color="blue"
+                                  style={{
+                                    margin: 0,
+                                    padding: '4px 10px',
+                                    fontSize: 13,
+                                    borderRadius: 4,
+                                    border: '1px solid #BFDBFE',
+                                    background: '#EFF6FF',
+                                    color: '#1E40AF',
+                                  }}
+                                >
+                                  {t.name} <span style={{ opacity: 0.7, marginLeft: 4 }}>({t.questionCount})</span>
+                                </Tag>
+                              ))}
+                            </Space>
+                          </div>
+                        )}
+                      </div>
+                    </Col>
+                  )}
+
+                  {/* Machine Coding Box */}
+                  {linkInfo?.machineQuestions && linkInfo.machineQuestions.length > 0 && (
+                    <Col xs={24} md={12}>
+                      <div
+                        style={{
+                          borderRadius: 8,
+                          padding: 8,
+                          height: 'fit-content',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          cursor: 'pointer',
+                          marginBottom: 0,
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => setMachineCodingOpen(!machineCodingOpen)}
+                        className="topic-box-hover"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Space align="center">
+                            <div
+                              style={{
+                                width: 4,
+                                height: 16,
+                                background: '#8B5CF6', // Purple accent
+                                borderRadius: 2,
+                              }}
+                            />
+                            <Text
+                              strong
+                              style={{
+                                color: '#374151',
+                                fontSize: 14,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                              }}
+                            >
+                              Coding Topics
+                            </Text>
+                          </Space>
+                          {machineCodingOpen ? <DownOutlined style={{ fontSize: 12, color: '#6B7280' }} /> : <RightOutlined style={{ fontSize: 12, color: '#6B7280' }} />}
+                        </div>
+
+                        {machineCodingOpen && (
+                          <div style={{ marginTop: 16, animation: 'fadeIn 0.2s ease-in-out' }}>
+                            <Space size={[8, 12]} wrap>
+                              {linkInfo.machineQuestions.map((q: any, i: number) => (
+                                <Tag
+                                  key={i}
+                                  color="purple"
+                                  style={{
+                                    margin: 0,
+                                    padding: '4px 10px',
+                                    fontSize: 13,
+                                    borderRadius: 4,
+                                    border: '1px solid #DDD6FE',
+                                    background: '#F5F3FF',
+                                    color: '#5B21B6',
+                                  }}
+                                >
+                                  {q.topic}
+                                </Tag>
+                              ))}
+                            </Space>
+                          </div>
+                        )}
+                      </div>
+                    </Col>
+                  )}
+                </Row>
+              </Col>
+            )}
           </Row>
         </div>
 
@@ -312,7 +493,7 @@ export const LinkCandidates: React.FC = () => {
           }}
           bodyStyle={{ padding: '16px 20px' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{
                 width: 36,

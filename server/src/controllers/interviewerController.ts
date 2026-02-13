@@ -765,6 +765,14 @@ export class InterviewerController {
             const linkInfo = {
                 title: existingLink.title,
                 description: existingLink.description,
+                jobTitle: existingLink.job_title,
+                jobId: existingLink.job_id,
+                role: existingLink.role,
+                yearsOfExperience: existingLink.years_of_experience,
+                maxInterviewQuestions: existingLink.max_interview_questions,
+                maxMachineCodingQuestions: existingLink.max_machine_coding_questions,
+                topics: existingLink.topics ? (typeof existingLink.topics === 'string' ? JSON.parse(existingLink.topics) : existingLink.topics) : [],
+                machineQuestions: existingLink.machine_questions ? (typeof existingLink.machine_questions === 'string' ? JSON.parse(existingLink.machine_questions) : existingLink.machine_questions) : [],
             };
 
             res.json({
