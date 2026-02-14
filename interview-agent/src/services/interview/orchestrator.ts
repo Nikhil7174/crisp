@@ -217,6 +217,11 @@ export class Orchestrator extends EventEmitter {
     const problem = this.codingProblems[state.currentProblemIndex];
     log().info(`[Orchestrator ${this.interviewId}] Moving to problem ${state.currentProblemIndex + 1}: ${problem.id}`);
 
+    // Snapshot code from PREVIOUS problem if we were working on one
+    if (state.currentProblemId) {
+      this.snapshotCurrentCode();
+    }
+
     // Update state
     this.stateProvider.moveToNextProblem(this.interviewId, problem.id);
 
@@ -235,14 +240,56 @@ export class Orchestrator extends EventEmitter {
    * Wrap up interview (updates state only)
    */
   wrapUpInterview(): void {
+    // Snapshot code if we're in coding phase before wrapping up
+    const state = this.stateProvider.getState(this.interviewId);
+    if (state?.currentState === 'coding' || state?.currentState === 'coding_problem') {
+      this.snapshotCurrentCode();
+    }
+
     console.log(`[Orchestrator ${this.interviewId}] Wrapping up interview`);
     this.stateProvider.setFlowState(this.interviewId, 'wrap_up');
+  }
+
+  /**
+   * Snapshot current code
+   */
+  snapshotCurrentCode(): void {
+    const state = this.stateProvider.getState(this.interviewId);
+    if (!state || !state.currentProblemId) {
+      return;
+    }
+
+    const currentCode = state.currentCode || '';
+    const hasCode = currentCode.trim().length > 0;
+    const codeDisplay = hasCode ? `\`\`\`javascript\n${currentCode}\n\`\`\`` : '*No code written by candidate*';
+
+    log().info(`[Orchestrator ${this.interviewId}] Snapshotting code for problem ${state.currentProblemId} (hasCode: ${hasCode})`);
+
+    const complexityText = `\n\nTime Complexity: ${state.currentTimeComplexity || 'Not specified'}\nSpace Complexity: ${state.currentSpaceComplexity || 'Not specified'}`;
+
+    this.stateProvider.addConversationMessage(this.interviewId, {
+      role: 'user',
+      content: `Final code for above problem:\n${codeDisplay}${complexityText}`,
+      metadata: {
+        type: 'code_snapshot',
+        problemId: state.currentProblemId,
+        timeComplexity: state.currentTimeComplexity,
+        spaceComplexity: state.currentSpaceComplexity,
+        timestamp: new Date()
+      },
+    });
   }
 
   /**
    * Complete interview
    */
   completeInterview(): void {
+    // Snapshot code if we're in coding phase before completing
+    const state = this.stateProvider.getState(this.interviewId);
+    if (state?.currentState === 'coding' || state?.currentState === 'coding_problem') {
+      this.snapshotCurrentCode();
+    }
+
     console.log(`[Orchestrator ${this.interviewId}] Completing interview`);
     this.stateProvider.completeInterview(this.interviewId);
     this.emit('interviewCompleted', { interviewId: this.interviewId });

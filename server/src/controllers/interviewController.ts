@@ -361,7 +361,7 @@ export class InterviewController {
 
       // Try to find by sessionId first, then roomName
       const identifier = sessionIdStr || roomNameStr;
-      
+
       if (!identifier) {
         console.error('❌ [QuestionsAPI] Could not extract valid identifier from query parameters');
         res.status(400).json({
@@ -618,40 +618,56 @@ export class InterviewController {
         return;
       }
 
-      // Store security events in Interview cheating_incidents field
-      const interview = await prisma.interview.findUnique({ where: { session_id: sessionId } });
+      // Store security events in SecurityEvent table
+      const interview = await prisma.interview.findUnique({
+        where: { session_id: sessionId },
+        include: { interview_link: true }
+      });
+
       if (!interview) {
         res.status(404).json({ success: false, error: 'Interview not found' });
         return;
       }
 
-      const existingIncidents = interview.cheating_incidents ? JSON.parse(interview.cheating_incidents) : [];
-      const newIncidents = suspiciousEvents.map(event => ({
-        type: event.type,
-        severity: event.severity,
-        description: event.description,
-        count: event.count || 1,
-        firstOccurrence: event.firstOccurrence,
-        lastOccurrence: event.lastOccurrence,
-        duration: event.duration,
-        timestamp: Date.now()
-      }));
-
-      await prisma.interview.update({
-        where: { id: interview.id },
-        data: {
-          cheating_incidents: JSON.stringify([...existingIncidents, ...newIncidents]),
-          cheating_detected: true
-        }
+      // Create SecurityEvent records for each suspicious event type
+      const createPromises = suspiciousEvents.map(async (event) => {
+        return prisma.securityEvent.create({
+          data: {
+            interview_id: interview.id,
+            interview_link_id: interview.interview_link_id,
+            session_id: sessionId,
+            event_type: event.type,
+            source: 'vision_system',
+            severity: event.severity || 'medium',
+            message: event.description || `Detected ${event.type}`,
+            metadata: JSON.stringify({
+              count: event.count,
+              totalDuration: event.totalDuration,
+              occurrences: event.events,
+              screenshot: event.screenshot // If present in the event object
+            })
+          }
+        });
       });
 
-      console.log(`✅ Vision security events logged for session ${sessionId}: ${suspiciousEvents.length} event types, ${suspiciousEvents.reduce((sum: number, e: any) => sum + (e.count || 1), 0)} total occurrences`);
+      await Promise.all(createPromises);
+
+      // Also mark cheating_detected flag on interview if there are events
+      if (suspiciousEvents.length > 0) {
+        await prisma.interview.update({
+          where: { id: interview.id },
+          data: {
+            cheating_detected: true
+          }
+        });
+      }
+
+      console.log(`✅ Vision security events logged for session ${sessionId}: ${suspiciousEvents.length} event types`);
 
       res.json({
         success: true,
         message: 'Vision security data updated successfully',
-        eventsLogged: suspiciousEvents.length,
-        totalOccurrences: suspiciousEvents.reduce((sum: number, e: any) => sum + (e.count || 1), 0)
+        eventsLogged: suspiciousEvents.length
       });
 
     } catch (error) {

@@ -22,8 +22,10 @@
     "@livekit/agents-plugin-openai": "^1.0.34",
     "@livekit/agents-plugin-silero": "^1.0.34",
     "@prisma/client": "^6.17.1",
+    "@types/ws": "^8.18.1",
     "dotenv": "^16.4.7",
     "openai": "^4.77.0",
+    "ws": "^8.19.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
