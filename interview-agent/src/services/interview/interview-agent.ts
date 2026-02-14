@@ -60,12 +60,17 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
       log().info('💬 [Agent] Speaking greeting and first question...');
 
       // Speak greeting
-      await this.session.say('Hello! I\'m your AI interviewer today. Let\'s begin with some technical questions.');
-
-      // Directly call ask_next_question tool to get first question
-      // CHECK: Are we starting with Theoretical or Coding?
-      // Some interviews might skip theoretical or are resuming
+      const greeting = "Hello! I'm your AI interviewer today. Let's begin with some technical questions.";
       const { orchestrator, stateProvider, interviewId } = this.session.userData;
+
+      // Log greeting to state history to ensure correct ordering
+      stateProvider.addConversationMessage(interviewId, {
+        role: 'assistant',
+        content: greeting,
+        metadata: { type: 'greeting', section: 'theoretical' },
+      });
+
+      await this.session.say(greeting);
       const state = stateProvider.getState(interviewId);
 
       let shouldStartCoding = false;
@@ -104,6 +109,8 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
             await sendQuestionToUI(question, questionIndex, 'theoretical');
           }
           // Store question in conversation history only if it's new (avoid dupe on resume)
+          // [REMOVED] Using LiveKit ChatContext for verbal history
+          /*
           if (isNewQuestion) {
             stateProvider.addConversationMessage(interviewId, {
               role: 'assistant',
@@ -111,6 +118,7 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
               metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
             });
           }
+          */
           log().info({ question: question.question }, '📝 [Agent] Speaking question:');
           await this.session.say(question.question);
         }
@@ -282,6 +290,8 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     const userTextLower = userText.toLowerCase();
 
     // Store user message in conversation history
+    // [REMOVED] Using LiveKit ChatContext for verbal history
+    /*
     if (userText && userText.trim()) {
       // Determine section based on current state
       const section = (state.currentState === 'coding' || state.currentState === 'coding_problem' || state.currentState === 'coding_intro')
@@ -302,6 +312,7 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
       });
       log().info('📝 [onUserTurnCompleted] Stored user message in conversation history');
     }
+    */
 
     log().info({ state: state.currentState }, '📊 Current State:');
     // Log correct ID/index based on current phase
@@ -542,7 +553,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       nodeHandledSkip?: boolean;
       nodeHandledJailbreak?: boolean;
       nodeInjectedMessage?: string;
+      chatCtx?: llm.ChatContext; // Add type hint
     };
+
+    // Store ChatContext reference for final evaluation extraction
+    sessionData.chatCtx = chatCtx;
 
     // Check if Node already handled this (skip or jailbreak)
     if ((sessionData.nodeHandledSkip || sessionData.nodeHandledJailbreak) && sessionData.nodeInjectedMessage) {
@@ -567,6 +582,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
         }
       });
     }
+
+
+    // LOGGING: Track context size
+    log().info(`llmNode: Updating ChatContext reference. Current items: ${(chatCtx?.items || []).length}`);
 
     // ⏱️ TIMING: LLM Call Start
     const llmCallStartTime = Date.now();
@@ -595,6 +614,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
           let firstTokenReceived = false;
 
           let streamClosed = false;
+
           const safeEnqueue = (text: string) => {
             if (!text || streamClosed) return;
             try {
@@ -639,6 +659,8 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                   log().info(`🧹 [LLM CLEANED RESPONSE] Content: "${cleaned.substring(0, 200)}${cleaned.length > 200 ? '...' : ''}"`);
                   safeEnqueue(cleaned);
                 }
+
+                // -----------------------------------------------------------
 
                 // Check if tag was missing and inject it into chat context
                 if (!tagFound) {
@@ -858,7 +880,6 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                   }
                 }
 
-                // Once tag is processed (or ruled out), stream freely
                 if (tagProcessed && buffer.length > 0) {
                   safeEnqueue(buffer);
                   buffer = '';
@@ -875,6 +896,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
         }
       });
     }
+
     return stream;
   }
 
@@ -1082,18 +1104,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     // Clean text logic
     const cleanedText = cleanResponseText(text);
 
-    // Store message in history
-    const { interviewId, stateProvider } = this.session.userData;
-    stateProvider.addConversationMessage(interviewId, {
-      role: 'assistant',
-      content: cleanedText,
-      metadata: { timestamp: Date.now() },
-    });
-
+    // Store message in history with consistent metadata
     // Note: Question transitions are now handled in llmNode when [NEXT] is detected
     // This prevents the LLM from making up its own questions
 
-    console.log('✅ [onAgentSpeechEnded] Message stored in history');
+    console.log('✅ [onAgentSpeechEnded] Timing logged (Message saving moved to llmNode)');
   }
 
 }

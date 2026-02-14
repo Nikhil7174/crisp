@@ -10,6 +10,439 @@ import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
 import * as silero from '@livekit/agents-plugin-silero';
 import * as deepgram from '@livekit/agents-plugin-deepgram';
+// @ts-ignore
+import { WebSocket } from 'ws';
+import {
+  AudioByteStream,
+  AudioEnergyFilter,
+  Future,
+  Task,
+  createTimedString,
+  stt,
+  waitForAbort,
+} from '@livekit/agents';
+import { generateCompleteHistory } from './history-utils.js';
+
+// Inline PeriodicCollector helper (copied from plugin utils to avoid import issues)
+class PeriodicCollector<T> {
+  private duration: number;
+  private callback: (value: any) => void;
+  private lastFlushTime: number;
+  private total: any = null;
+
+  constructor(callback: (value: any) => void, options: { duration: number }) {
+    this.duration = options.duration;
+    this.callback = callback;
+    this.lastFlushTime = performance.now() / 1e3;
+  }
+
+  push(value: any) {
+    if (this.total === null) {
+      this.total = value;
+    } else {
+      this.total = this.total + value;
+    }
+    if (performance.now() / 1e3 - this.lastFlushTime >= this.duration) {
+      this.flush();
+    }
+  }
+
+  flush() {
+    if (this.total !== null) {
+      this.callback(this.total);
+      this.total = null;
+    }
+    this.lastFlushTime = performance.now() / 1e3;
+  }
+}
+
+// Custom SpeechStream that handles Diarization
+class CustomSpeechStream extends stt.SpeechStream {
+  #opts: any;
+  #audioEnergyFilter: AudioEnergyFilter;
+  #logger = log();
+  #speaking = false;
+  #resetWS = new Future<void>();
+  #requestId = '';
+  #audioDurationCollector: PeriodicCollector<number>;
+  #seenSpeakers = new Set<number>();
+  #onUnauthorizedSpeaker?: (speakerId: number, word: string) => void;
+  #hasWarnedThisSession = false; // Prevent spam
+  label = 'deepgram.SpeechStream'; // Match label for logging
+
+  constructor(sttInstance: stt.STT, opts: any, connOptions?: any, onUnauthorizedSpeaker?: (speakerId: number, word: string) => void) {
+    super(sttInstance, opts.sampleRate, connOptions);
+    this.#opts = opts;
+    this.closed = false;
+    this.#audioEnergyFilter = new AudioEnergyFilter();
+    this.#onUnauthorizedSpeaker = onUnauthorizedSpeaker;
+    this.#audioDurationCollector = new PeriodicCollector(
+      (duration) => this.onAudioDurationReport(duration),
+      { duration: 5.0 },
+    );
+  }
+
+  // Override the run method to handle speaker data
+  protected async run() {
+    const maxRetry = 32;
+    let retries = 0;
+    let ws: WebSocket;
+    const API_BASE_URL_V1 = 'wss://api.deepgram.com/v1/listen';
+
+    // LAZY INIT: If sampleRate is missing, wait for the first valid audio frame to detect it
+    let bufferedFirstFrame: any = null;
+    if (!this.#opts.sampleRate) {
+      this.#logger.info("Waiting for first audio frame to determine sample rate...");
+      while (true) {
+        // @ts-ignore
+        const result = await this.input.next();
+        if (result.done) {
+          this.closed = true;
+          return;
+        }
+        const val = result.value;
+        // @ts-ignore
+        if (val === stt.SpeechStream.FLUSH_SENTINEL) {
+          continue; // Skip sentinels during detection
+        }
+        if (val && val.sampleRate) {
+          bufferedFirstFrame = val;
+          this.#opts.sampleRate = val.sampleRate;
+          this.#opts.numChannels = val.channels;
+          this.#logger.info(`Detected stats from audio source: ${this.#opts.sampleRate}Hz, ${this.#opts.numChannels}ch`);
+          break;
+        }
+      }
+    }
+
+    while (!this.input.closed && !this.closed) {
+      const streamURL = new URL(API_BASE_URL_V1);
+      const params = {
+        model: this.#opts.model,
+        punctuate: this.#opts.punctuate,
+        smart_format: this.#opts.smartFormat,
+        dictation: this.#opts.dictation,
+        diarize: this.#opts.diarize,
+        numerals: this.#opts.numerals,
+        no_delay: this.#opts.noDelay,
+        interim_results: this.#opts.interimResults,
+        encoding: 'linear16',
+        vad_events: true,
+        sample_rate: this.#opts.sampleRate,
+        channels: this.#opts.numChannels,
+        endpointing: this.#opts.endpointing || false,
+        filler_words: this.#opts.fillerWords,
+        keywords: this.#opts.keywords?.map((x: any) => x.join(':')),
+        keyterm: this.#opts.keyterm,
+        profanity_filter: this.#opts.profanityFilter,
+        language: this.#opts.language,
+        mip_opt_out: this.#opts.mipOptOut,
+      };
+
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined) {
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+            streamURL.searchParams.append(k, encodeURIComponent(v));
+          } else if (Array.isArray(v)) {
+            v.forEach((x) => streamURL.searchParams.append(k, encodeURIComponent(x)));
+          }
+        }
+      });
+
+      // @ts-ignore
+      ws = new WebSocket(streamURL, {
+        headers: { Authorization: `Token ${this.#opts.apiKey}` },
+      });
+
+      try {
+        await new Promise((resolve, reject) => {
+          ws.on('open', resolve);
+          ws.on('error', (error: any) => reject(error));
+          ws.on('close', (code: any) => reject(`WebSocket returned ${code}`));
+        });
+
+        await this.#runWS(ws, bufferedFirstFrame);
+        // If runWS returns successfully (stream closed normally), clear buffer just in case
+        bufferedFirstFrame = null;
+      } catch (e) {
+        if (!this.closed && !this.input.closed) {
+          if (retries >= maxRetry) {
+            throw new Error(`failed to connect to Deepgram after ${retries} attempts: ${e}`);
+          }
+          const delay = Math.min(retries * 5, 10);
+          retries++;
+          this.#logger.warn(
+            `failed to connect to Deepgram, retrying in ${delay} seconds: ${e} (${retries}/${maxRetry})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+        } else {
+          this.#logger.warn(
+            `Deepgram disconnected, connection is closed: ${e} (inputClosed: ${this.input.closed}, isClosed: ${this.closed})`,
+          );
+        }
+      }
+    }
+    this.closed = true;
+  }
+
+  updateOptions(opts: any) {
+    this.#opts = { ...this.#opts, ...opts };
+    this.#resetWS.resolve();
+  }
+
+  async #runWS(ws: WebSocket, initialFrame: any) {
+    this.#resetWS = new Future<void>();
+    let closing = false;
+
+    const keepalive = setInterval(() => {
+      try {
+        ws.send(JSON.stringify({ type: 'KeepAlive' }));
+      } catch {
+        clearInterval(keepalive);
+        return;
+      }
+    }, 5000);
+
+    const wsMonitor = Task.from(async (controller) => {
+      const closed = new Promise<void>(async (_, reject) => {
+        ws.once('close', (code: any, reason: any) => {
+          if (!closing) {
+            this.#logger.error(`WebSocket closed with code ${code}: ${reason}`);
+            reject(new Error('WebSocket closed'));
+          }
+        });
+      });
+      await Promise.race([closed, waitForAbort(controller.signal)]);
+    });
+
+    const sendTask = async () => {
+      const samples100Ms = Math.floor(this.#opts.sampleRate / 10);
+      const stream = new AudioByteStream(
+        this.#opts.sampleRate,
+        this.#opts.numChannels,
+        samples100Ms,
+      );
+      // @ts-ignore
+      const abortPromise = waitForAbort(this.abortSignal);
+
+      // Wrapper to process a data frame
+      const processFrame = (data: any) => {
+        let frames;
+        // @ts-ignore
+        if (data === stt.SpeechStream.FLUSH_SENTINEL) {
+          frames = stream.flush();
+          this.#audioDurationCollector.flush();
+        } else {
+          if (data.sampleRate !== this.#opts.sampleRate || data.channels !== this.#opts.numChannels) {
+            this.#logger.warn(`Mismatch detected! Opts: sR=${this.#opts.sampleRate}, ch=${this.#opts.numChannels}. Data: sR=${data.sampleRate}, ch=${data.channels}`);
+          }
+
+          if (
+            data.sampleRate === this.#opts.sampleRate ||
+            data.channels === this.#opts.numChannels
+          ) {
+            frames = stream.write(data.data.buffer as ArrayBuffer);
+          } else {
+            throw new Error(`sample rate or channel count of frame does not match (Opts: ${this.#opts.sampleRate}/${this.#opts.numChannels} vs Data: ${data.sampleRate}/${data.channels})`);
+          }
+        }
+
+        for (const frame of frames) {
+          // @ts-ignore
+          if (this.#audioEnergyFilter.pushFrame(frame)) {
+            // @ts-ignore
+            const frameDuration = frame.samplesPerChannel / frame.sampleRate;
+            this.#audioDurationCollector.push(frameDuration);
+            // @ts-ignore
+            ws.send(frame.data.buffer);
+          }
+        }
+      }
+
+      try {
+        // Process the buffered first frame if it exists
+        if (initialFrame) {
+          processFrame(initialFrame);
+          // We don't null it here because the outer retry loop manages 'bufferedFirstFrame' persistence across retries if needed, 
+          // but effectively we have consumed it for this connection.
+        }
+
+        while (!this.closed) {
+          // @ts-ignore
+          const result = await Promise.race([this.input.next(), abortPromise]);
+          if (result === undefined) return;
+          if (result.done) break;
+
+          processFrame(result.value);
+        }
+      } finally {
+        closing = true;
+        ws.send(JSON.stringify({ type: 'CloseStream' }));
+        wsMonitor.cancel();
+      }
+    };
+
+    const listenTask = Task.from(async (controller) => {
+      const putMessage = (message: stt.SpeechEvent) => {
+        // @ts-ignore
+        if (!this.queue.closed) {
+          try {
+            // @ts-ignore
+            this.queue.put(message);
+          } catch (e) { }
+        }
+      };
+
+      const listenMessage = new Promise<void>((resolve, reject) => {
+        ws.on('message', (msg: any) => {
+          try {
+            const json = JSON.parse(msg.toString());
+
+            // INTERCEPT LOGIC: Check for speaker data
+            if (json['type'] === 'Results') {
+              const alts = json['channel']?.['alternatives'];
+              if (alts && alts.length > 0) {
+                const words = alts[0]['words'];
+                if (words) {
+                  for (const word of words) {
+                    if (typeof word.speaker === 'number') {
+                      // Debug: Log every speaker seen to verify diarization
+                      // log().info(`🗣️ [DIARIZATION] Speaker ${word.speaker} detected (Word: "${word.word}")`);
+
+                      // Speaker Guard Logic - Only speaker 0 (candidate) is allowed
+                      if (word.speaker >= 1) {
+                        log().warn(`🚨 [SECURITY] Unauthorized speaker detected! ID: ${word.speaker} Word: "${word.word}"`);
+
+                        // Trigger TTS warning (only once per session to avoid spam)
+                        if (this.#onUnauthorizedSpeaker && !this.#hasWarnedThisSession) {
+                          this.#hasWarnedThisSession = true;
+                          log().error(`🚨 [TTS WARNING] Triggering voice warning for speaker ${word.speaker}`);
+                          this.#onUnauthorizedSpeaker(word.speaker, word.word);
+                        }
+                      } else {
+                        // Log allowed speaker (only ID 0 - the candidate)
+                        if (!this.#seenSpeakers.has(word.speaker)) {
+                          this.#seenSpeakers.add(word.speaker);
+                          log().info(`🗣️ [DIARIZATION] Candidate speaker detected: ${word.speaker}`);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            switch (json['type']) {
+              case 'SpeechStarted': {
+                if (this.#speaking) return;
+                this.#speaking = true;
+                putMessage({ type: stt.SpeechEventType.START_OF_SPEECH });
+                break;
+              }
+              case 'Results': {
+                const metadata = json['metadata'];
+                const requestId = metadata['request_id'];
+                const isFinal = json['is_final'];
+                const isEndpoint = json['speech_final'];
+                this.#requestId = requestId;
+
+                // Use helper to convert
+                const alternatives = (deepgram as any).liveTranscriptionToSpeechData
+                  ? (deepgram as any).liveTranscriptionToSpeechData(this.#opts.language!, json, this.startTimeOffset)
+                  : this.localTranscriptionToSpeechData(this.#opts.language!, json, (this as any).startTimeOffset || 0);
+
+                if (alternatives[0] && alternatives[0].text) {
+                  if (!this.#speaking) {
+                    this.#speaking = true;
+                    putMessage({ type: stt.SpeechEventType.START_OF_SPEECH });
+                  }
+                  if (isFinal) {
+                    putMessage({ type: stt.SpeechEventType.FINAL_TRANSCRIPT, alternatives: [alternatives[0], ...alternatives.slice(1)] });
+                  } else {
+                    putMessage({ type: stt.SpeechEventType.INTERIM_TRANSCRIPT, alternatives: [alternatives[0], ...alternatives.slice(1)] });
+                  }
+                }
+
+                if (isEndpoint && this.#speaking) {
+                  this.#speaking = false;
+                  putMessage({ type: stt.SpeechEventType.END_OF_SPEECH });
+                }
+                break;
+              }
+              case 'Metadata': break;
+              default:
+                this.#logger.child({ msg: json }).warn('received unexpected message from Deepgram');
+                break;
+            }
+
+            if (this.closed || closing) resolve();
+          } catch (err) {
+            this.#logger.error(`STT: Error processing message: ${msg}`);
+            reject(err);
+          }
+        });
+      });
+      // @ts-ignore
+      await Promise.race([listenMessage, waitForAbort(controller.signal)]);
+    }, this.abortController); // @ts-ignore
+
+    // @ts-ignore
+    await Promise.race([this.#resetWS.await, Promise.all([sendTask(), listenTask.result, wsMonitor])]);
+    closing = true;
+    ws.close();
+    clearInterval(keepalive);
+  }
+
+  private onAudioDurationReport(duration: number) {
+    const usageEvent: stt.SpeechEvent = {
+      type: stt.SpeechEventType.RECOGNITION_USAGE,
+      requestId: this.#requestId,
+      recognitionUsage: { audioDuration: duration },
+    };
+    // @ts-ignore
+    this.queue.put(usageEvent);
+  }
+
+  // Helper copied from plugin since it's likely not exported
+  private localTranscriptionToSpeechData(language: string, data: any, startTimeOffset: number): stt.SpeechData[] {
+    const alts: any[] = data['channel']['alternatives'];
+    return alts.map((alt) => {
+      const wordsData: any[] = alt['words'] ?? [];
+      return {
+        language,
+        startTime: wordsData.length ? wordsData[0]['start'] + startTimeOffset : startTimeOffset,
+        endTime: wordsData.length ? wordsData[wordsData.length - 1]['end'] + startTimeOffset : startTimeOffset,
+        confidence: alt['confidence'],
+        text: alt['transcript'],
+        words: wordsData.map((word) =>
+          createTimedString({
+            text: word['word'] ?? '',
+            startTime: (word['start'] ?? 0) + startTimeOffset,
+            endTime: (word['end'] ?? 0) + startTimeOffset,
+            confidence: word['confidence'] ?? 0.0,
+            // startTimeOffset,
+          })
+        ),
+      };
+    });
+  }
+}
+
+class CustomDeepgramSTT extends deepgram.STT {
+  #internalOpts: any;
+  #onUnauthorizedSpeaker?: (speakerId: number, word: string) => void;
+
+  constructor(opts: any, onUnauthorizedSpeaker?: (speakerId: number, word: string) => void) {
+    super(opts);
+    this.#internalOpts = opts;
+    this.#onUnauthorizedSpeaker = onUnauthorizedSpeaker;
+  }
+
+  stream(options?: any): any {
+    const combinedOpts = { ...this.#internalOpts, ...options };
+    return new CustomSpeechStream(this, combinedOpts, options?.connOptions, this.#onUnauthorizedSpeaker);
+  }
+}
 import { StateProvider } from './state-provider.js';
 import { Orchestrator } from './orchestrator.js';
 import { getPersonaForRole, getPersonaInstructions } from './personas/role-personas.js';
@@ -331,7 +764,7 @@ export const agent = defineAgent({
             duration: finalState.endTime && finalState.startTime
               ? finalState.endTime.getTime() - finalState.startTime.getTime()
               : 0,
-            fullConversationHistory: finalState.conversationHistory || [],
+            fullConversationHistory: [] as any[], // Placeholder, will populate below
             theoreticalSection: {
               totalQuestions: finalState.totalQuestions || 0,
               questionsAsked: finalState.questionsAsked || 0,
@@ -341,8 +774,10 @@ export const agent = defineAgent({
               totalProblems: finalState.totalProblems || 0,
               problemsCompleted: finalState.currentProblemIndex || 0,
               conversations: [], // detailed conversations handled by fullConversationHistory
-              // Include final code if available for the current problem
-              finalCode: finalState.currentCode || '',
+              // Include final code if available for the current problem (Respect "no code" policy)
+              finalCode: (finalState.currentCode && finalState.currentCode.trim().length > 0) ? finalState.currentCode : undefined,
+              timeComplexity: finalState.currentTimeComplexity || '',
+              spaceComplexity: finalState.currentSpaceComplexity || '',
               problem: orchestrator.getCurrentProblem() || undefined,
             },
             // Required fields with defaults (will be updated by LLM evaluation later)
@@ -359,9 +794,33 @@ export const agent = defineAgent({
             averageTimePerCodingProblem: 0, // Could be specialized if we track section timing
           };
 
+          // GENERATE COMPLETE HISTORY (Verbal + Non-Verbal)
+          try {
+            // Retrieve ChatContext from session userData (stored via llmNode)
+            const chatCtx = (sessionRef?.userData as any)?.chatCtx;
+
+            // Get non-verbal events (code submissions, problem logs) from state history
+            // Note: We filtered out verbal logs from state, so this should contain only system/code events
+            const nonVerbalEvents = finalState.conversationHistory || [];
+
+            const fullHistory = generateCompleteHistory(
+              chatCtx,
+              nonVerbalEvents,
+              finalState.questions || [],
+              finalState.problems || []
+            );
+
+            payload.fullConversationHistory = fullHistory;
+            log().info(`📜 [Agent] Generated complete history: ${fullHistory.length} messages (${(chatCtx?.items || []).length} verbal, ${nonVerbalEvents.length} non-verbal)`);
+          } catch (histError) {
+            log().error('❌ [Agent] Failed to generate complete history:', histError);
+            // Fallback to whatever is in state (likely incomplete but better than nothing)
+            payload.fullConversationHistory = finalState.conversationHistory || [];
+          }
+
           log().info({
             sessionId,
-            conversationHistoryLength: (finalState.conversationHistory || []).length,
+            conversationHistoryLength: payload.fullConversationHistory.length,
           }, '📤 [Agent] Sending final evaluation to backend API...');
 
           const response = await fetch(`${serverUrl}/api/interview/final-evaluation`, {
@@ -394,12 +853,34 @@ export const agent = defineAgent({
       log().info('   ✅ JAILBREAK PROTECTION: 0-latency regex checks + context pruning');
       log().info('   ✅ ROLE PERSONA: Using ' + role + ' persona (set once)');
 
+      // Create a reference for the session that will be populated after creation
+      let sessionRef: voice.AgentSession<InterviewSessionData> | null = null;
+
       const session = new voice.AgentSession<InterviewSessionData>({
         vad,
-        stt: new deepgram.STT({
-          model: (process.env.DEEPGRAM_MODEL || 'nova-2') as any,
-          apiKey: process.env.DEEPGRAM_API_KEY,
-        }),
+        stt: new CustomDeepgramSTT(
+          {
+            model: (process.env.DEEPGRAM_MODEL || 'nova-2') as any,
+            apiKey: process.env.DEEPGRAM_API_KEY,
+            diarize: true,
+          },
+          // Callback for unauthorized speaker warnings
+          async (speakerId: number, word: string) => {
+            log().error(`🚨 [TTS WARNING] Triggering voice warning for speaker ${speakerId}`);
+            if (sessionRef) {
+              try {
+                // Use session.say() to speak the warning
+                await sessionRef.say(
+                  "Warning: An additional voice has been detected. Please ensure you are alone during the interview.",
+                  { allowInterruptions: false }
+                );
+                log().info(`✅ [TTS WARNING] Voice warning played successfully`);
+              } catch (error: any) {
+                log().error(`❌ [TTS WARNING] Failed to play voice warning: ${error.message}`);
+              }
+            }
+          }
+        ),
         llm: llmDirect, // Direct LLM (no tools)
         tts: new cartesia.TTS({
           model: 'sonic-3',
@@ -426,6 +907,9 @@ export const agent = defineAgent({
           minInterruptionWords: 3, // Prevent interruption from short completed turns (approx < 2s)
         },
       });
+
+      // Populate the session reference
+      sessionRef = session;
 
       log().info({ options: JSON.stringify(session.options, null, 2) }, '🔧 [Agent] Session options:');
 
@@ -459,6 +943,13 @@ export const agent = defineAgent({
               stateProvider.updateCode(interviewId, msg.code);
               log().info(`💻 [Agent] Received code_snapshot (${msg.code.length} chars) - Updated State`);
 
+              // Update complexity if provided
+              if (msg.complexity) {
+                const time = msg.complexity.time || msg.complexity.timeComplexity;
+                const space = msg.complexity.space || msg.complexity.spaceComplexity;
+                stateProvider.updateComplexity(interviewId, time, space);
+              }
+
               // Also update notepad if provided
               if (msg.notepad !== undefined) {
                 stateProvider.updateNotepad(interviewId, msg.notepad);
@@ -473,6 +964,23 @@ export const agent = defineAgent({
 
             await session.say(`Attention: ${warningMessage}`);
 
+          } else if (msg.type === 'user_quit') {
+            log().info('🛑 [Agent] User quit - saving interview state');
+
+            const state = stateProvider.getState(interviewId);
+            if (state) {
+              orchestrator.wrapUpInterview();
+              orchestrator.completeInterview();
+
+              const finalState = stateProvider.getState(interviewId);
+              if (finalState) {
+                await sendFinalEvaluationToBackend(finalState);
+                log().info('✅ [Agent] Interview saved successfully on user quit');
+              }
+            } else {
+              log().warn('⚠️ [Agent] No state found during user_quit');
+            }
+
           } else if (msg.type === 'confirm_next_question') {
             log().info({ metadata: msg.metadata }, '✅ [Agent] Received confirm_next_question from UI');
             // Proceed to next question logic
@@ -481,29 +989,13 @@ export const agent = defineAgent({
             // Check current phase
             const currentPhase = state?.currentState;
 
-            // If in coding phase, store current code submission before moving on
+            // If in coding phase, update complexity in state before moving on
             if (currentPhase === 'coding' || currentPhase === 'coding_problem') {
-              // Get current code and complexity from state/message
-              const currentCode = state?.currentCode || '';
               const complexity = msg.metadata?.complexity || {};
-              const currentProblemId = state?.currentProblemId;
-
-              // Store code submission in conversation history for LLM evaluation
-              if (currentCode.trim()) {
-                stateProvider.addConversationMessage(interviewId, {
-                  role: 'user',
-                  content: `Code Submission:\n\`\`\`\n${currentCode}\n\`\`\`\n\nTime Complexity: ${complexity.time || 'Not specified'}\nSpace Complexity: ${complexity.space || 'Not specified'}`,
-                  metadata: {
-                    type: 'code_submission',
-                    section: 'coding',
-                    problemId: currentProblemId,
-                    timeComplexity: complexity.time,
-                    spaceComplexity: complexity.space,
-                    codeLength: currentCode.length,
-                  },
-                });
-                log().info(`📝 [Agent] Stored code submission (${currentCode.length} chars) with complexity in conversation history`);
-              }
+              const time = complexity.time || complexity.timeComplexity;
+              const space = complexity.space || complexity.spaceComplexity;
+              stateProvider.updateComplexity(interviewId, time, space);
+              log().info(`📝 [Agent] Updated complexity in state before transitioning: Time=${time}, Space=${space}`);
 
               const { problem, shouldWrapUp } = orchestrator.presentNextProblem();
 

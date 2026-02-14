@@ -65,6 +65,8 @@ export interface InterviewState {
 
   // Code snapshot
   currentCode: string | null;
+  currentTimeComplexity?: string;
+  currentSpaceComplexity?: string;
 
   // Notepad content
   currentNotepad: string | null;
@@ -130,6 +132,9 @@ export class StateProvider extends EventEmitter {
       conversationHistory: [],
 
       currentCode: null,
+      currentTimeComplexity: undefined,
+      currentSpaceComplexity: undefined,
+
       currentNotepad: null,
 
       agentSpeaking: false,
@@ -466,6 +471,11 @@ export class StateProvider extends EventEmitter {
     state.currentQuestionId = null;
 
     this.emit('problemChanged', { interviewId, problemId, index: actualIndex });
+
+    // Reset code tracking for the new problem
+    state.currentCode = null;
+    state.currentTimeComplexity = undefined;
+    state.currentSpaceComplexity = undefined;
   }
 
   /**
@@ -606,6 +616,28 @@ export class StateProvider extends EventEmitter {
     });
 
     console.log(`[StateProvider] Code updated for interview ${interviewId}: ${code.length} chars`);
+  }
+
+  /**
+   * Update the candidate's complexity estimates
+   */
+  updateComplexity(interviewId: string, time?: string, space?: string): void {
+    const state = this.states.get(interviewId);
+    if (!state) {
+      console.warn(`[StateProvider] Cannot update complexity: state not found for interview ${interviewId}`);
+      return;
+    }
+
+    state.currentTimeComplexity = time;
+    state.currentSpaceComplexity = space;
+
+    this.emit('stateUpdated', {
+      interviewId,
+      state,
+      updates: { currentTimeComplexity: time, currentSpaceComplexity: space }
+    });
+
+    log().info(`[StateProvider] Complexity updated for interview ${interviewId}: Time=${time}, Space=${space}`);
   }
 
   /**
