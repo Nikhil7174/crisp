@@ -4,7 +4,6 @@ import { Typography, Space, Row, Col, Card, Button } from 'antd';
 import { DownloadOutlined, WindowsOutlined, AppleOutlined, LinuxOutlined, DownOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { colors, spacing, borderRadius, typography } from '../../styles';
-import landingBg from '../../assets/images/landingBg.jpg';
 
 const { Title, Paragraph } = Typography;
 
@@ -54,11 +53,6 @@ export const DownloadSection: React.FC = () => {
       <div
         id="download-section"
         style={{
-          backgroundImage: `url(${landingBg})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed',
           padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${spacing.xxl}px ${spacing.lg}px`,
           position: 'relative',
           overflow: 'hidden'
@@ -85,7 +79,7 @@ export const DownloadSection: React.FC = () => {
                     fontFamily: '"Varela Round", sans-serif',
                   }}
                 >
-                  Try Shakra now.
+                  Give your first interview with Shakra.
                 </Title>
                 <Paragraph
                   style={{
@@ -113,15 +107,17 @@ export const DownloadSection: React.FC = () => {
                       <Card
                         style={{
                           borderRadius: borderRadius.xl,
-                          border: 'none',
-                          boxShadow: colors.shadows.md,
+                          border: '1px solid #E5E7EB',
+                          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                           background: colors.background.primary,
                           height: '100%',
                           display: 'flex',
                           flexDirection: 'column',
+                          maxWidth: 340,
+                          margin: '0 auto',
                         }}
                         bodyStyle={{
-                          padding: spacing.xl,
+                          padding: spacing.lg,
                           display: 'flex',
                           flexDirection: 'column',
                           flex: 1,
@@ -136,7 +132,7 @@ export const DownloadSection: React.FC = () => {
                           <div style={{ textAlign: 'center' }}>
                             <div
                               style={{
-                                fontSize: 40,
+                                fontSize: 36,
                                 color: colors.neutral[900],
                                 marginBottom: spacing.md,
                               }}
@@ -148,7 +144,7 @@ export const DownloadSection: React.FC = () => {
                               style={{
                                 margin: 0,
                                 color: colors.neutral[900],
-                                fontSize: typography.fontSize.xl,
+                                fontSize: 16,
                                 fontWeight: typography.fontWeight.medium,
                               }}
                             >
@@ -177,7 +173,7 @@ export const DownloadSection: React.FC = () => {
                                       fontWeight: typography.fontWeight.medium,
                                       borderRadius: borderRadius.md,
                                       width: 180,
-                                      background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                                      background: colors.primary.main,
                                       border: 'none',
                                       color: 'white',
                                       boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
@@ -273,7 +269,7 @@ export const DownloadSection: React.FC = () => {
                                   fontWeight: typography.fontWeight.medium,
                                   borderRadius: borderRadius.md,
                                   width: 180,
-                                  background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.info.main} 100%)`,
+                                  background: colors.primary.main,
                                   border: 'none',
                                   color: 'white',
                                   boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,

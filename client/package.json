@@ -22,6 +22,7 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.3",
     "localforage": "^1.10.0",
+    "lucide-react": "^0.574.0",
     "monaco-editor": "^0.53.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Typography, Space, Grid, Button } from 'antd';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { colors, typography, spacing } from '../../styles';
 
 const { Title, Paragraph } = Typography;
@@ -9,10 +8,9 @@ const { useBreakpoint } = Grid;
 
 export const HeroSection: React.FC = () => {
   const screens = useBreakpoint();
-  const navigate = useNavigate();
 
-  const titleFontSize = screens.lg ? typography.fontSize['6xl'] : '48px';
-  const paragraphFontSize = screens.lg ? typography.fontSize.xl : '16px';
+  const titleFontSize = screens.lg ? typography.fontSize['5xl'] : '48px';
+  const paragraphFontSize = screens.lg ? typography.fontSize.lg : '16px';
   const paddingBottom = screens.lg ? `${spacing.xl}px` : '0';
 
   return (
@@ -26,7 +24,8 @@ export const HeroSection: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <Space direction="vertical" size="large" style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <Space direction="vertical" size="small" style={{ maxWidth: 1000, margin: '0 auto' }}>
+          {/* Headline: Focuses on Scale (Strategy Point: Capacity Bottleneck)  */}
           <Title level={1} style={{
             fontSize: titleFontSize,
             fontWeight: typography.fontWeight.bold,
@@ -36,52 +35,42 @@ export const HeroSection: React.FC = () => {
             marginBottom: spacing.sm,
             fontFamily: '"Varela Round", sans-serif',
           }}>
-            Technical interviews on
+            Technical Interviews on
             <span style={{ color: colors.primary.main }}> Autopilot </span>
           </Title>
 
+          {/* Subhead: Addresses Speed, Cheating, and Quality [cite: 17, 39, 43] */}
           <Paragraph style={{
             fontSize: paragraphFontSize,
             color: colors.neutral[600],
             lineHeight: typography.lineHeight.relaxed,
             fontWeight: typography.fontWeight.normal,
             marginBottom: spacing.xl,
+            maxWidth: 800, // Added constraint for better readability of longer text
+            marginLeft: 'auto',
+            marginRight: 'auto',
           }}>
-            Create your own custom technical interview and select candidates within hours.
+            Screen 100s of candidates simultaneously with AI-driven technical rounds that ensure every result is verified. Delivering a trusted top 1% shortlist.
           </Paragraph>
 
           <Space size="middle" wrap style={{ justifyContent: 'center' }}>
+            {/* CTA: Changed to "Book a Demo" to match Sales Motion  */}
             <Button
               type="primary"
               size="large"
-              onClick={() => navigate('/sign-up?role=candidate')}
+              href="https://cal.com/nikhil-singh/shakra-ai-interview-demo"
+              target="_blank"
               style={{
                 height: 40,
                 padding: '0 28px',
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: 600,
                 borderRadius: 12,
                 background: colors.neutral[900],
                 borderColor: colors.neutral[900],
               }}
             >
-              For Candidates
-            </Button>
-            <Button
-              size="large"
-              onClick={() => navigate('/sign-up?role=interviewer')}
-              style={{
-                height: 40,
-                padding: '0 28px',
-                fontSize: 18,
-                fontWeight: 600,
-                borderRadius: 12,
-                color: colors.neutral[900],
-                borderColor: colors.neutral[900],
-                borderWidth: 2,
-              }}
-            >
-              For Companies
+              Book a Demo
             </Button>
           </Space>
         </Space>

@@ -5,12 +5,12 @@ import { useSearchParams } from 'react-router-dom';
 export const SignUpPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Get the role from the URL (default to 'candidate' if missing)
-    const role = searchParams.get('role') === 'interviewer' ? 'interviewer' : 'candidate';
+    // Get the role from the URL (default to 'interviewer' if missing)
+    const role = searchParams.get('role') === 'candidate' ? 'candidate' : 'interviewer';
 
     React.useEffect(() => {
         if (!searchParams.get('role')) {
-            setSearchParams({ role: 'candidate' }, { replace: true });
+            setSearchParams({ role: 'interviewer' }, { replace: true });
         }
     }, [searchParams, setSearchParams]);
 
@@ -55,9 +55,9 @@ export const SignUpPage = () => {
                     onMouseEnter={(e) => e.currentTarget.style.color = '#000000'}
                     onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
                 >
-                    {role === 'candidate'
-                        ? "Not a candidate? Sign up as a Company"
-                        : "Not a company? Sign up as a Candidate"}
+                    {role === 'interviewer'
+                        ? "Not a company? Sign up as a Candidate"
+                        : "Not a candidate? Sign up as a Company"}
                     <span>→</span>
                 </a>
             </div>

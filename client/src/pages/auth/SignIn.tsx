@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 
 export const SignInPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const role = searchParams.get('role') === 'interviewer' ? 'interviewer' : 'candidate';
+    const role = searchParams.get('role') === 'candidate' ? 'candidate' : 'interviewer';
 
     // Check if this is a desktop auth request
     const isDesktop = searchParams.get('source') === 'desktop';
@@ -12,7 +12,7 @@ export const SignInPage = () => {
     React.useEffect(() => {
         // Only enforce role default if not in desktop mode (desktop mode has its own flow)
         if (!searchParams.get('role') && !isDesktop) {
-            setSearchParams({ role: 'candidate' }, { replace: true });
+            setSearchParams({ role: 'interviewer' }, { replace: true });
         }
     }, [searchParams, setSearchParams, isDesktop]);
 
@@ -60,9 +60,9 @@ export const SignInPage = () => {
                     onMouseEnter={(e) => e.currentTarget.style.color = '#0958d9'}
                     onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
                 >
-                    {role === 'candidate'
-                        ? "Not a candidate? Log in as a Company"
-                        : "Not a company? Log in as a Candidate"}
+                    {role === 'interviewer'
+                        ? "Not a company? Log in as a Candidate"
+                        : "Not a candidate? Log in as a Company"}
                     <span>→</span>
                 </a>
             </div>
