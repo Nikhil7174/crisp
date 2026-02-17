@@ -2,17 +2,14 @@ import { HeroSection } from '../components/landing/HeroSection'
 import { VideoSection } from '../components/landing/VideoSection'
 import { CommonContentRow } from '../components/landing/CommonContentRow'
 import CostCalculatorSection from '../components/landing/CostCalculatorSection'
+import { FeaturesSection } from '../components/landing/FeaturesSection'
+import { ProcessFlowSection } from '../components/landing/ProcessFlowSection'
 import { DownloadSection } from '../components/landing/DownloadSection'
-import landingBg from '../assets/images/landingBg.jpg'
 
 const Home = () => {
   return (
     <>
       <div style={{
-        backgroundImage: `url(${landingBg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
         minHeight: '100vh',
         position: 'relative',
         overflow: 'hidden'
@@ -22,6 +19,8 @@ const Home = () => {
       </div>
       <CommonContentRow />
       <CostCalculatorSection />
+      <FeaturesSection />
+      <ProcessFlowSection />
       <DownloadSection />
     </>
   )

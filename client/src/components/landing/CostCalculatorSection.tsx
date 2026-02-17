@@ -578,12 +578,12 @@ const CostCalculatorSection: React.FC = () => {
                       font-size: 14px !important;
                     }
                   `}</style>
-                  <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', minWidth: 0 }}>
+                  <div style={{ width: '100%', maxWidth: '90%', margin: '0 auto', overflowX: 'hidden', overflowY: 'hidden', minWidth: 0 }}>
                     <ResponsiveContainer width="100%" height={400}>
                       <BarChart
                         data={chartData}
                         margin={{ top: 20, right: 10, left: 10, bottom: 5 }}
-                        barCategoryGap="30%"
+                        barCategoryGap="20%"
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} />
                         <XAxis
@@ -640,6 +640,7 @@ const CostCalculatorSection: React.FC = () => {
                         <Bar
                           dataKey={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
                           stackId="a"
+                          maxBarSize={90}
                           fill="#2c2c2c"
                           name={activeView === 'financial' ? 'Fixed Cost' : 'Eng. Time'}
                           shape={(props: any) => {
@@ -660,6 +661,7 @@ const CostCalculatorSection: React.FC = () => {
                         <Bar
                           dataKey={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
                           stackId="a"
+                          maxBarSize={90}
                           fill="#69b7ff"
                           name={activeView === 'financial' ? 'Per-Session Cost' : 'Time to Hire'}
                           shape={(props: any) => {
@@ -681,6 +683,7 @@ const CostCalculatorSection: React.FC = () => {
                           <Bar
                             dataKey="Running Cost"
                             stackId="a"
+                            maxBarSize={90}
                             fill="#d3b3e5"
                             name="Running Cost"
                             shape={(props: any) => {
@@ -702,6 +705,7 @@ const CostCalculatorSection: React.FC = () => {
                         <Bar
                           dataKey="Savings"
                           stackId="a"
+                          maxBarSize={90}
                           fill={colors.success.main}
                           name="Savings"
                           shape={(props: any) => {
