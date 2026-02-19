@@ -1,17 +1,85 @@
 import React from 'react';
-import { Typography, Space, Grid, Button } from 'antd';
+import { Typography, Space, Grid, Button, Dropdown, Tooltip } from 'antd';
+import type { MenuProps } from 'antd';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { colors, typography, spacing } from '../../styles';
+import { INTERVIEW_ROLES } from '../../constants/interview';
 
 const { Title, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
 
 export const HeroSection: React.FC = () => {
   const screens = useBreakpoint();
+  const navigate = useNavigate();
 
   const titleFontSize = screens.lg ? typography.fontSize['5xl'] : '48px';
   const paragraphFontSize = screens.lg ? typography.fontSize.lg : '16px';
   const paddingBottom = screens.lg ? `${spacing.xl}px` : '0';
+
+  // Truncate list logic: Active (FE, BE, AI) + Full Stack + DevOps + "More..."
+  const visibleRolesList = [
+    'Frontend Developer',
+    'Backend Developer',
+    'AI Engineer',
+    'Full Stack Developer'
+  ];
+
+  const visibleItems = visibleRolesList
+    .map(roleName => INTERVIEW_ROLES.find(r => r.value === roleName))
+    .filter((r): r is typeof INTERVIEW_ROLES[0] => Boolean(r));
+
+  const remainingCount = INTERVIEW_ROLES.length - visibleItems.length;
+
+  const tryInterviewItems: MenuProps['items'] = visibleItems.map((role) => {
+    let key = role.value;
+    let disabled = true;
+
+    // Map specific roles to active demo keys
+    if (role.value === 'Frontend Developer') {
+      key = 'fe';
+      disabled = false;
+    } else if (role.value === 'Backend Developer') {
+      key = 'be';
+      disabled = false;
+    } else if (role.value === 'AI Engineer') {
+      key = 'ai';
+      disabled = false;
+    }
+
+    return {
+      key,
+      label: disabled ? (
+        <Tooltip title="Sign in to give this interview" placement="right">
+          <span style={{ color: colors.neutral[400], cursor: 'default', display: 'flex', alignItems: 'center', height: '90%', fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm }}>{role.label}</span>
+        </Tooltip>
+      ) : (
+        <span style={{ fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm, display: 'flex', alignItems: 'center', height: '90%', width: '100%' }}>{role.label}</span>
+      ),
+      disabled: false,
+      className: disabled ? 'menu-item-disabled-simulated' : '',
+      style: { height: 36, display: 'flex', alignItems: 'center' },
+    };
+  });
+
+  if (remainingCount > 0) {
+    tryInterviewItems.push({
+      key: 'more',
+      label: (
+        <Tooltip title="Sign in to give more interviews" placement="right">
+          <span style={{ color: colors.neutral[400], fontStyle: 'italic', fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm, display: 'flex', alignItems: 'center', height: '90%', cursor: 'default' }}>and {remainingCount} more...</span>
+        </Tooltip>
+      ),
+      disabled: false,
+      style: { height: 36, display: 'flex', alignItems: 'center' },
+    });
+  }
+
+  const handleTryInterview: MenuProps['onClick'] = ({ key }) => {
+    if (['fe', 'be', 'ai'].includes(key as string)) {
+      navigate(`/try-interview/${key}`);
+    }
+  };
 
   return (
     <div style={{
@@ -46,7 +114,7 @@ export const HeroSection: React.FC = () => {
             lineHeight: typography.lineHeight.relaxed,
             fontWeight: typography.fontWeight.normal,
             marginBottom: spacing.xl,
-            maxWidth: 800, // Added constraint for better readability of longer text
+            maxWidth: 800,
             marginLeft: 'auto',
             marginRight: 'auto',
           }}>
@@ -72,9 +140,36 @@ export const HeroSection: React.FC = () => {
             >
               Book a Demo
             </Button>
+
+            {/* Try Interview - Public Demo */}
+            <Dropdown
+              menu={{
+                items: tryInterviewItems,
+                onClick: handleTryInterview,
+                // Removed scroll/max-height as list is now short
+              }}
+              placement="bottom"
+            >
+              <Button
+                size="large"
+                style={{
+                  height: 40,
+                  padding: '0 28px',
+                  maxWidth: 160,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 12,
+                  gap: 4,
+                  borderColor: colors.primary.main,
+                  color: colors.primary.main,
+                }}
+              >
+                <span> Try Interview </span> <span> ▾</span>
+              </Button>
+            </Dropdown>
           </Space>
         </Space>
       </motion.div>
-    </div>
+    </div >
   );
 };

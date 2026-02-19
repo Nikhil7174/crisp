@@ -33,6 +33,9 @@
 
   .cost-calculator-tabs {
     width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   .cost-calculator-tabs .ant-tabs-nav {
@@ -82,4 +85,3 @@
     padding: 16px !important;
   }
 }
-

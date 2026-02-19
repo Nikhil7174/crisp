@@ -548,6 +548,169 @@ export class InterviewController {
     }
   }
 
+  /**
+   * Demo interview link tokens keyed by role shortcode.
+   * Each token must correspond to a valid, active InterviewLink in the database.
+   *   fe → Frontend Engineer  (9nibe1p6cyaq51gq098b9)
+   *   be → Backend Engineer   (zlee8albfyp5i9xqs9bmrh)
+   *   ai → AI/ML Engineer     (3wswte70y5lriniftbor2)
+   */
+  private static DEMO_LINK_TOKENS: Record<string, string> = {
+    fe: process.env.TOKEN_FE || '',
+    be: process.env.TOKEN_BE || '',
+    ai: process.env.TOKEN_AI || '',
+  };
+
+  private static DEFAULT_DEMO_ROLE = 'be';
+
+  /**
+   * Start a demo interview (public — no auth required).
+   * Accepts an optional `role` query param: 'fe' | 'be' | 'ai'
+   * Falls back to the backend ('be') token if the role is missing or unrecognised.
+   */
+  async startDemoInterview(req: Request, res: Response): Promise<void> {
+    try {
+      const roleParam = (req.body.type || req.body.role || req.query.role as string | undefined)?.toLowerCase();
+      const role = roleParam && roleParam in InterviewController.DEMO_LINK_TOKENS
+        ? roleParam
+        : InterviewController.DEFAULT_DEMO_ROLE;
+
+      const linkToken = InterviewController.DEMO_LINK_TOKENS[role];
+      console.log(`🎮 [DemoInterview] Role: ${role}, Token: ${linkToken}`);
+
+      // Validate the interview link from DB (same as startInterview)
+      const link = await this.dbService.getInterviewLinkByToken(linkToken);
+
+      if (!link) {
+        res.status(404).json({ error: `Demo interview link not found in database (role: ${role})` });
+        return;
+      }
+
+      if (!link.is_active) {
+        res.status(403).json({ error: 'Demo interview link is inactive' });
+        return;
+      }
+
+      if (link.expiry_date && new Date(link.expiry_date) < new Date()) {
+        res.status(403).json({ error: 'Demo interview link has expired' });
+        return;
+      }
+
+      const interviewLinkId = link.id;
+
+      // Generate questions using the same service as real interviews
+      const questions = await this.questionGenerationService.generateInterviewQuestions(link);
+
+      const sessionId = this.generateSessionId();
+
+      // Separate theoretical and coding questions
+      const theoreticalQuestions = questions.filter(q => q.type === 'theoretical');
+      const codingQuestions = questions.filter(q => q.type === 'machine_coding');
+
+      console.log(`🎮 [DemoInterview] ${theoreticalQuestions.length} theoretical, ${codingQuestions.length} coding`);
+
+      // Map theoretical questions
+      const mappedTheoretical: InterviewQuestion[] = theoreticalQuestions.map(q => ({
+        id: q.id,
+        question: q.question,
+        type: 'technical',
+        difficulty: q.difficulty,
+        timeLimit: q.timeLimit,
+        expectedAnswer: q.expectedAnswer,
+        explanation: q.explanation,
+        keyPoints: q.keyPoints,
+        documentation: q.documentation,
+      }));
+
+      // Map coding questions
+      const mappedCoding: InterviewQuestion[] = codingQuestions.map(q => {
+        let timeLimit = 1800;
+        if (q.difficulty === 'easy') timeLimit = 900;
+        else if (q.difficulty === 'medium') timeLimit = 1500;
+
+        return {
+          id: q.id,
+          question: q.question,
+          title: q.question,
+          description: q.problemStatement || q.question,
+          type: 'coding',
+          difficulty: q.difficulty,
+          timeLimit: q.timeLimit || timeLimit,
+          expectedAnswer: q.expectedAnswer,
+          explanation: q.explanation,
+          keyPoints: q.keyPoints,
+          documentation: q.documentation,
+          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
+            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
+            : 'javascript',
+          initialCode: q.starterCode,
+          starterCodes: q.starterCodes,
+          expectedOutput: q.testCases?.[0]?.expectedOutput,
+          testCases: q.testCases,
+          instructions: q.problemStatement,
+          constraints: q.constraints,
+          examples: q.examples,
+        };
+      });
+
+      const allQuestions = [...mappedTheoretical, ...mappedCoding];
+      const roomName = `interview-${sessionId}`;
+      const candidateName = 'Demo User';
+
+      // Generate LiveKit token
+      const { AccessToken } = await import('livekit-server-sdk');
+      const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
+      const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
+      const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+
+      const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+        identity: candidateName,
+        name: candidateName,
+      });
+      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+      const livekitToken = await at.toJwt();
+
+      // Store questions in memory for the agent
+      interviewQuestionsStore.set(sessionId, {
+        questions: mappedTheoretical,
+        codingProblems: mappedCoding,
+        sessionId,
+        maxTheoreticalQuestions: link.max_interview_questions || 10,
+        role: link.role || 'Backend Engineer',
+      });
+      interviewQuestionsStore.set(roomName, {
+        questions: mappedTheoretical,
+        codingProblems: mappedCoding,
+        sessionId,
+        maxTheoreticalQuestions: link.max_interview_questions || 10,
+        role: link.role || 'Backend Engineer',
+      });
+
+      console.log(`✅ [DemoInterview] Session ${sessionId} ready, room ${roomName}`);
+
+      res.json({
+        success: true,
+        sessionId,
+        interviewLinkId,
+        theoreticalQuestions: mappedTheoretical,
+        codingQuestions: mappedCoding,
+        maxTheoreticalQuestions: link.max_interview_questions || 10,
+        questions: allQuestions,
+        roomName,
+        wsUrl: LIVEKIT_URL,
+        token: livekitToken,
+        message: 'Demo interview session started successfully',
+      });
+
+    } catch (error) {
+      console.error('❌ [DemoInterview] Error:', error);
+      res.status(500).json({
+        error: 'Failed to start demo interview',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }

@@ -15,6 +15,11 @@ router.post('/start', authMiddleware as any, (req: Request, res: Response) => {
     interviewController.startInterview(req as AuthRequest, res);
 });
 
+// Start demo interview endpoint - public, no auth required
+router.post('/demo-start', (req: Request, res: Response) => {
+    interviewController.startDemoInterview(req, res);
+});
+
 // Get interview questions endpoint - public (used by agent process)
 // The agent will authenticate using a shared secret or API key if needed
 router.get('/questions', (req: Request, res: Response) => {

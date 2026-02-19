@@ -27,6 +27,7 @@ import { SignUpPage } from './pages/auth/SignUp';
 import { AuthCallback } from './pages/auth/AuthCallback';
 import DesktopCallback from './pages/auth/DesktopCallback';
 import DesktopLogin from './pages/auth/DesktopLogin';
+import TryInterview from './pages/TryInterview';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -84,6 +85,9 @@ const AppContent = () => {
 
       {/* Join Interview - Public but requires validation */}
       <Route path="/join" element={<JoinInterview />} />
+
+      {/* Try Interview - Public demo route */}
+      <Route path="/try-interview/:type" element={<TryInterview />} />
 
       {/* Interviewer Routes */}
       <Route
