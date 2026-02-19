@@ -3,6 +3,7 @@ import React from 'react';
 import { Layout, Button, Space, Grid, Drawer } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { usePostHog } from '@posthog/react';
 import { colors, spacing } from '../../styles';
 import shakraLogo from '../../assets/images/shakra.png';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,6 +13,7 @@ const { Header: AntHeader } = Layout;
 export const Header: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, logout } = useAuth();
+  const posthog = usePostHog();
   const screens = Grid.useBreakpoint();
   const [drawerVisible, setDrawerVisible] = React.useState(false);
 
@@ -22,6 +24,7 @@ export const Header: React.FC = () => {
   };
 
   const handleFeaturesClick = () => {
+    posthog?.capture('features_clicked');
     const featuresSection = document.getElementById('features-section');
     if (featuresSection) {
       featuresSection.scrollIntoView({ behavior: 'smooth' });
@@ -37,6 +40,7 @@ export const Header: React.FC = () => {
   };
 
   const handleLoginClick = () => {
+    posthog?.capture('login_clicked');
     navigate('/sign-in?role=interviewer');
     setDrawerVisible(false);
   };
@@ -105,6 +109,7 @@ export const Header: React.FC = () => {
             type="primary"
             href="https://cal.com/nikhil-singh/shakra-ai-interview-demo"
             target="_blank"
+            onClick={() => posthog?.capture('book_demo_clicked', { source: 'header_mobile' })}
             block
             style={{
               background: colors.neutral[900],
@@ -224,6 +229,7 @@ export const Header: React.FC = () => {
                   type="primary"
                   href="https://cal.com/nikhil-singh/shakra-ai-interview-demo"
                   target="_blank"
+                  onClick={() => posthog?.capture('book_demo_clicked', { source: 'header_desktop' })}
                   style={{
                     background: colors.neutral[900],
                     borderColor: colors.neutral[900],

@@ -3,6 +3,7 @@ import { Typography, Space, Grid, Button, Dropdown, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { usePostHog } from '@posthog/react';
 import { colors, typography, spacing } from '../../styles';
 import { INTERVIEW_ROLES } from '../../constants/interview';
 
@@ -12,6 +13,7 @@ const { useBreakpoint } = Grid;
 export const HeroSection: React.FC = () => {
   const screens = useBreakpoint();
   const navigate = useNavigate();
+  const posthog = usePostHog();
 
   const titleFontSize = screens.lg ? typography.fontSize['5xl'] : '48px';
   const paragraphFontSize = screens.lg ? typography.fontSize.lg : '16px';
@@ -77,6 +79,7 @@ export const HeroSection: React.FC = () => {
 
   const handleTryInterview: MenuProps['onClick'] = ({ key }) => {
     if (['fe', 'be', 'ai'].includes(key as string)) {
+      posthog?.capture('try_interview_clicked', { role: key });
       navigate(`/try-interview/${key}`);
     }
   };
@@ -128,6 +131,7 @@ export const HeroSection: React.FC = () => {
               size="large"
               href="https://cal.com/nikhil-singh/shakra-ai-interview-demo"
               target="_blank"
+              onClick={() => posthog?.capture('book_demo_clicked', { source: 'hero' })}
               style={{
                 height: 40,
                 padding: '0 28px',

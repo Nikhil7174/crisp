@@ -3,6 +3,7 @@ import React from 'react';
 import { Typography, Space, Row, Col, Card, Button } from 'antd';
 import { DownloadOutlined, WindowsOutlined, AppleOutlined, LinuxOutlined, DownOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
+import { usePostHog } from '@posthog/react';
 import { colors, spacing, borderRadius, typography } from '../../styles';
 
 const { Title, Paragraph } = Typography;
@@ -35,9 +36,10 @@ const downloadOptions = [
 
 export const DownloadSection: React.FC = () => {
   const [showLinuxOptions, setShowLinuxOptions] = React.useState(false);
+  const posthog = usePostHog();
 
-  const handleDownload = (url: string) => {
-    // TODO: Replace with actual download URL
+  const handleDownload = (url: string, platform: string, format: string) => {
+    posthog?.capture('download_app_clicked', { platform, format });
     window.open(url, '_blank');
   };
 
@@ -166,7 +168,7 @@ export const DownloadSection: React.FC = () => {
                                     type="primary"
                                     size="small"
                                     icon={<DownloadOutlined />}
-                                    onClick={() => handleDownload(option.downloads[0].url)}
+                                    onClick={() => handleDownload(option.downloads[0].url, option.platform, option.downloads[0].format)}
                                     style={{
                                       height: 36,
                                       fontSize: typography.fontSize.sm,
@@ -210,7 +212,7 @@ export const DownloadSection: React.FC = () => {
                                         type="primary"
                                         size="small"
                                         icon={<DownloadOutlined />}
-                                        onClick={() => handleDownload(download.url)}
+                                        onClick={() => handleDownload(download.url, option.platform, download.format)}
                                         style={{
                                           height: 36,
                                           fontSize: typography.fontSize.sm,
@@ -262,7 +264,7 @@ export const DownloadSection: React.FC = () => {
                                 type="primary"
                                 size="small"
                                 icon={<DownloadOutlined />}
-                                onClick={() => handleDownload(option.downloads[0].url)}
+                                onClick={() => handleDownload(option.downloads[0].url, option.platform, option.downloads[0].format)}
                                 style={{
                                   height: 36,
                                   fontSize: typography.fontSize.sm,

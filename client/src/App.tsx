@@ -1,9 +1,10 @@
 // src/App.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ConfigProvider, App as AntApp } from 'antd';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { usePostHog } from '@posthog/react';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { store, persistor } from './store';
 import { theme } from './styles/theme';
@@ -34,6 +35,20 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) {
   throw new Error("Missing Publishable Key");
 }
+
+// Fires a $pageview event whenever the URL changes
+const PostHogPageView = () => {
+  const posthog = usePostHog();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (posthog) {
+      posthog.capture('$pageview', { $current_url: window.location.href });
+    }
+  }, [location, posthog]);
+
+  return null;
+};
 
 const ClerkProviderWithRoutes = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
@@ -153,6 +168,7 @@ const App: React.FC = () => {
         <ConfigProvider theme={theme}>
           <AntApp>
             <Router>
+              <PostHogPageView />
               <ClerkProviderWithRoutes>
                 <AuthInitializer />
                 <AppContent />

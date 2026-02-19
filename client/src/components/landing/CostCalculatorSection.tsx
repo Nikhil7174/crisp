@@ -4,6 +4,7 @@ import { Typography, Space, Row, Col, Button, Tabs, Select, Grid } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { usePostHog } from '@posthog/react';
 import { colors, spacing, typography, borderRadius } from '../../styles';
 import './CostCalculatorSection.css';
 
@@ -69,6 +70,7 @@ const USA_CONSTANTS = {
 
 const CostCalculatorSection: React.FC = () => {
   const navigate = useNavigate();
+  const posthog = usePostHog();
   const screens = useBreakpoint();
   const [numHires, setNumHires] = useState<number>(80);
   const [activeView, setActiveView] = useState<ViewType>('time');
@@ -423,7 +425,10 @@ const CostCalculatorSection: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
-                  onClick={() => navigate('/contact')}
+                  onClick={() => {
+                    posthog?.capture('talk_to_us_clicked');
+                    navigate('/contact');
+                  }}
                   style={{
                     background: colors.success.main,
                     borderColor: colors.success.main,
