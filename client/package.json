@@ -15,6 +15,7 @@
     "@emailjs/browser": "^4.4.1",
     "@livekit/components-react": "^2.9.19",
     "@livekit/components-styles": "^1.2.0",
+    "@mediapipe/tasks-vision": "^0.10.32",
     "@monaco-editor/react": "^4.7.0",
     "@reduxjs/toolkit": "^2.9.0",
     "antd": "^5.27.4",

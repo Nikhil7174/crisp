@@ -6,6 +6,7 @@ import { InterviewCodeEditor } from './InterviewCodeEditor'
 import { AudioVisualizer } from './AudioVisualizer'
 import { QuestionDisplay } from './QuestionDisplay'
 import { ConfirmationModal } from '../common/ConfirmationModal'
+import { useVisionSecurity } from '../../hooks/useVisionSecurity'
 import type { Question, CodingProblem } from '../../types/interview'
 
 interface WebInterviewSessionProps {
@@ -52,6 +53,11 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
     const userSpeakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isSubmittingTimeoutRef = useRef<boolean>(false)
     const hasCompletedRef = useRef(false)
+
+    // Vision security
+    const hiddenVideoRef = useRef<HTMLVideoElement | null>(null)
+    const [hiddenVideoElement, setHiddenVideoElement] = useState<HTMLVideoElement | null>(null)
+    const cameraStreamRef = useRef<MediaStream | null>(null)
     const [complexityNotes] = useState<Record<string, { time: string; space: string }>>({})
     const [confirmationModal, setConfirmationModal] = useState<{
         visible: boolean
@@ -65,6 +71,70 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
         okText: '',
         onConfirm: () => { },
     })
+
+    // Determine if we are in a coding section for vision security
+    const isCodingSection = currentState === 'coding_problem' || currentState === 'coding'
+
+    // Open a dedicated camera stream for vision security (separate from LiveKit video track)
+    useEffect(() => {
+        if (currentState === 'connecting' || currentState === 'completed') return
+
+        let mounted = true
+        const openCamera = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+                if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
+                cameraStreamRef.current = stream
+                if (hiddenVideoRef.current) {
+                    hiddenVideoRef.current.srcObject = stream
+                    hiddenVideoRef.current.play().catch(() => { })
+                    setHiddenVideoElement(hiddenVideoRef.current)
+                }
+            } catch (err) {
+                console.warn('[VisionSecurity] Camera access failed:', err)
+            }
+        }
+        openCamera()
+
+        return () => {
+            mounted = false
+            if (cameraStreamRef.current) {
+                cameraStreamRef.current.getTracks().forEach(t => t.stop())
+                cameraStreamRef.current = null
+            }
+            setHiddenVideoElement(null)
+        }
+    }, [currentState === 'connecting'])
+
+    // Send security warnings to the agent via LiveKit data channel
+    const handleSecurityWarning = useCallback((message: string) => {
+        if (broadcastDataRef.current) {
+            broadcastDataRef.current({
+                type: 'security_warning',
+                message,
+                timestamp: Date.now(),
+            })
+            console.log('📤 [VisionSecurity] Sent security warning to agent:', message)
+        }
+    }, [])
+
+    // Vision security hook
+    const { endAllActiveWarnings } = useVisionSecurity({
+        videoElement: hiddenVideoElement,
+        enabled: hiddenVideoElement !== null && currentState !== 'connecting' && currentState !== 'completed',
+        isSpeaking,
+        isEvaluating: false,
+        isListening,
+        isCodingSection,
+        onWarning: handleSecurityWarning,
+    })
+
+    // Clean up active warnings when interview completes
+    useEffect(() => {
+        if (currentState === 'completed') {
+            endAllActiveWarnings()
+        }
+    }, [currentState, endAllActiveWarnings])
 
     // Compute livekitUrl with wss://
     const serverUrl = (() => {
@@ -486,6 +556,14 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             onDisconnected={() => setIsListening(false)}
             onError={(error) => console.error('[LiveKit] Error:', error)}
         >
+            {/* Hidden video element for vision security — camera stream captured separately */}
+            <video
+                ref={hiddenVideoRef}
+                style={{ display: 'none' }}
+                muted
+                playsInline
+                autoPlay
+            />
             <LiveKitRoomEventBridge />
             <div className="web-voice-interview-session">
                 <div className="web-interview-content">
