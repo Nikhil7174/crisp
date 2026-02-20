@@ -12,7 +12,6 @@ import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthInitializer } from './components/AuthInitializer';
 import Home from './pages/Home';
-import { PublicRoute } from './components/PublicRoute';
 import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { JoinInterview } from './pages/JoinInterview';
@@ -52,6 +51,24 @@ const PostHogPageView = () => {
 
 const ClerkProviderWithRoutes = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Read role from URL so we can conditionally apply work-email localization
+  const searchParams = new URLSearchParams(location.search);
+  const isInterviewerRoute =
+    searchParams.get('role') !== 'candidate' &&
+    (location.pathname.startsWith('/sign-in') || location.pathname.startsWith('/sign-up'));
+
+  const interviewerLocalization = {
+    formFieldLabel__emailAddress: 'Work email address',
+    formFieldInputPlaceholder__emailAddress: 'name@company.com',
+    unstable__errors: {
+      not_allowed_access:
+        'Please use your company work email (e.g. name@yourcompany.com).',
+      form_identifier_not_found:
+        'No account found. Please check your work email or sign up.',
+    },
+  };
 
   return (
     <ClerkProvider
@@ -61,6 +78,7 @@ const ClerkProviderWithRoutes = ({ children }: { children: React.ReactNode }) =>
       afterSignInUrl="/auth/callback"
       afterSignUpUrl="/auth/callback"
       afterSignOutUrl="/"
+      localization={isInterviewerRoute ? interviewerLocalization : undefined}
     >
       {children}
     </ClerkProvider>
@@ -72,21 +90,9 @@ const AppContent = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Layout />}>
-        <Route index element={
-          <PublicRoute>
-            <Home />
-          </PublicRoute>
-        } />
-        <Route path="contact" element={
-          <PublicRoute>
-            <Contact />
-          </PublicRoute>
-        } />
-        <Route path="privacy-policy" element={
-          <PublicRoute>
-            <PrivacyPolicy />
-          </PublicRoute>
-        } />
+        <Route index element={<Home />} />
+        <Route path="contact" element={<Contact />} />
+        <Route path="privacy-policy" element={<PrivacyPolicy />} />
       </Route>
 
       {/* Auth Routes */}
@@ -101,8 +107,15 @@ const AppContent = () => {
       {/* Join Interview - Public but requires validation */}
       <Route path="/join" element={<JoinInterview />} />
 
-      {/* Try Interview - Public demo route */}
-      <Route path="/try-interview/:type" element={<TryInterview />} />
+      {/* Try Interview - Protected demo route */}
+      <Route
+        path="/try-interview/:type"
+        element={
+          <ProtectedRoute>
+            <TryInterview />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Interviewer Routes */}
       <Route

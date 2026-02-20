@@ -35,17 +35,35 @@ export class AuthController {
             // Handle New User Creation (from Clerk)
             if (user.isNewUser) {
                 try {
-                    const newUser = await this.dbService.createUser({
-                        email: user.email,
-                        fullName: user.fullName || 'New User',
-                        userType: user.userType || 'candidate', // Role passed from Clerk unsafeMetadata via middleware
-                        phone: '',
-                        company: ''
-                    });
+                    let newUserResponse;
 
-                    res.json({
-                        success: true,
-                        user: {
+                    if (user.userType === 'interviewer') {
+                        // Interviewers go into the Interviewer table
+                        const newInterviewer = await this.dbService.createInterviewer({
+                            email: user.email,
+                            fullName: user.fullName || 'New User',
+                        });
+                        newUserResponse = {
+                            id: newInterviewer.id,
+                            email: newInterviewer.email,
+                            fullName: newInterviewer.full_name,
+                            userType: 'interviewer' as const,
+                            phone: newInterviewer.phone,
+                            company: newInterviewer.company,
+                            jobRole: newInterviewer.job_role,
+                            createdAt: newInterviewer.created_at,
+                            lastLogin: newInterviewer.last_login,
+                        };
+                    } else {
+                        // Candidates go into the User table
+                        const newUser = await this.dbService.createUser({
+                            email: user.email,
+                            fullName: user.fullName || 'New User',
+                            userType: user.userType || 'candidate',
+                            phone: '',
+                            company: ''
+                        });
+                        newUserResponse = {
                             id: newUser.id,
                             email: newUser.email,
                             fullName: newUser.full_name,
@@ -53,12 +71,14 @@ export class AuthController {
                             phone: newUser.phone,
                             company: newUser.company,
                             createdAt: newUser.created_at,
-                            lastLogin: newUser.last_login
-                        }
-                    });
+                            lastLogin: newUser.last_login,
+                        };
+                    }
+
+                    res.json({ success: true, user: newUserResponse });
                     return;
                 } catch (creationError) {
-                    console.error("Failed to create new user from Clerk:", creationError);
+                    console.error('Failed to create new user from Clerk:', creationError);
                     res.status(500).json({
                         error: 'Account Creation Failed',
                         message: 'Could not create local user account.'
@@ -100,6 +120,7 @@ export class AuthController {
                     userType: userType,
                     phone: dbUser.phone,
                     company: dbUser.company,
+                    jobRole: (dbUser as any).job_role ?? null,
                     createdAt: dbUser.created_at,
                     lastLogin: dbUser.last_login
                 }
@@ -110,6 +131,43 @@ export class AuthController {
             res.status(500).json({
                 error: 'Failed to get user data',
                 message: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Update profile — for interviewers to set company + job role after sign-up
+     */
+    async updateProfile(req: Request, res: Response): Promise<void> {
+        try {
+            const user = (req as any).user;
+            if (!user || !user.userId) {
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+
+            if (user.userType !== 'interviewer') {
+                res.status(403).json({ error: 'Only interviewers can update profile via this endpoint' });
+                return;
+            }
+
+            const { company, jobRole } = req.body;
+            if (!company?.trim() || !jobRole?.trim()) {
+                res.status(400).json({ error: 'company and jobRole are required' });
+                return;
+            }
+
+            await this.dbService.updateInterviewerProfile(user.userId, {
+                company: company.trim(),
+                jobRole: jobRole.trim(),
+            });
+
+            res.json({ success: true, message: 'Profile updated' });
+        } catch (error) {
+            console.error('Update profile error:', error);
+            res.status(500).json({
+                error: 'Failed to update profile',
+                message: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }

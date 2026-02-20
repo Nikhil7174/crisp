@@ -755,6 +755,7 @@ export class PrismaService {
         fullName: string;
         phone?: string;
         company?: string;
+        jobRole?: string;
         companyId?: number;
     }) {
         return await prisma.interviewer.create({
@@ -763,6 +764,7 @@ export class PrismaService {
                 full_name: interviewerData.fullName,
                 phone: interviewerData.phone,
                 company: interviewerData.company,
+                job_role: interviewerData.jobRole,
                 company_id: interviewerData.companyId,
             },
         });
@@ -783,6 +785,7 @@ export class PrismaService {
                 full_name: true,
                 phone: true,
                 company: true,
+                job_role: true,
                 created_at: true,
                 last_login: true,
                 is_active: true,
@@ -794,6 +797,19 @@ export class PrismaService {
         return await prisma.interviewer.update({
             where: { id: interviewerId },
             data: { last_login: new Date() },
+        });
+    }
+
+    public async updateInterviewerProfile(interviewerId: number, data: {
+        company: string;
+        jobRole: string;
+    }) {
+        return await prisma.interviewer.update({
+            where: { id: interviewerId },
+            data: {
+                company: data.company,
+                job_role: data.jobRole,
+            },
         });
     }
 

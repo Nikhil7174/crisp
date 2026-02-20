@@ -14,6 +14,8 @@ export interface AuthRequest extends Request {
         clerkId?: string;
         isNewUser?: boolean;
         fullName?: string;
+        company?: string;
+        jobRole?: string;
     };
 }
 

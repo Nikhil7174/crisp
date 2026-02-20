@@ -2,7 +2,7 @@
 import React from 'react';
 import { Layout, Button, Space, Grid, Drawer } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { usePostHog } from '@posthog/react';
 import { colors, spacing } from '../../styles';
 import shakraLogo from '../../assets/images/shakra.png';
@@ -12,7 +12,8 @@ const { Header: AntHeader } = Layout;
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, logout } = useAuth();
+  const location = useLocation();
+  const { isAuthenticated, user, logout } = useAuth();
   const posthog = usePostHog();
   const screens = Grid.useBreakpoint();
   const [drawerVisible, setDrawerVisible] = React.useState(false);
@@ -41,7 +42,21 @@ export const Header: React.FC = () => {
 
   const handleLoginClick = () => {
     posthog?.capture('login_clicked');
-    navigate('/sign-in?role=interviewer');
+    if (location.pathname.startsWith('/try-interview')) {
+      navigate(`/sign-in?role=candidate&redirect=${encodeURIComponent(location.pathname)}`);
+    } else {
+      navigate('/sign-in?role=interviewer');
+    }
+    setDrawerVisible(false);
+  };
+
+  const handleDashboardClick = () => {
+    posthog?.capture('dashboard_clicked');
+    if (user?.userType === 'candidate') {
+      navigate('/candidate/dashboard');
+    } else {
+      navigate('/interviewer/dashboard');
+    }
     setDrawerVisible(false);
   };
 
@@ -77,19 +92,37 @@ export const Header: React.FC = () => {
         Features
       </Button>
       {isAuthenticated ? (
-        <Button
-          type="primary"
-          onClick={handleLogoutClick}
-          block
-          style={{
-            background: '#e63946',
-            borderColor: '#e63946',
-            height: 40,
-            fontSize: 16,
-          }}
-        >
-          Logout
-        </Button>
+        <>
+          <Button
+            type="text"
+            onClick={handleLogoutClick}
+            block
+            style={{
+              color: colors.neutral[900],
+              height: 40,
+              fontSize: 16,
+              fontWeight: 500,
+            }}
+          >
+            Logout
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleDashboardClick}
+            block
+            style={{
+              background: colors.neutral[900],
+              borderColor: colors.neutral[900],
+              height: 40,
+              fontSize: 16,
+              fontWeight: 500,
+              borderRadius: 8,
+              marginBottom: spacing.sm,
+            }}
+          >
+            Dashboard
+          </Button>
+        </>
       ) : (
         <>
           <Button
@@ -191,26 +224,42 @@ export const Header: React.FC = () => {
               Features
             </Button>
             {isAuthenticated ? (
-              <Button
-                type="primary"
-                onClick={handleLogoutClick}
-                style={{
-                  background: '#e63946',
-                  borderColor: '#e63946',
-                  height: 36,
-                  fontSize: 14,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#d62839';
-                  e.currentTarget.style.borderColor = '#d62839';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#e63946';
-                  e.currentTarget.style.borderColor = '#e63946';
-                }}
-              >
-                Logout
-              </Button>
+              <Space size="middle">
+                <Button
+                  type="text"
+                  onClick={handleLogoutClick}
+                  style={{
+                    color: colors.neutral[900],
+                    height: 32,
+                    fontSize: 14,
+                    fontWeight: 500,
+                  }}
+                >
+                  Logout
+                </Button>
+                <Button
+                  type="primary"
+                  onClick={handleDashboardClick}
+                  style={{
+                    background: colors.neutral[900],
+                    borderColor: colors.neutral[900],
+                    height: 32,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    borderRadius: 8,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = colors.neutral[800];
+                    e.currentTarget.style.borderColor = colors.neutral[800];
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = colors.neutral[900];
+                    e.currentTarget.style.borderColor = colors.neutral[900];
+                  }}
+                >
+                  Dashboard
+                </Button>
+              </Space>
             ) : (
               <Space size="middle">
                 <Button

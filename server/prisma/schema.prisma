@@ -141,6 +141,7 @@ model Interviewer {
   full_name               String
   phone                   String?
   company                 String?
+  job_role                String?
   company_id              Int?
   company_relation        Company?        @relation(fields: [company_id], references: [id])
   created_at              DateTime        @default(now())
