@@ -3,6 +3,7 @@ import { useSignUp } from '@clerk/clerk-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import { Header } from '../../components/layout/Header';
+import { Eye, EyeOff } from 'lucide-react';
 
 export const SignUpPage = () => {
     const { isLoaded, signUp, setActive } = useSignUp();
@@ -18,6 +19,8 @@ export const SignUpPage = () => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     const [pendingVerification, setPendingVerification] = useState(false);
     const [code, setCode] = useState('');
@@ -56,18 +59,29 @@ export const SignUpPage = () => {
             return;
         }
 
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters long.');
+            return;
+        }
+
         setLoading(true);
         setError('');
 
         try {
-            await signUp.create({
-                firstName,
-                lastName,
+            const createPayload: any = {
                 emailAddress: email,
+                password: password,
                 unsafeMetadata: {
                     role
                 }
-            });
+            };
+
+            if (role === 'candidate') {
+                createPayload.firstName = firstName;
+                createPayload.lastName = lastName;
+            }
+
+            await signUp.create(createPayload);
 
             await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
             setPendingVerification(true);
@@ -184,32 +198,34 @@ export const SignUpPage = () => {
 
                     {!pendingVerification ? (
                         <form onSubmit={handleSignUp}>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>First name</label>
-                                    <input
-                                        type="text"
-                                        value={firstName}
-                                        onChange={(e) => setFirstName(e.target.value)}
-                                        style={inputStyle}
-                                        placeholder="John"
-                                        required
-                                        disabled={loading}
-                                    />
+                            {role === 'candidate' && (
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={labelStyle}>First name</label>
+                                        <input
+                                            type="text"
+                                            value={firstName}
+                                            onChange={(e) => setFirstName(e.target.value)}
+                                            style={inputStyle}
+                                            placeholder="John"
+                                            required
+                                            disabled={loading}
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={labelStyle}>Last name</label>
+                                        <input
+                                            type="text"
+                                            value={lastName}
+                                            onChange={(e) => setLastName(e.target.value)}
+                                            style={inputStyle}
+                                            placeholder="Doe"
+                                            required
+                                            disabled={loading}
+                                        />
+                                    </div>
                                 </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>Last name</label>
-                                    <input
-                                        type="text"
-                                        value={lastName}
-                                        onChange={(e) => setLastName(e.target.value)}
-                                        style={inputStyle}
-                                        placeholder="Doe"
-                                        required
-                                        disabled={loading}
-                                    />
-                                </div>
-                            </div>
+                            )}
 
                             <label style={labelStyle}>
                                 {role === 'interviewer' ? 'Work email' : 'Email address'}
@@ -223,6 +239,39 @@ export const SignUpPage = () => {
                                 required
                                 disabled={loading}
                             />
+
+                            <label style={labelStyle}>Password</label>
+                            <div style={{ position: 'relative', marginBottom: '16px' }}>
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    style={{ ...inputStyle, marginBottom: 0, paddingRight: '40px' }}
+                                    placeholder="Create a strong password"
+                                    required
+                                    disabled={loading}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: 0,
+                                        cursor: 'pointer',
+                                        color: '#6b7280',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
 
                             <button
                                 type="submit"

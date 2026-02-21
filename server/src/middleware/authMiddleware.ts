@@ -30,9 +30,20 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
         console.log('Auth Middleware - authReq.auth:', JSON.stringify(authReq.auth, null, 2));
 
         // 1. Check for Clerk Authentication
-        if (authReq.auth && authReq.auth.userId) {
-            const clerkId = authReq.auth.userId;
+        let clerkId = authReq.auth?.userId;
 
+        // Fallback: If authReq.auth is empty but there's a Bearer token, try to verify it manually
+        if (!clerkId && req.headers.authorization?.startsWith('Bearer ')) {
+            const token = req.headers.authorization.split(' ')[1];
+            try {
+                const verified = await clerkClient.verifyToken(token);
+                clerkId = verified.sub;
+            } catch (err) {
+                console.warn('Manual Clerk token verification failed:', err);
+            }
+        }
+
+        if (clerkId) {
             try {
                 // Fetch user details from Clerk
                 const clerkUser = await clerkClient.users.getUser(clerkId);
@@ -47,35 +58,41 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
 
                 const dbService = PrismaService.getInstance();
 
-                // Check if user exists in DB
-                let user = await dbService.getUserByEmail(email);
-                let userType: 'candidate' | 'interviewer' = 'candidate'; // Default
                 let userId = 0;
+                let userType: 'candidate' | 'interviewer' = clerkRole === 'interviewer' ? 'interviewer' : 'candidate';
+                let isNewUser = false;
 
-                // Check interviewer table if not in user table
-                if (!user) {
+                if (userType === 'interviewer') {
+                    // Clerk says this user is logging in as an interviewer
                     const interviewer = await dbService.getInterviewerByEmail(email);
                     if (interviewer) {
-                        // Map interviewer to user format
                         userId = interviewer.id;
-                        userType = 'interviewer';
                     } else {
-                        // User doesn't exist in DB yet
-                        authReq.user = {
-                            userId: 0, // Placeholder
-                            email,
-                            userType: (clerkRole === 'interviewer' ? 'interviewer' : 'candidate'),
-                            type: 'user',
-                            clerkId,
-                            isNewUser: true,
-                            fullName: clerkUser.firstName ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`.trim() : 'New User'
-                        };
-                        next();
-                        return;
+                        isNewUser = true;
                     }
                 } else {
-                    userId = user.id;
-                    userType = user.user_type as any;
+                    // Clerk says this user is logging in as a candidate
+                    const user = await dbService.getUserByEmail(email);
+                    if (user) {
+                        userId = user.id;
+                    } else {
+                        isNewUser = true;
+                    }
+                }
+
+                if (isNewUser) {
+                    // User doesn't exist in the requested table yet
+                    authReq.user = {
+                        userId: 0, // Placeholder mapping it to new
+                        email,
+                        userType,
+                        type: 'user',
+                        clerkId,
+                        isNewUser: true,
+                        fullName: clerkUser.firstName ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`.trim() : 'New User'
+                    };
+                    next();
+                    return;
                 }
 
                 // Existing user

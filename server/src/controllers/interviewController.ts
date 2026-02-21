@@ -18,6 +18,7 @@ const interviewQuestionsStore = new Map<string, {
   sessionId: string;
   maxTheoreticalQuestions?: number;
   role?: string; // Role for persona selection
+  interviewLinkId?: number;
 }>();
 
 export class InterviewController {
@@ -261,6 +262,7 @@ export class InterviewController {
           sessionId,
           maxTheoreticalQuestions: link.max_interview_questions || 10,
           role: link.role || 'Backend Engineer', // Include role for persona
+          interviewLinkId: link.id,
         });
         // Also store by roomName for easier lookup
         interviewQuestionsStore.set(roomName, {
@@ -269,6 +271,7 @@ export class InterviewController {
           sessionId,
           maxTheoreticalQuestions: link.max_interview_questions || 10,
           role: link.role || 'Backend Engineer', // Include role for persona
+          interviewLinkId: link.id,
         });
         console.log(`📚 [QuestionsStore] Stored ${mappedTheoretical.length} questions and ${mappedCoding.length} coding problems for session ${sessionId} (room: ${roomName})`);
         console.log(`📚 [QuestionsStore] Store size: ${interviewQuestionsStore.size} entries`);
@@ -404,6 +407,7 @@ export class InterviewController {
         sessionId: questionsData.sessionId,
         maxTheoreticalQuestions: questionsData.maxTheoreticalQuestions,
         role: questionsData.role || 'Backend Engineer', // Include role in response
+        interviewLinkId: questionsData.interviewLinkId,
       });
     } catch (error) {
       console.error('❌ [QuestionsAPI] Get interview questions error:', error);
@@ -677,6 +681,7 @@ export class InterviewController {
         sessionId,
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         role: link.role || 'Backend Engineer',
+        interviewLinkId,
       });
       interviewQuestionsStore.set(roomName, {
         questions: mappedTheoretical,
@@ -684,6 +689,7 @@ export class InterviewController {
         sessionId,
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         role: link.role || 'Backend Engineer',
+        interviewLinkId,
       });
 
       console.log(`✅ [DemoInterview] Session ${sessionId} ready, room ${roomName}`);

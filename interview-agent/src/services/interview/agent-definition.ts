@@ -460,6 +460,7 @@ interface QuestionsAPIResponse {
   sessionId?: string;
   maxTheoreticalQuestions?: number;
   role?: string; // Role for persona selection
+  interviewLinkId?: number;
   error?: string;
   message?: string;
 }
@@ -480,7 +481,7 @@ export const agent = defineAgent({
       // Use Silero VAD for robustness against background noise
       // 100ms ensures high responsiveness when the agent is listening, while voiceOptions
       // control interruption behavior when the agent is speaking.
-      const vad = await silero.VAD.load({ minSpeechDuration: 100 });
+      const vad = await silero.VAD.load({ minSpeechDuration: 1000 });
       proc.userData.vad = vad; // Assign to userData
       log().info('✅ VAD model loaded');
 
@@ -520,7 +521,7 @@ export const agent = defineAgent({
       log().info('📋 Interview ID:', interviewId);
 
       // Fetch questions from server API
-      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string } | undefined;
+      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string; interviewLinkId?: number } | undefined;
       try {
         const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
         log().info(`🌐 [Agent] Server URL: ${serverUrl}`);
@@ -565,6 +566,7 @@ export const agent = defineAgent({
             codingProblems: data.codingProblems,
             maxTheoreticalQuestions: data.maxTheoreticalQuestions,
             role: data.role || 'Backend Engineer', // Get role from API
+            interviewLinkId: data.interviewLinkId,
           };
           log().info(`✅ [Agent] Successfully fetched ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems from API`);
           log().info(`✅ [Agent] Role: ${questionsData.role}`);
@@ -903,8 +905,8 @@ export const agent = defineAgent({
         },
         voiceOptions: {
           allowInterruptions: true,
-          minInterruptionDuration: 2000, // Prevent barge-in unless speech > 2s
-          minInterruptionWords: 3, // Prevent interruption from short completed turns (approx < 2s)
+          // minInterruptionDuration: 2000, // Prevent barge-in unless speech > 2s
+          minInterruptionWords: 2, // Prevent interruption from short completed turns (approx < 2s)
         },
       });
 
@@ -974,7 +976,7 @@ export const agent = defineAgent({
 
               const finalState = stateProvider.getState(interviewId);
               if (finalState) {
-                await sendFinalEvaluationToBackend(finalState);
+                await sendFinalEvaluationToBackend(finalState, questionsData?.interviewLinkId);
                 log().info('✅ [Agent] Interview saved successfully on user quit');
               }
             } else {
@@ -1014,7 +1016,7 @@ export const agent = defineAgent({
                 const finalState = stateProvider.getState(interviewId);
                 if (finalState) {
                   // Send final evaluation directly to backend API
-                  await sendFinalEvaluationToBackend(finalState);
+                  await sendFinalEvaluationToBackend(finalState, questionsData?.interviewLinkId);
 
                   await sendEventToUI('interview_completed', {
                     state: {
@@ -1084,7 +1086,7 @@ export const agent = defineAgent({
                   const finalState = stateProvider.getState(interviewId);
                   if (finalState) {
                     // Send final evaluation directly to backend API
-                    await sendFinalEvaluationToBackend(finalState);
+                    await sendFinalEvaluationToBackend(finalState, questionsData?.interviewLinkId);
 
                     await sendEventToUI('interview_completed', {
                       state: {
@@ -1119,7 +1121,7 @@ export const agent = defineAgent({
                 const finalState = stateProvider.getState(interviewId);
                 if (finalState) {
                   // Send final evaluation directly to backend API
-                  await sendFinalEvaluationToBackend(finalState);
+                  await sendFinalEvaluationToBackend(finalState, questionsData?.interviewLinkId);
 
                   await sendEventToUI('interview_completed', {
                     state: {
