@@ -31,6 +31,14 @@ const TryInterview: React.FC = () => {
             return
         }
 
+        // React Strict-Mode double-mount guard: the first mount's effect is
+        // cleaned up (ignore = true) so its response never reaches state.
+        // Only the second (surviving) mount's fetch will update the component.
+        // Note: the server still receives both POSTs, but the server-side
+        // fallback-lookup + sibling-merge in saveFinalEvaluation /
+        // getPublicInterviewDetails handles the resulting duplicate gracefully.
+        let ignore = false
+
         const startDemo = async () => {
             try {
                 setLoading(true)
@@ -41,6 +49,8 @@ const TryInterview: React.FC = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type }),
                 })
+
+                if (ignore) return
 
                 const data = await response.json()
 
@@ -58,14 +68,17 @@ const TryInterview: React.FC = () => {
                     questions: data.questions || [],
                 })
             } catch (err) {
+                if (ignore) return
                 console.error('[TryInterview] Error starting demo:', err)
                 setError(err instanceof Error ? err.message : 'Unknown error')
             } finally {
-                setLoading(false)
+                if (!ignore) setLoading(false)
             }
         }
 
         startDemo()
+
+        return () => { ignore = true }
     }, [type])
 
     // --- Invalid type ---

@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
-import { OpenAIService } from '../services/openaiService';
 import { PrismaService } from '../services/prismaService';
 import { prisma } from '../lib/prisma';
 import { CodeExecutionService } from '../services/codeExecutionService';
 import { SecurityService } from '../services/securityService';
 import { QuestionGenerationService } from '../services/questionGenerationService';
-import { InterviewSession, InterviewQuestion, DetailedResumeData, FinalResults, FinalEvaluationPayload } from '../models/types';
+import { InterviewQuestion, FinalEvaluationPayload } from '../models/types';
 
 /**
  * In-memory store for interview questions
@@ -22,14 +21,12 @@ const interviewQuestionsStore = new Map<string, {
 }>();
 
 export class InterviewController {
-  private openaiService: OpenAIService;
   private dbService: PrismaService;
   private codeExecutionService: CodeExecutionService;
   private securityService: SecurityService;
   private questionGenerationService: QuestionGenerationService;
 
   constructor() {
-    this.openaiService = new OpenAIService();
     this.dbService = PrismaService.getInstance();
     this.codeExecutionService = new CodeExecutionService();
     this.securityService = SecurityService.getInstance();
@@ -217,17 +214,6 @@ export class InterviewController {
       // Combine for database storage (keeping all questions together in DB)
       const allQuestions = [...mappedTheoretical, ...mappedCoding];
 
-      const session: InterviewSession = {
-        id: sessionId,
-        candidateId: candidateData.email || candidateData.name || 'unknown',
-        status: 'in_progress',
-        questions: allQuestions,
-        answers: [],
-        startTime: new Date()
-      };
-
-      // Session saving removed - no longer needed without sessions table
-
       // Create LiveKit room and spawn agent
       const roomName = `interview-${sessionId}`;
       const candidateName = candidateData.name || candidateData.email || 'Candidate';
@@ -292,6 +278,27 @@ export class InterviewController {
       // The agent will fetch questions from this API endpoint
       // Make sure the interview-agent process is running: cd crisp/interview-agent && npm start
       console.log(`ℹ️  LiveKit room created: ${roomName}. Agent will connect when process is running.`);
+
+      // Create interview record in DB immediately so the public endpoint can find it.
+      // The agent's saveFinalEvaluation will update this record later with evaluation data.
+      try {
+        await prisma.interview.create({
+          data: {
+            session_id: sessionId,
+            user_id: userId || null,
+            interview_link_id: interviewLinkId,
+            candidate_name: candidateName,
+            candidate_email: candidateData.email || 'unknown@interview.local',
+            candidate_phone: candidateData.phone || null,
+            start_time: new Date(),
+          },
+        });
+        console.log(`✅ [StartInterview] Interview record pre-created in DB for session ${sessionId}`);
+      } catch (dbErr: any) {
+        if (dbErr?.code !== 'P2002') {
+          console.error('⚠️ [StartInterview] Failed to pre-create interview record:', dbErr);
+        }
+      }
 
       // Return with proper separation for security agent app + LiveKit info
       const responseData = {
@@ -553,6 +560,191 @@ export class InterviewController {
   }
 
   /**
+   * Fetch interview details for public/demo use (no auth required).
+   * Uses the exact same DB lookup and parseInterview() as the authenticated
+   * interviewer dashboard endpoint — the only difference is we accept
+   * both numeric IDs and session-ID strings, and we require the interview
+   * to be linked to a valid interview link (interview_link_id must exist).
+   */
+  async getPublicInterviewDetails(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      console.log(`🔍 [InterviewController] Fetching public details for ID: ${id}`);
+
+      let interview: any = null;
+
+      // Try fetching by interview ID (numeric) first
+      const isNumeric = /^\d+$/.test(id as string);
+      if (isNumeric) {
+        const interviewId = parseInt(id as string, 10);
+        console.log(`🔢 [InterviewController] Trying numeric ID lookup: ${interviewId}`);
+        interview = await this.dbService.getInterviewById(interviewId);
+      }
+
+      // If not found by numeric ID, try fetching by session ID (string)
+      // This is common for demo interviews where the frontend uses sessionId
+      if (!interview) {
+        console.log(`🆔 [InterviewController] Trying session ID lookup: ${id}`);
+        interview = await this.dbService.getInterviewBySessionId(id as string);
+      }
+
+      if (!interview) {
+        console.log(`⏳ [InterviewController] Interview not found yet for ID: ${id} — report may still be generating`);
+        res.json({ success: true, data: null, pending: true, message: 'Report is still being generated. Please wait.' });
+        return;
+      }
+
+      let status = (interview as any).status || 'started';
+      const interviewLinkId = (interview as any).interview_link_id;
+      console.log(`✅ [InterviewController] Found interview: ${interview.id} (Session: ${interview.session_id}, Status: ${status})`);
+      console.log(`📊 [InterviewController] Has finalEvaluation: ${!!interview.finalEvaluation}, Has llmEvaluation: ${!!(interview.finalEvaluation as any)?.llmEvaluation}`);
+
+      // ── Sibling resolution ───────────────────────────────────────────
+      // When the agent's session_id drifts from the pre-created record's
+      // session_id, the evaluation lands on a *different* Interview row
+      // that shares the same interview_link_id.  Detect this and merge.
+      if (!interview.finalEvaluation && interviewLinkId) {
+        const sibling = await prisma.interview.findFirst({
+          where: {
+            interview_link_id: interviewLinkId,
+            id: { not: interview.id },
+            final_evaluation: { isNot: null },
+          },
+          include: { final_evaluation: true },
+          orderBy: { created_at: 'desc' },
+        });
+
+        if (sibling) {
+          console.log(`🔗 [InterviewController] Merging evaluation from sibling interview ${sibling.id} → ${interview.id}`);
+
+          // Move the FinalEvaluation to the canonical (frontend-facing) record
+          await prisma.finalEvaluation.update({
+            where: { interview_id: sibling.id },
+            data: { interview_id: interview.id },
+          });
+
+          // Copy completion status & score
+          await prisma.interview.update({
+            where: { id: interview.id },
+            data: {
+              status: sibling.status,
+              score: sibling.score,
+              duration: sibling.duration,
+              end_time: sibling.end_time,
+              total_questions: sibling.total_questions,
+            },
+          });
+
+          // Delete the orphan sibling to avoid dashboard duplicates
+          await prisma.interview.delete({ where: { id: sibling.id } });
+          console.log(`🗑️ [InterviewController] Deleted orphan sibling interview ${sibling.id}`);
+
+          // Re-fetch the canonical record with its new evaluation data
+          interview = await this.dbService.getInterviewById(interview.id);
+          status = (interview as any)?.status || status;
+        }
+      }
+
+      // Basic guard: the interview must be linked to a valid interview link.
+      if (!interviewLinkId) {
+        console.warn(`🔒 [InterviewController] Access denied: interview has no link (ID: ${id})`);
+        res.status(403).json({ error: 'Access denied: interview is not linked to a valid interview link' });
+        return;
+      }
+
+      // ── Self-healing: detect stale / incomplete interviews ──
+      const endTime = (interview as any).end_time;
+      const ageSinceEnd = endTime ? Date.now() - new Date(endTime).getTime() : 0;
+      const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+
+      if (status === 'awaiting_evaluation' && !interview.finalEvaluation && ageSinceEnd > STALE_THRESHOLD_MS) {
+        await prisma.interview.update({
+          where: { id: interview.id },
+          data: { status: 'failed' },
+        });
+        (interview as any).status = 'failed';
+        status = 'failed';
+        console.log(`⚠️ [InterviewController] Interview ${interview.id} marked as failed (agent never sent evaluation after ${Math.round(ageSinceEnd / 1000)}s)`);
+      }
+
+      // If finalEvaluation exists but llmEvaluation is missing, trigger generation server-side.
+      if (interview.finalEvaluation && !(interview.finalEvaluation as any).llmEvaluation && status === 'evaluating') {
+        console.log(`🤖 [InterviewController] LLM evaluation missing for interview ${interview.id} — triggering server-side generation`);
+        (async () => {
+          try {
+            const { createLLMService } = await import('../services/llm-service');
+            const llmService = createLLMService({
+              apiKey: process.env.OPENAI_API_KEY || '',
+              model: 'gpt-4o-mini',
+              temperature: 0.3,
+              maxTokens: 4000,
+            });
+            const llmEvaluation = await llmService.generateComprehensiveEvaluation(interview.finalEvaluation);
+            await this.dbService.updateLLMEvaluation(interview.id, llmEvaluation);
+            console.log(`✅ [InterviewController] LLM evaluation recovered for interview ${interview.id}`);
+          } catch (err) {
+            console.error(`⚠️ [InterviewController] Failed to recover LLM evaluation for interview ${interview.id}:`, err);
+          }
+        })();
+      }
+
+      res.json({
+        success: true,
+        data: interview,
+      });
+
+    } catch (error) {
+      console.error('Get public interview details error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch interview details',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Called by the frontend when the user ends the interview.
+   * This is the authoritative signal that the interview has ended — it doesn't
+   * depend on the agent being alive or reachable.  The server updates the
+   * interview status so the polling endpoint can return meaningful state.
+   */
+  async endInterview(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+      if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+      }
+
+      const interview = await prisma.interview.findUnique({
+        where: { session_id: sessionId },
+      });
+
+      if (!interview) {
+        res.status(404).json({ error: 'Interview not found' });
+        return;
+      }
+
+      // Only update if the interview hasn't already progressed past 'started'
+      if (interview.status === 'started') {
+        await prisma.interview.update({
+          where: { id: interview.id },
+          data: {
+            status: 'awaiting_evaluation',
+            end_time: new Date(),
+          },
+        });
+        console.log(`✅ [InterviewController] Interview ${interview.id} marked as awaiting_evaluation (user ended call)`);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('End interview error:', error);
+      res.status(500).json({ error: 'Failed to end interview' });
+    }
+  }
+
+  /**
    * Demo interview link tokens keyed by role shortcode.
    * Each token must correspond to a valid, active InterviewLink in the database.
    *   fe → Frontend Engineer  (9nibe1p6cyaq51gq098b9)
@@ -694,6 +886,26 @@ export class InterviewController {
 
       console.log(`✅ [DemoInterview] Session ${sessionId} ready, room ${roomName}`);
 
+      // Create interview record in DB immediately so the public endpoint can find it.
+      // The agent's saveFinalEvaluation will update this record later with evaluation data.
+      try {
+        await prisma.interview.create({
+          data: {
+            session_id: sessionId,
+            interview_link_id: interviewLinkId,
+            candidate_name: 'Demo User',
+            candidate_email: 'demo@interview.local',
+            start_time: new Date(),
+          },
+        });
+        console.log(`✅ [DemoInterview] Interview record pre-created in DB for session ${sessionId}`);
+      } catch (dbErr: any) {
+        // Duplicate session_id is fine (shouldn't happen, but be safe)
+        if (dbErr?.code !== 'P2002') {
+          console.error('⚠️ [DemoInterview] Failed to pre-create interview record:', dbErr);
+        }
+      }
+
       res.json({
         success: true,
         sessionId,
@@ -719,13 +931,6 @@ export class InterviewController {
 
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private getNextQuestion(session: InterviewSession): InterviewQuestion | null {
-    const unansweredQuestions = session.questions.filter(q =>
-      !session.answers.some(a => a.questionId === q.id)
-    );
-    return unansweredQuestions[0] || null;
   }
 
   async updateCheatingDetection(req: Request, res: Response): Promise<void> {

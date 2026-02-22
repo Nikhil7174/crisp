@@ -1,5 +1,5 @@
 import express from 'express'
-import { createLLMService, LLMService, Question, Evaluation, CodeAnalysis, IntentDetection } from '../services/llm-service'
+import { createLLMService } from '../services/llm-service'
 
 const router = express.Router()
 
@@ -8,7 +8,7 @@ const llmService = createLLMService({
   apiKey: process.env.OPENAI_API_KEY || '',
   model: 'gpt-4o-mini',
   temperature: 0.3,
-  maxTokens: 500
+  maxTokens: 4000
 })
 
 // Evaluate candidate's answer
@@ -232,7 +232,7 @@ router.post('/evaluate-followup', async (req, res) => {
 // Generate comprehensive evaluation from conversation history or full evaluation payload
 router.post('/generate-comprehensive-evaluation', async (req, res) => {
   try {
-    const { conversationHistory, fullEvaluationPayload, interviewId } = req.body
+    const { conversationHistory, fullEvaluationPayload } = req.body
 
     // Support both old format (conversationHistory) and new format (fullEvaluationPayload)
     let payload: any = null
@@ -262,41 +262,11 @@ router.post('/generate-comprehensive-evaluation', async (req, res) => {
       })
     }
 
-    // Check if LLM evaluation already exists
-    if (interviewId) {
-      const { PrismaService } = await import('../services/prismaService')
-      const dbService = PrismaService.getInstance()
-      const interview = await dbService.getInterviewById(interviewId)
-      
-      if (interview?.finalEvaluation && (interview.finalEvaluation as any).llmEvaluation) {
-        console.log('✅ Returning cached LLM evaluation for interview', interviewId)
-        return res.json({
-          success: true,
-          evaluation: (interview.finalEvaluation as any).llmEvaluation,
-          cached: true
-        })
-      }
-    }
-
     const evaluation = await llmService.generateComprehensiveEvaluation(payload)
-    
-    // Store the evaluation in database if interviewId is provided
-    if (interviewId) {
-      try {
-        const { PrismaService } = await import('../services/prismaService')
-        const dbService = PrismaService.getInstance()
-        await dbService.updateLLMEvaluation(interviewId, evaluation)
-        console.log('✅ LLM evaluation stored in database for interview', interviewId)
-      } catch (dbError) {
-        console.error('⚠️ Failed to store LLM evaluation in database:', dbError)
-        // Don't fail the request if database save fails
-      }
-    }
     
     res.json({
       success: true,
-      evaluation,
-      cached: false
+      evaluation
     })
   } catch (error) {
     console.error('Error generating comprehensive evaluation:', error)

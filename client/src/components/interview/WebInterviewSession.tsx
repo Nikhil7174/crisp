@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { AudioOutlined, AudioMutedOutlined, PhoneOutlined } from '@ant-design/icons'
+import { AudioOutlined, AudioMutedOutlined, PhoneOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Modal, Spin, Button } from 'antd'
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from '@livekit/components-react'
 import { RoomEvent, LogLevel, setLogLevel } from 'livekit-client'
 import { InterviewCodeEditor } from './InterviewCodeEditor'
 import { AudioVisualizer } from './AudioVisualizer'
 import { QuestionDisplay } from './QuestionDisplay'
 import { ConfirmationModal } from '../common/ConfirmationModal'
+import { DetailedFeedbackSheet } from '../DetailedFeedbackSheet'
+import { generateFeedbackPDF } from '../../utils/pdfGenerator'
 import { useVisionSecurity } from '../../hooks/useVisionSecurity'
+import { API_BASE_URL } from '../../constants/api'
 import type { Question, CodingProblem } from '../../types/interview'
 
 interface WebInterviewSessionProps {
@@ -54,6 +58,11 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
     const isSubmittingTimeoutRef = useRef<boolean>(false)
     const hasCompletedRef = useRef(false)
 
+    // Decoupled LiveKit room connection state.
+    // We keep the room connected for a few seconds AFTER the UI shows "completed"
+    // so the agent can finish processing (e.g. send final evaluation via HTTP).
+    const [roomConnected, setRoomConnected] = useState(true)
+
     // Vision security
     const hiddenVideoRef = useRef<HTMLVideoElement | null>(null)
     const [hiddenVideoElement, setHiddenVideoElement] = useState<HTMLVideoElement | null>(null)
@@ -71,6 +80,117 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
         okText: '',
         onConfirm: () => { },
     })
+
+    // Report modal state
+    const [reportModalOpen, setReportModalOpen] = useState(false)
+    const [reportData, setReportData] = useState<any>(null)
+    const [reportLoading, setReportLoading] = useState(false)
+    const [reportError, setReportError] = useState<string | null>(null)
+    const [reportStatus, setReportStatus] = useState<string | null>(null)
+    const reportPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const reportPollCountRef = useRef(0)
+    // Max polls: 24 × 5 s = 2 minutes before giving up
+    const MAX_POLL_ATTEMPTS = 24
+
+    /**
+     * Pure status-based poll. The frontend only reads server state — it never
+     * triggers backend processing. The server handles LLM generation recovery
+     * automatically when it detects a missing llmEvaluation.
+     *
+     * Interview status lifecycle:
+     *   started → awaiting_evaluation → evaluating → completed
+     *                                ↘ failed (agent never responded)
+     */
+    const fetchReport = useCallback(async (): Promise<'done' | 'retry' | 'error'> => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/interview/public/${_interviewId}`)
+
+            if (!res.ok) {
+                if (res.status === 403 || res.status === 401) return 'error'
+                return 'retry'
+            }
+
+            const json = await res.json()
+            const data = json.data
+            const status = data?.status || null
+
+            console.log('[fetchReport]', { status, hasFinalEval: !!data?.finalEvaluation, hasLlmEval: !!data?.finalEvaluation?.llmEvaluation })
+
+            if (json.pending || !data) return 'retry'
+
+            setReportStatus(status)
+
+            // Report is ready
+            const llmEval = data.finalEvaluation?.llmEvaluation
+            if (llmEval) {
+                setReportData({ evaluation: llmEval, candidateName: data.candidate_name, startTime: data.start_time })
+                setReportLoading(false)
+                setReportError(null)
+                return 'done'
+            }
+
+            // Server marked the interview as failed (agent never responded)
+            if (status === 'failed') return 'error'
+
+            // Still waiting for the agent or LLM evaluation
+            // started → awaiting_evaluation → evaluating are all retryable
+            return 'retry'
+        } catch {
+            return 'retry'
+        }
+    }, [_interviewId])
+
+    const stopPoll = useCallback(() => {
+        if (reportPollRef.current) {
+            clearInterval(reportPollRef.current)
+            reportPollRef.current = null
+        }
+        reportPollCountRef.current = 0
+    }, [])
+
+    const openReportModal = useCallback(() => {
+        setReportModalOpen(true)
+        setReportLoading(true)
+        setReportData(null)
+        setReportError(null)
+        setReportStatus(null)
+        reportPollCountRef.current = 0
+
+        // Initial fetch, then poll
+        fetchReport().then(result => {
+            if (result === 'done') return
+            if (result === 'error') {
+                setReportLoading(false)
+                setReportError('Report is not available for this interview.')
+                return
+            }
+            reportPollRef.current = setInterval(async () => {
+                reportPollCountRef.current += 1
+                if (reportPollCountRef.current >= MAX_POLL_ATTEMPTS) {
+                    stopPoll()
+                    setReportLoading(false)
+                    setReportError('Report generation timed out. Please try again later.')
+                    return
+                }
+                const pollResult = await fetchReport()
+                if (pollResult === 'done' || pollResult === 'error') {
+                    stopPoll()
+                    if (pollResult === 'error') {
+                        setReportLoading(false)
+                        setReportError('Report is not available for this interview.')
+                    }
+                }
+            }, 5000)
+        })
+    }, [fetchReport, stopPoll])
+
+    // Cleanup poll on unmount or modal close
+    useEffect(() => {
+        if (!reportModalOpen) {
+            stopPoll()
+        }
+        return () => { stopPoll() }
+    }, [reportModalOpen, stopPoll])
 
     // Determine if we are in a coding section for vision security
     const isCodingSection = currentState === 'coding_problem' || currentState === 'coding'
@@ -104,7 +224,7 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             }
             setHiddenVideoElement(null)
         }
-    }, [currentState === 'connecting'])
+    }, [currentState === 'connecting', currentState === 'completed'])
 
     // Send security warnings to the agent via LiveKit data channel
     const handleSecurityWarning = useCallback((message: string) => {
@@ -291,8 +411,11 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                         if (!hasCompletedRef.current) {
                             hasCompletedRef.current = true
                             setCurrentState('completed')
-                            // Ensure any open confirmation modal is closed
                             setConfirmationModal((prev) => ({ ...prev, visible: false }))
+                            // Keep LiveKit room alive for 4 s so the agent can finish
+                            // its HTTP POST (sendFinalEvaluationToBackend) before we sever
+                            // the connection.
+                            setTimeout(() => setRoomConnected(false), 4000)
                         }
                     }
                 } catch (e) {
@@ -367,23 +490,27 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             okText: 'End Interview',
             okButtonProps: { danger: true },
             onConfirm: async () => {
-                // Close modal immediately
                 setConfirmationModal((prev) => ({ ...prev, visible: false }))
-
                 hasCompletedRef.current = true
-                // Tell agent
+
+                // 1. Tell the agent so it can try to save evaluation
                 if (broadcastDataRef.current) {
                     broadcastDataRef.current({ type: 'user_quit', timestamp: Date.now() })
-                    await new Promise((r) => setTimeout(r, 500))
                 }
+
+                // 2. Tell the SERVER directly — this is the authoritative signal.
+                //    Even if the agent fails, the server now knows the interview ended.
+                fetch(`${API_BASE_URL}/interview/end/${_interviewId}`, { method: 'POST' })
+                    .catch(err => console.warn('[handleEndCall] Failed to notify server:', err))
+
+                // 3. Show the completed UI immediately, but keep LiveKit room
+                //    connected for 4 s so the agent can finish sending its
+                //    final evaluation over HTTP.
                 setCurrentState('completed')
-                if (livekitRoomRef.current) {
-                    await livekitRoomRef.current.disconnect()
-                    livekitRoomRef.current = null
-                }
+                setTimeout(() => setRoomConnected(false), 4000)
             }
         })
-    }, [onComplete])
+    }, [_interviewId])
 
     const handleCodeChange = useCallback((code: string) => { setCurrentCode(code) }, [])
 
@@ -517,13 +644,20 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                             </div>
                             <h2 className="web-loading-title">Interview Complete</h2>
                             <p className="web-loading-subtitle">Thanks for the great conversation! This was a demo interview.</p>
-                            {onComplete && (
-                                <button onClick={onComplete} style={{
-                                    marginTop: 16, padding: '10px 24px', background: 'rgba(9, 88, 217, 0.15)',
-                                    border: '1px solid rgba(9, 88, 217, 0.4)', borderRadius: 8, color: '#2196f3',
+                            <div style={{ display: 'flex', gap: '12px', marginTop: 16, justifyContent: 'center' }}>
+                                <button onClick={openReportModal} style={{
+                                    padding: '10px 24px', background: '#0958d9',
+                                    border: 'none', borderRadius: 8, color: '#fff',
                                     cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                                }}>Back to Home</button>
-                            )}
+                                }}>View Detailed Report</button>
+                                {onComplete && (
+                                    <button onClick={onComplete} style={{
+                                        padding: '10px 24px', background: 'rgba(9, 88, 217, 0.15)',
+                                        border: '1px solid rgba(9, 88, 217, 0.4)', borderRadius: 8, color: '#2196f3',
+                                        cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                                    }}>Back to Home</button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )
@@ -547,9 +681,9 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
 
     return (
         <LiveKitRoom
-            video={true}
-            audio={true}
-            connect={true}
+            video={roomConnected}
+            audio={roomConnected}
+            connect={roomConnected}
             token={tokenFromProps}
             serverUrl={serverUrl}
             options={{ adaptiveStream: true, dynacast: true }}
@@ -594,6 +728,67 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                 onConfirm={confirmationModal.onConfirm}
                 onCancel={() => setConfirmationModal((prev) => ({ ...prev, visible: false }))}
             />
+
+            <Modal
+                open={reportModalOpen}
+                onCancel={() => setReportModalOpen(false)}
+                footer={reportData ? (
+                    <Button
+                        type="primary"
+                        size="small"
+                        style={{ fontSize: 12, padding: '16px 16px' }}
+                        icon={<DownloadOutlined />}
+                        onClick={() => {
+                            const date = reportData.startTime ? new Date(reportData.startTime).toISOString().slice(0, 10) : ''
+                            generateFeedbackPDF(reportData.evaluation, reportData.candidateName, date)
+                        }}
+                    >
+                        Download PDF
+                    </Button>
+                ) : null}
+                width={920}
+                style={{ top: 20 }}
+                styles={{ body: { maxHeight: '76vh', position: 'relative', overflowY: 'auto', padding: '4px 8px' } }}
+                destroyOnClose
+            >
+                {reportLoading ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                        <Spin size="large" />
+                        <p style={{ marginTop: 16, fontWeight: 600, color: '#0958d9' }}>
+                            {reportStatus === 'awaiting_evaluation' || reportStatus === 'started'
+                                ? 'Waiting for interview evaluation...'
+                                : reportStatus === 'evaluating'
+                                    ? 'Generating your detailed report...'
+                                    : 'Preparing your report...'}
+                        </p>
+                        <p style={{ color: '#888', fontSize: 13 }}>
+                            {reportStatus === 'awaiting_evaluation' || reportStatus === 'started'
+                                ? 'The interview agent is processing your responses.'
+                                : 'This usually takes a few seconds.'}
+                        </p>
+                    </div>
+                ) : reportError ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                        <p style={{ color: '#ff4d4f', fontWeight: 600, fontSize: 16 }}>⚠️ {reportError}</p>
+                        <Button
+                            type="primary"
+                            style={{ marginTop: 16 }}
+                            onClick={() => {
+                                setReportError(null)
+                                openReportModal()
+                            }}
+                        >
+                            Retry
+                        </Button>
+                    </div>
+                ) : reportData ? (
+                    <DetailedFeedbackSheet
+                        evaluation={reportData.evaluation}
+                        candidateName={reportData.candidateName}
+                        interviewDate={reportData.startTime ? new Date(reportData.startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : undefined}
+                    />
+                ) : null}
+            </Modal>
 
             <style>{`
         .web-voice-interview-session {

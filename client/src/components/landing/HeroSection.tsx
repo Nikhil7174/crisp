@@ -52,7 +52,7 @@ export const HeroSection: React.FC = () => {
     return {
       key,
       label: disabled ? (
-        <Tooltip title="Sign in to give this interview" placement="right">
+        <Tooltip title="Book a demo to try this interview" placement="right">
           <span style={{ color: colors.neutral[400], cursor: 'default', display: 'flex', alignItems: 'center', height: '90%', fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm }}>{role.label}</span>
         </Tooltip>
       ) : (
@@ -68,7 +68,7 @@ export const HeroSection: React.FC = () => {
     tryInterviewItems.push({
       key: 'more',
       label: (
-        <Tooltip title="Sign in to give more interviews" placement="right">
+        <Tooltip title="Book a demo to try more interviews" placement="right">
           <span style={{ color: colors.neutral[400], fontStyle: 'italic', fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm, display: 'flex', alignItems: 'center', height: '90%', cursor: 'default' }}>and {remainingCount} more...</span>
         </Tooltip>
       ),
