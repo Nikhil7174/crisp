@@ -27,9 +27,9 @@ import {
   Code2,
   TrendingUp,
   AlertTriangle,
-  FileText,
 } from 'lucide-react';
 import { spacing } from '../styles';
+import shakraLogo from '../assets/images/shakra.png';
 
 const { Panel } = Collapse;
 const { useBreakpoint } = Grid;
@@ -223,7 +223,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               {percent}
             </span>
           )}
-          strokeWidth={9}
+          strokeWidth={11}
         />
         {showLabel && (
           <span style={{
@@ -442,58 +442,78 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
         <div style={{ height: 3, background: `linear-gradient(90deg, ${dt.indigo600} 0%, #7C3AED 100%)` }} />
 
         <div style={{ padding: '14px 20px 12px' }}>
-          <Row gutter={[16, 8]} align="middle">
+          <Row gutter={[12, 8]} align="top">
+            {/* Left Side */}
             <Col flex="auto">
-              {/* Report badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <FileText size={13} color={dt.slate500} strokeWidth={2} />
+              {/* Component 1: Logo, Heading, Candidate Info */}
+              <Row gutter={[12, 8]} align="middle">
+                <Col>
+                  {/* Company Logo */}
+                  <img
+                    src={shakraLogo}
+                    alt="Company Logo"
+                    style={{
+                      height: 50,
+                      width: 'auto',
+                      objectFit: 'contain',
+                      maxWidth: '200px',
+                      paddingRight: 8,
+                    }}
+                  />
+                </Col>
+                <Col flex="auto">
+                  <h2 style={{
+                    margin: 0,
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: dt.slate900,
+                    letterSpacing: '-0.4px',
+                    lineHeight: 1.2,
+                  }}>
+                    Detailed Interview Feedback
+                  </h2>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                    {candidateName && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <User size={12} color={dt.slate500} strokeWidth={2} />
+                        <span style={{ fontSize: 12.5, color: dt.slate500 }}>
+                          Candidate:{' '}
+                          <span style={{ fontWeight: 600, color: dt.slate800 }}>{candidateName}</span>
+                        </span>
+                      </div>
+                    )}
+                    {interviewDate && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Calendar size={12} color={dt.slate500} strokeWidth={2} />
+                        <span style={{ fontSize: 12.5, color: dt.slate500 }}>
+                          Interview Date:{' '}
+                          <span style={{ fontWeight: 600, color: dt.slate800 }}>{interviewDate}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </Col>
+              </Row>
+
+              {/* Component 2: Company Name - Separate below Component 1 */}
+              <div style={{ marginTop: 0 }}>
                 <span style={{
-                  fontSize: 11,
+                  fontSize: 14,
                   fontWeight: 600,
-                  color: dt.slate500,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.8px',
+                  color: dt.slate700,
+                  letterSpacing: '0.3px',
+                  display: 'block',
+                  textAlign: 'left',
                 }}>
-                  Interview Report
+                  Shakra AI Interview
                 </span>
-              </div>
-
-              <h2 style={{
-                margin: 0,
-                marginBottom: 8,
-                fontSize: 17,
-                fontWeight: 700,
-                color: dt.slate900,
-                letterSpacing: '-0.4px',
-                lineHeight: 1.2,
-              }}>
-                Detailed Interview Feedback
-              </h2>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-                {candidateName && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <User size={12} color={dt.slate500} strokeWidth={2} />
-                    <span style={{ fontSize: 12.5, color: dt.slate500 }}>
-                      Candidate:{' '}
-                      <span style={{ fontWeight: 600, color: dt.slate800 }}>{candidateName}</span>
-                    </span>
-                  </div>
-                )}
-                {interviewDate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <Calendar size={12} color={dt.slate500} strokeWidth={2} />
-                    <span style={{ fontSize: 12.5, color: dt.slate500 }}>
-                      Interview Date:{' '}
-                      <span style={{ fontWeight: 600, color: dt.slate800 }}>{interviewDate}</span>
-                    </span>
-                  </div>
-                )}
               </div>
             </Col>
 
+            {/* Right Side: Evaluation Score */}
             <Col>
-              <ScoreCircle score={evaluation.overall.score} size={58} noMargin />
+              <ScoreCircle score={evaluation.overall.score} size={50} noMargin />
             </Col>
           </Row>
         </div>
@@ -506,7 +526,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               borderTop: `1px solid ${dt.border}`,
             }} />
             <div style={{ padding: '12px 20px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              {/* <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <span style={{
                   fontSize: 11,
                   fontWeight: 700,
@@ -516,32 +536,32 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                 }}>
                   Summary Statistics
                 </span>
-              </div>
+              </div> */}
               <Row gutter={[10, 8]}>
                 {[
                   {
-                    icon: <Lightbulb size={15} strokeWidth={2} />,
+                    icon: <Lightbulb size={14} strokeWidth={2} />,
                     value: evaluation.summaryStatistics.totalHints,
                     label: 'Total Hints',
                     iconColor: dt.amber600,
                     iconBg: dt.amber50,
                   },
                   {
-                    icon: <HelpCircle size={15} strokeWidth={2} />,
+                    icon: <HelpCircle size={12} strokeWidth={2} />,
                     value: evaluation.summaryStatistics.totalClarifications,
                     label: 'Clarifications',
                     iconColor: dt.blue600,
                     iconBg: dt.blue50,
                   },
                   {
-                    icon: <MessageSquare size={15} strokeWidth={2} />,
+                    icon: <MessageSquare size={12} strokeWidth={2} />,
                     value: evaluation.summaryStatistics.totalFollowUps,
                     label: 'Follow-ups',
                     iconColor: dt.indigo600,
                     iconBg: dt.indigo50,
                   },
                   {
-                    icon: <Clock size={15} strokeWidth={2} />,
+                    icon: <Clock size={12} strokeWidth={2} />,
                     value: `${(evaluation.summaryStatistics.averageTimePerQuestion / 60).toFixed(1)}m`,
                     label: 'Avg Time/Question',
                     iconColor: dt.slate600,
@@ -568,12 +588,13 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: 26,
-                          height: 26,
+                          width: 24,
+                          height: 24,
                           borderRadius: 6,
                           background: iconBg,
                           color: iconColor,
                           flexShrink: 0,
+                          border: `1px solid ${iconColor}20`,
                         }}>
                           {icon}
                         </div>
