@@ -120,6 +120,7 @@ export class AuthController {
                     userType: userType,
                     phone: dbUser.phone,
                     company: dbUser.company,
+                    companyLogoUrl: (dbUser as any).company_logo_url ?? null,
                     jobRole: (dbUser as any).job_role ?? null,
                     createdAt: dbUser.created_at,
                     lastLogin: dbUser.last_login
@@ -136,7 +137,7 @@ export class AuthController {
     }
 
     /**
-     * Update profile — for interviewers to set company + job role after sign-up
+     * Update profile — for interviewers to set company, job role, and phone after sign-up
      */
     async updateProfile(req: Request, res: Response): Promise<void> {
         try {
@@ -151,15 +152,20 @@ export class AuthController {
                 return;
             }
 
-            const { company, jobRole } = req.body;
-            if (!company?.trim() || !jobRole?.trim()) {
-                res.status(400).json({ error: 'company and jobRole are required' });
+            const { fullName, company, companyLogoUrl, jobRole, phone } = req.body;
+            
+            // At least one field must be provided
+            if (!fullName && !company && !companyLogoUrl && !jobRole && !phone) {
+                res.status(400).json({ error: 'At least one field (fullName, company, companyLogoUrl, jobRole, or phone) must be provided' });
                 return;
             }
 
             await this.dbService.updateInterviewerProfile(user.userId, {
-                company: company.trim(),
-                jobRole: jobRole.trim(),
+                fullName: fullName,
+                company: company,
+                companyLogoUrl: companyLogoUrl,
+                jobRole: jobRole,
+                phone: phone,
             });
 
             res.json({ success: true, message: 'Profile updated' });
