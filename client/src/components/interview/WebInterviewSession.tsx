@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { AudioOutlined, AudioMutedOutlined, PhoneOutlined, DownloadOutlined } from '@ant-design/icons'
+import { AudioOutlined, AudioMutedOutlined, PhoneOutlined, DownloadOutlined, CloseOutlined } from '@ant-design/icons'
 import { Modal, Spin, Button } from 'antd'
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from '@livekit/components-react'
 import { RoomEvent, LogLevel, setLogLevel } from 'livekit-client'
@@ -644,18 +644,14 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                             </div>
                             <h2 className="web-loading-title">Interview Complete</h2>
                             <p className="web-loading-subtitle">Thanks for the great conversation! This was a demo interview.</p>
-                            <div style={{ display: 'flex', gap: '12px', marginTop: 16, justifyContent: 'center' }}>
-                                <button onClick={openReportModal} style={{
-                                    padding: '10px 24px', background: '#0958d9',
-                                    border: 'none', borderRadius: 8, color: '#fff',
-                                    cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                                }}>View Detailed Report</button>
+                            <div className="web-wrap-up-actions">
+                                <button className="web-wrap-up-btn web-wrap-up-btn-primary" onClick={openReportModal}>
+                                    View Detailed Report
+                                </button>
                                 {onComplete && (
-                                    <button onClick={onComplete} style={{
-                                        padding: '10px 24px', background: 'rgba(9, 88, 217, 0.15)',
-                                        border: '1px solid rgba(9, 88, 217, 0.4)', borderRadius: 8, color: '#2196f3',
-                                        cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                                    }}>Back to Home</button>
+                                    <button className="web-wrap-up-btn web-wrap-up-btn-ghost" onClick={onComplete}>
+                                        Back to Home
+                                    </button>
                                 )}
                             </div>
                         </div>
@@ -704,9 +700,11 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                     {renderCurrentSection()}
                 </div>
 
-                <div className="web-audio-visualizer-pos">
-                    <AudioVisualizer isListening={isListening} isSpeaking={isSpeaking} isMuted={isMicMuted} />
-                </div>
+                {currentState !== 'completed' && currentState !== 'wrap_up' && (
+                    <div className="web-audio-visualizer-pos">
+                        <AudioVisualizer isListening={isListening} isSpeaking={isSpeaking} isMuted={isMicMuted} />
+                    </div>
+                )}
 
                 {currentState !== 'connecting' && currentState !== 'completed' && (
                     <div className="web-call-controls">
@@ -732,6 +730,35 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             <Modal
                 open={reportModalOpen}
                 onCancel={() => setReportModalOpen(false)}
+                closable={false}
+                title={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingRight: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 16 }}></span>
+                        <button
+                            onClick={() => setReportModalOpen(false)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                padding: '6px 8px',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'background-color 0.2s',
+                                marginLeft: 'auto',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.06)'
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                        >
+                            <CloseOutlined style={{ fontSize: 16, color: 'rgba(0, 0, 0, 0.45)' }} />
+                        </button>
+                    </div>
+                }
                 footer={reportData ? (
                     <Button
                         type="primary"
@@ -748,7 +775,14 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                 ) : null}
                 width={920}
                 style={{ top: 20 }}
-                styles={{ body: { maxHeight: '76vh', position: 'relative', overflowY: 'auto', padding: '4px 8px' } }}
+                
+                styles={{ 
+                    body: { maxHeight: '76vh', position: 'relative', overflowY: 'auto', padding: '4px 8px' },
+                    header: {
+                        marginBottom: 20,
+                        position: 'relative',
+                    }
+                 }}
                 destroyOnClose
             >
                 {reportLoading ? (
@@ -1039,6 +1073,52 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
           font-size: 32px;
           font-weight: 600;
           border: 1px solid rgba(76, 175, 80, 0.4);
+        }
+
+        .web-wrap-up-actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 24px;
+          justify-content: center;
+        }
+
+        .web-wrap-up-btn {
+          padding: 12px 28px;
+          border-radius: 12px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          letter-spacing: 0.3px;
+          transition: all 0.25s ease;
+          backdrop-filter: blur(10px);
+        }
+
+        .web-wrap-up-btn-primary {
+          background: rgba(33, 150, 243, 0.2);
+          border: 1px solid rgba(33, 150, 243, 0.45);
+          color: #64b5f6;
+          box-shadow: 0 0 16px rgba(33, 150, 243, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .web-wrap-up-btn-primary:hover {
+          background: rgba(33, 150, 243, 0.35);
+          border-color: rgba(33, 150, 243, 0.65);
+          box-shadow: 0 0 24px rgba(33, 150, 243, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          transform: translateY(-1px);
+        }
+
+        .web-wrap-up-btn-ghost {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.7);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .web-wrap-up-btn-ghost:hover {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.22);
+          color: #ffffff;
+          transform: translateY(-1px);
         }
 
         .web-audio-visualizer-pos {
