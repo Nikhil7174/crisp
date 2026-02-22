@@ -17,6 +17,18 @@ export const Header: React.FC = () => {
   const posthog = usePostHog();
   const screens = Grid.useBreakpoint();
   const [drawerVisible, setDrawerVisible] = React.useState(false);
+  const [isScrolled, setIsScrolled] = React.useState(false);
+
+  // Handle scroll to hide/show Shakra text
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      setIsScrolled(scrollPosition > 50); // Hide text after scrolling 50px
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleTitleClick = () => {
     navigate('/');
@@ -164,7 +176,6 @@ export const Header: React.FC = () => {
     <AntHeader
       style={{
         background: colors.background.primary,
-        boxShadow: colors.shadows.sm,
         position: 'sticky',
         top: 0,
         zIndex: 1000,
@@ -176,7 +187,7 @@ export const Header: React.FC = () => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        maxWidth: 1200,
+        maxWidth: 1250,
         margin: '0 auto',
         height: '100%',
       }}>
@@ -185,24 +196,36 @@ export const Header: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             gap: spacing.sm,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            justifyContent: 'center',
+            position: 'relative',
           }}
           onClick={handleTitleClick}
         >
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
           <img
             src={shakraLogo}
             alt="Shakra Logo"
             style={{
-              height: 32,
+              height: 28,
               width: 'auto'
             }}
           />
+          </span>
           {screens.md && (
             <span style={{
               fontSize: 20,
               fontWeight: 600,
               fontFamily: '"Varela Round", sans-serif',
               color: colors.neutral[900],
+              opacity: isScrolled ? 0 : 1,
+              transform: isScrolled ? 'translateX(-40px) scale(0.5)' : 'translateX(0) scale(1)',
+              maxWidth: isScrolled ? 0 : '200px',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              pointerEvents: isScrolled ? 'none' : 'auto',
+              transformOrigin: 'left center',
             }}>
               Shakra
             </span>
@@ -217,7 +240,7 @@ export const Header: React.FC = () => {
               style={{
                 color: colors.neutral[900],
                 height: 32,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: 500,
               }}
             >
@@ -231,7 +254,7 @@ export const Header: React.FC = () => {
                   style={{
                     color: colors.neutral[900],
                     height: 32,
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 500,
                   }}
                 >
@@ -244,7 +267,7 @@ export const Header: React.FC = () => {
                     background: colors.neutral[900],
                     borderColor: colors.neutral[900],
                     height: 32,
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 500,
                     borderRadius: 8,
                   }}
@@ -268,7 +291,7 @@ export const Header: React.FC = () => {
                   style={{
                     color: colors.neutral[900],
                     height: 32,
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 500,
                   }}
                 >
@@ -283,7 +306,7 @@ export const Header: React.FC = () => {
                     background: colors.neutral[900],
                     borderColor: colors.neutral[900],
                     height: 32,
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 500,
                     borderRadius: 8,
                   }}

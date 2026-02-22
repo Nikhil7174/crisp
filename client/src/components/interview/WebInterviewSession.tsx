@@ -767,7 +767,8 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                         icon={<DownloadOutlined />}
                         onClick={() => {
                             const date = reportData.startTime ? new Date(reportData.startTime).toISOString().slice(0, 10) : ''
-                            generateFeedbackPDF(reportData.evaluation, reportData.candidateName, date)
+                            // Company info not available in candidate view, will use default
+                            generateFeedbackPDF(reportData.evaluation, reportData.candidateName, date, undefined, undefined)
                         }}
                     >
                         Download PDF

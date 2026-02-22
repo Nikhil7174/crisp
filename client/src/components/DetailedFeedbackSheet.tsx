@@ -29,6 +29,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { spacing } from '../styles';
+import { useAuth } from '../hooks/useAuth';
 import shakraLogo from '../assets/images/shakra.png';
 
 const { Panel } = Collapse;
@@ -161,9 +162,14 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
   candidateName,
   interviewDate,
 }) => {
+  const { user } = useAuth();
   const screens = useBreakpoint();
   const containerHorizontalPadding = screens.xl ? spacing.md : spacing.sm;
   const containerVerticalPadding = screens.xl ? spacing.sm : spacing.xs;
+
+  // Get company name and logo from user profile, with fallback
+  const companyName = user?.company || 'Shakra AI interview';
+  const companyLogo = (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || shakraLogo;
 
   const getScoreColor = (score: number): string => {
     if (score >= 80) return dt.emerald600;
@@ -437,12 +443,13 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
         border: `1px solid ${dt.border}`,
         boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)',
         overflow: 'hidden',
+        alignItems: 'center',
       }}>
         {/* Top accent strip */}
         <div style={{ height: 3, background: `linear-gradient(90deg, ${dt.indigo600} 0%, #7C3AED 100%)` }} />
 
-        <div style={{ padding: '14px 20px 12px' }}>
-          <Row gutter={[12, 8]} align="top">
+        <div style={{ padding: '14px 20px 12px', alignItems: 'center' }}>
+          <Row gutter={[12, 8]} align="middle">
             {/* Left Side */}
             <Col flex="auto">
               {/* Component 1: Logo, Heading, Candidate Info */}
@@ -450,14 +457,18 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                 <Col>
                   {/* Company Logo */}
                   <img
-                    src={shakraLogo}
+                    src={companyLogo}
                     alt="Company Logo"
                     style={{
-                      height: 50,
+                      height: 40,
                       width: 'auto',
                       objectFit: 'contain',
                       maxWidth: '200px',
                       paddingRight: 8,
+                    }}
+                    onError={(e) => {
+                      // Fallback to default logo if image fails to load
+                      (e.target as HTMLImageElement).src = shakraLogo;
                     }}
                   />
                 </Col>
@@ -499,14 +510,14 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               {/* Component 2: Company Name - Separate below Component 1 */}
               <div style={{ marginTop: 0 }}>
                 <span style={{
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   color: dt.slate700,
                   letterSpacing: '0.3px',
                   display: 'block',
                   textAlign: 'left',
                 }}>
-                  Shakra AI Interview
+                  {companyName}
                 </span>
               </div>
             </Col>

@@ -87,7 +87,7 @@ export const HeroSection: React.FC = () => {
   return (
     <div style={{
       textAlign: 'center',
-      padding: `${spacing.xxxl}px ${spacing.lg}px ${paddingBottom}`,
+      padding: `${spacing.xxxl * 1.5}px ${spacing.lg}px ${paddingBottom}`,
       background: 'transparent',
     }}>
       <motion.div

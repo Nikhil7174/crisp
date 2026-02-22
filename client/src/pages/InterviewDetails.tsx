@@ -138,7 +138,7 @@ interface InterviewDetails {
 export const InterviewDetails: React.FC = () => {
   const { linkId, id } = useParams<{ linkId: string; id: string }>();
   const navigate = useNavigate();
-  const { getFreshToken } = useAuth();
+  const { getFreshToken, user } = useAuth();
   const [interview, setInterview] = useState<InterviewDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [llmEvaluation, setLlmEvaluation] = useState<{
@@ -283,10 +283,9 @@ export const InterviewDetails: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '32px 0', position: 'relative' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
-        <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24, marginLeft: 32 }}>
           <BackButton
-            label="Back to Candidates"
+            label="Back"
             onClick={() => {
               if (linkId) {
                 navigate(`/interviewer/link/${linkId}/candidates`);
@@ -296,6 +295,8 @@ export const InterviewDetails: React.FC = () => {
             }}
           />
         </div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
+        
         {/* Header */}
         <div
           style={{
@@ -372,10 +373,14 @@ export const InterviewDetails: React.FC = () => {
                           icon={<DownloadOutlined />}
                           style={{ fontSize: 12, padding: '16px 16px' }}
                           onClick={() => {
+                            const companyName = user?.company || 'Shakra AI interview';
+                            const companyLogo = (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || undefined;
                             generateFeedbackPDF(
                               llmEvaluation,
                               interview.candidate_name,
-                              dayjs(interview.start_time).format('YYYY-MM-DD')
+                              dayjs(interview.start_time).format('YYYY-MM-DD'),
+                              companyName,
+                              companyLogo
                             );
                           }}
                         >

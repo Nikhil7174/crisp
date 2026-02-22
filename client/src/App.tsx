@@ -14,6 +14,7 @@ import { AuthInitializer } from './components/AuthInitializer';
 import Home from './pages/Home';
 import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
+import { Profile } from './pages/Profile';
 import { JoinInterview } from './pages/JoinInterview';
 import { LinkCandidates } from './pages/LinkCandidates';
 import { CreateInterview } from './pages/CreateInterview';
@@ -147,6 +148,14 @@ const AppContent = () => {
         element={
           <ProtectedRoute allowedUserTypes={['interviewer']}>
             <CreateInterview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/interviewer/profile"
+        element={
+          <ProtectedRoute allowedUserTypes={['interviewer']}>
+            <Profile />
           </ProtectedRoute>
         }
       />

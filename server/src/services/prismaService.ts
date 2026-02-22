@@ -807,6 +807,7 @@ export class PrismaService {
                 full_name: true,
                 phone: true,
                 company: true,
+                company_logo_url: true,
                 job_role: true,
                 created_at: true,
                 last_login: true,
@@ -823,15 +824,22 @@ export class PrismaService {
     }
 
     public async updateInterviewerProfile(interviewerId: number, data: {
-        company: string;
-        jobRole: string;
+        fullName?: string;
+        company?: string;
+        companyLogoUrl?: string;
+        jobRole?: string;
+        phone?: string;
     }) {
+        const updateData: any = {};
+        if (data.fullName !== undefined) updateData.full_name = data.fullName?.trim() || null;
+        if (data.company !== undefined) updateData.company = data.company?.trim() || null;
+        if (data.companyLogoUrl !== undefined) updateData.company_logo_url = data.companyLogoUrl?.trim() || null;
+        if (data.jobRole !== undefined) updateData.job_role = data.jobRole?.trim() || null;
+        if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
+        
         return await prisma.interviewer.update({
             where: { id: interviewerId },
-            data: {
-                company: data.company,
-                job_role: data.jobRole,
-            },
+            data: updateData,
         });
     }
 

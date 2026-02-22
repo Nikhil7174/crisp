@@ -74,10 +74,14 @@ interface DetailedEvaluation {
 export const generateFeedbackPDF = (
   evaluation: DetailedEvaluation,
   candidateName?: string,
-  interviewDate?: string
+  interviewDate?: string,
+  companyName?: string,
+  companyLogoUrl?: string
 ): void => {
   const doc = new jsPDF();
   let yPosition = 20;
+
+  const displayCompanyName = companyName || 'Shakra AI interview';
 
   // Helper function to add a new page if needed
   const checkPageBreak = (requiredSpace: number = 20) => {
@@ -95,11 +99,32 @@ export const generateFeedbackPDF = (
     return lines.length * (fontSize * 0.4 + 2);
   };
 
+  // Add company logo if provided (only base64 or data URLs work in jsPDF)
+  if (companyLogoUrl && (companyLogoUrl.startsWith('data:') || companyLogoUrl.startsWith('http'))) {
+    try {
+      // For base64 images, add directly
+      if (companyLogoUrl.startsWith('data:')) {
+        doc.addImage(companyLogoUrl, 'PNG', 14, yPosition, 40, 15);
+        yPosition += 20;
+      }
+      // For HTTP URLs, we'd need to fetch and convert, but that's async
+      // For now, skip HTTP URLs in PDF
+    } catch (error) {
+      console.warn('Failed to add company logo to PDF:', error);
+    }
+  }
+
   // Header
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.text('Detailed Interview Feedback', 14, yPosition);
   yPosition += 10;
+
+  // Company Name
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(displayCompanyName, 14, yPosition);
+  yPosition += 7;
 
   if (candidateName) {
     doc.setFontSize(12);
