@@ -3,7 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { WebInterviewSession } from '../components/interview/WebInterviewSession'
 import { API_BASE_URL } from '../constants/api'
 
-const VALID_TYPES = ['fe', 'be', 'ai'] as const
+// Frontend demo route types (URL segments for /try-interview/:type)
+// These now directly match the backend semantic types
+const VALID_TYPES = ['backend', 'fullstack', 'swe1'] as const
 type DemoType = (typeof VALID_TYPES)[number]
 
 interface DemoSession {
@@ -91,7 +93,7 @@ const TryInterview: React.FC = () => {
             }}>
                 <h2>Invalid Interview Type</h2>
                 <p style={{ color: '#888' }}>
-                    Please choose a valid interview type: <strong>fe</strong>, <strong>be</strong>, or <strong>ai</strong>.
+                    Please choose a valid interview type: <strong>Backend</strong>, <strong>Full Stack</strong>, or <strong>SWE-1</strong>.
                 </p>
                 <button onClick={() => navigate('/')} style={btnStyle}>Go Home</button>
             </div>
@@ -136,6 +138,9 @@ const TryInterview: React.FC = () => {
     // --- Session ready ---
     if (!session) return null
 
+    // Hard cap for demo interviews so they don't run indefinitely (in seconds)
+    const DEMO_MAX_DURATION_SECONDS = 20 * 60 // 20 minutes
+
     return (
         <WebInterviewSession
             interviewId={session.sessionId}
@@ -144,6 +149,7 @@ const TryInterview: React.FC = () => {
             livekitToken={session.token}
             livekitUrl={session.wsUrl}
             roomName={session.roomName}
+            maxDurationSeconds={DEMO_MAX_DURATION_SECONDS}
             onComplete={() => navigate('/')}
         />
     )

@@ -10,7 +10,7 @@ import { ReadableStream } from 'stream/web';
 import { StateProvider } from './state-provider.js';
 import { Orchestrator } from './orchestrator.js';
 import { detectJailbreak, getSafeResponse } from './security/jailbreak-detector.js';
-import { extractChunkText, cleanResponseText } from '../../utils/text-processing.js';
+import { extractChunkText, cleanResponseText, isIncompletePhrase } from '../../utils/text-processing.js';
 import { getInterviewContextPrompt } from '../../prompts/contextPrompts.js';
 import { getDSASystemMessage } from '../../prompts/dsaSystemPrompt.js';
 
@@ -289,6 +289,20 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     const userText = newMessage.textContent || '';
     const userTextLower = userText.toLowerCase();
 
+    // CHECK FOR INCOMPLETE PHRASES - Skip LLM call for incomplete/nonsensical text
+    if (isIncompletePhrase(userText)) {
+      log().info(`🚫 [Incomplete Phrase] Detected incomplete phrase: "${userText}" - Skipping LLM response`);
+      
+      // Clear user message to prevent LLM processing
+      newMessage.content = [];
+      
+      // Mark as handled
+      (this.session.userData as any).nodeHandledIncomplete = true;
+      
+      await this.updateChatCtx(turnCtx);
+      return;
+    }
+
     // Store user message in conversation history
     // [REMOVED] Using LiveKit ChatContext for verbal history
     /*
@@ -552,6 +566,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     const sessionData = this.session.userData as InterviewSessionData & {
       nodeHandledSkip?: boolean;
       nodeHandledJailbreak?: boolean;
+      nodeHandledIncomplete?: boolean;
       nodeInjectedMessage?: string;
       chatCtx?: llm.ChatContext; // Add type hint
     };
@@ -559,7 +574,21 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     // Store ChatContext reference for final evaluation extraction
     sessionData.chatCtx = chatCtx;
 
-    // Check if Node already handled this (skip or jailbreak)
+    // Check if Node already handled this (skip, jailbreak, or incomplete phrase)
+    if (sessionData.nodeHandledIncomplete) {
+      log().info(`🚫 [llmNode] Node handled incomplete phrase - returning empty response`);
+      
+      // Clear the flag
+      sessionData.nodeHandledIncomplete = false;
+      
+      // Return empty stream (no response)
+      return new ReadableStream({
+        start(controller) {
+          controller.close();
+        }
+      });
+    }
+
     if ((sessionData.nodeHandledSkip || sessionData.nodeHandledJailbreak) && sessionData.nodeInjectedMessage) {
       let scenario = 'unknown';
       if (sessionData.nodeHandledJailbreak) scenario = 'jailbreak';
@@ -612,6 +641,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
           let detectedIntent: string | null = null;
           let nextTagDetected = false;
           let firstTokenReceived = false;
+          let ignoreTagDetected = false;
 
           let streamClosed = false;
 
@@ -652,7 +682,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                 log().info(`📏 [LLM RAW RESPONSE] Buffer length (after tag processing): ${buffer.length} characters`);
                 log().info('='.repeat(80) + '\n');
 
-                if (buffer) {
+                // If IGNORE tag was detected, don't send any response
+                if (ignoreTagDetected) {
+                  log().info(`🚫 [llmNode] [IGNORE] tag was detected - skipping response`);
+                  buffer = '';
+                } else if (buffer) {
                   // Flush remaining buffer (ensure no partial tags)
                   const cleaned = cleanResponseText(buffer);
                   log().info(`🧹 [LLM CLEANED RESPONSE] After cleaning: ${cleaned.length} characters`);
@@ -827,7 +861,7 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
 
                 // PROCESS TAGS ONLY AT THE START
                 if (!tagProcessed) {
-                  const tagMatch = buffer.match(/^\s*\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE|OFF_TOPIC)\]/);
+                  const tagMatch = buffer.match(/^\s*\[(FOLLOW_UP|NEXT|HINT|CLARIFY|GENERIC|OFFER_CHOICE|CHECK_CODE|DEBUG_HINT|CONVERSE|OFF_TOPIC|IGNORE)\]/);
 
                   if (tagMatch) {
                     const intent = tagMatch[1];
@@ -842,7 +876,16 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     buffer = buffer.replace(tagMatch[0], '').trimStart();
                     tagProcessed = true;
 
-                    // 3. IF [NEXT] OR [CHECK_CODE] TAG DETECTED - HANDLE
+                    // 3. IF [IGNORE] TAG DETECTED - MARK FOR EMPTY RESPONSE
+                    if (intent === 'IGNORE') {
+                      console.log(`🚫 [llmNode] [IGNORE] tag detected - will return empty response`);
+                      ignoreTagDetected = true;
+                      buffer = '';
+                      tagProcessed = true;
+                      // Continue processing but don't enqueue anything
+                    }
+
+                    // 4. IF [NEXT] OR [CHECK_CODE] TAG DETECTED - HANDLE
                     if (intent === 'NEXT' || intent === 'CHECK_CODE') {
                       if (nextTagDetected) {
                         console.log(`⚠️ [llmNode] Duplicate [${intent}] tag ignored`);
@@ -880,8 +923,11 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                   }
                 }
 
-                if (tagProcessed && buffer.length > 0) {
+                if (tagProcessed && buffer.length > 0 && !ignoreTagDetected) {
                   safeEnqueue(buffer);
+                  buffer = '';
+                } else if (ignoreTagDetected) {
+                  // Don't enqueue anything for IGNORE tag
                   buffer = '';
                 }
               }

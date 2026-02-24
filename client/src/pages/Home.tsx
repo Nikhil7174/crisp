@@ -1,5 +1,4 @@
 import { HeroSection } from '../components/landing/HeroSection'
-import { VideoSection } from '../components/landing/VideoSection'
 import { CommonContentRow } from '../components/landing/CommonContentRow'
 import CostCalculatorSection from '../components/landing/CostCalculatorSection'
 import { FeaturesSection } from '../components/landing/FeaturesSection'
@@ -15,7 +14,6 @@ const Home = () => {
         overflow: 'hidden'
       }}>
         <HeroSection />
-        <VideoSection />
       </div>
       <CommonContentRow />
       <CostCalculatorSection />

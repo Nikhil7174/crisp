@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
   const handleLoginClick = () => {
     posthog?.capture('login_clicked');
     if (location.pathname.startsWith('/try-interview')) {
-      navigate(`/sign-in?role=candidate&redirect=${encodeURIComponent(location.pathname)}`);
+      navigate(`/sign-in?role=interviewer&redirect=${encodeURIComponent(location.pathname)}`);
     } else {
       navigate('/sign-in?role=interviewer');
     }
@@ -160,7 +160,7 @@ export const Header: React.FC = () => {
               background: colors.neutral[900],
               borderColor: colors.neutral[900],
               height: 40,
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 500,
               borderRadius: 8,
             }}
@@ -306,7 +306,7 @@ export const Header: React.FC = () => {
                     background: colors.neutral[900],
                     borderColor: colors.neutral[900],
                     height: 32,
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: 500,
                     borderRadius: 8,
                   }}

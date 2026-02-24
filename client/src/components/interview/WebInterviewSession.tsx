@@ -20,6 +20,11 @@ interface WebInterviewSessionProps {
     livekitToken: string
     livekitUrl: string
     roomName: string
+    /**
+     * Optional hard cap (in seconds) for how long this session should run.
+     * Intended primarily for demo interviews so they don't run indefinitely.
+     */
+    maxDurationSeconds?: number
     onComplete?: () => void
 }
 
@@ -30,6 +35,7 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
     livekitToken: tokenFromProps,
     livekitUrl: urlFromProps,
     roomName: _roomNameFromProps,
+    maxDurationSeconds,
     onComplete,
 }) => {
     useEffect(() => { setLogLevel(LogLevel.error) }, [])
@@ -57,6 +63,9 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
     const userSpeakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isSubmittingTimeoutRef = useRef<boolean>(false)
     const hasCompletedRef = useRef(false)
+    const sessionTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const hasTimerStartedRef = useRef(false)
+    const [remainingSeconds, setRemainingSeconds] = useState<number | null>(maxDurationSeconds ?? null)
 
     // Decoupled LiveKit room connection state.
     // We keep the room connected for a few seconds AFTER the UI shows "completed"
@@ -255,6 +264,91 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             endAllActiveWarnings()
         }
     }, [currentState, endAllActiveWarnings])
+
+    // Auto-end session if maxDurationSeconds is provided (primarily for demo interviews)
+    useEffect(() => {
+        if (!maxDurationSeconds || maxDurationSeconds <= 0) {
+            setRemainingSeconds(null)
+            if (sessionTimeoutRef.current) {
+                clearInterval(sessionTimeoutRef.current)
+                sessionTimeoutRef.current = null
+            }
+            hasTimerStartedRef.current = false
+            return
+        }
+
+        // Only count down on active interview screens (not while connecting or after wrap-up)
+        const isInterviewScreen =
+            currentState !== 'connecting' &&
+            currentState !== 'wrap_up' &&
+            currentState !== 'completed'
+
+        if (!isInterviewScreen) {
+            if (sessionTimeoutRef.current) {
+                clearInterval(sessionTimeoutRef.current)
+                sessionTimeoutRef.current = null
+            }
+            return
+        }
+
+        // Initialize remaining time once, on first entry into an interview screen
+        if (!hasTimerStartedRef.current) {
+            setRemainingSeconds(maxDurationSeconds)
+            hasTimerStartedRef.current = true
+        }
+
+        // Avoid creating multiple intervals
+        if (sessionTimeoutRef.current) return
+
+        // Start interval to update remaining time and auto-end when it hits zero
+        sessionTimeoutRef.current = setInterval(() => {
+            setRemainingSeconds(prev => {
+                if (prev === null) return prev
+                if (prev <= 1) {
+                    // This tick will bring us to zero; clear interval and end session
+                    if (sessionTimeoutRef.current) {
+                        clearInterval(sessionTimeoutRef.current)
+                        sessionTimeoutRef.current = null
+                    }
+
+                    if (!hasCompletedRef.current) {
+                        hasCompletedRef.current = true
+
+                        // Notify agent so it can wrap up and save evaluation if possible
+                        if (broadcastDataRef.current) {
+                            try {
+                                broadcastDataRef.current({
+                                    type: 'user_quit',
+                                    metadata: { reason: 'demo_timeout', maxDurationSeconds },
+                                    timestamp: Date.now(),
+                                })
+                            } catch (e) {
+                                console.warn('[WebInterviewSession] Failed to broadcast demo timeout:', e)
+                            }
+                        }
+
+                        // Notify backend that interview ended
+                        fetch(`${API_BASE_URL}/interview/end/${_interviewId}`, { method: 'POST' })
+                            .catch(err => console.warn('[WebInterviewSession] Failed to notify server on demo timeout:', err))
+
+                        // Show completed UI and then disconnect room after a short delay
+                        setCurrentState('completed')
+                        setTimeout(() => setRoomConnected(false), 4000)
+                    }
+
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+
+        return () => {
+            if (sessionTimeoutRef.current) {
+                clearInterval(sessionTimeoutRef.current)
+                sessionTimeoutRef.current = null
+            }
+        }
+    }, [_interviewId, maxDurationSeconds, currentState])
 
     // Compute livekitUrl with wss://
     const serverUrl = (() => {
@@ -697,6 +791,19 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
             <LiveKitRoomEventBridge />
             <div className="web-voice-interview-session">
                 <div className="web-interview-content">
+                    {typeof remainingSeconds === 'number'
+                        && remainingSeconds >= 0
+                        && currentState !== 'connecting'
+                        && currentState !== 'wrap_up'
+                        && currentState !== 'completed' && (
+                        <div className="web-session-timer">
+                            {Math.floor(remainingSeconds / 60)
+                                .toString()
+                                .padStart(2, '0')}
+                            :
+                            {(remainingSeconds % 60).toString().padStart(2, '0')}
+                        </div>
+                    )}
                     {renderCurrentSection()}
                 </div>
 
@@ -849,6 +956,28 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
           overflow: hidden;
           display: flex;
           flex-direction: column;
+          position: relative;
+        }
+
+        .web-session-timer {
+          position: absolute;
+          top: 16px;
+          left: 16px;
+          z-index: 5;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: rgba(0, 0, 0, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          font-size: 12px;
+          font-weight: 500;
+          color: #e0f2f1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 72px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
 
         .web-theoretical-section {

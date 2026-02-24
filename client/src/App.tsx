@@ -10,6 +10,7 @@ import { store, persistor } from './store';
 import { theme } from './styles/theme';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { PublicRoute } from './components/PublicRoute';
 import { AuthInitializer } from './components/AuthInitializer';
 import Home from './pages/Home';
 import { InterviewerDashboard } from './pages/InterviewerDashboard';
@@ -97,8 +98,8 @@ const AppContent = () => {
       </Route>
 
       {/* Auth Routes */}
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/sign-in/*" element={<PublicRoute><SignInPage /></PublicRoute>} />
+      <Route path="/sign-up/*" element={<PublicRoute><SignUpPage /></PublicRoute>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/auth/desktop-callback" element={<DesktopCallback />} />
       <Route path="/auth/desktop-login/*" element={<DesktopLogin />} />

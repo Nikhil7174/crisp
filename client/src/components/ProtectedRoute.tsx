@@ -37,7 +37,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Not signed in - redirect to login or signup
   if (!isSignedIn) {
     const isTryInterview = location.pathname.startsWith('/try-interview');
-    const roleParam = isTryInterview ? '&role=candidate' : '';
+    const roleParam = isTryInterview ? '&role=interviewer' : '';
     const reasonParam = isTryInterview ? '&reason=demo' : '';
     const redirectUrl = encodeURIComponent(location.pathname + location.search);
     const targetRoute = isTryInterview ? '/sign-up' : '/sign-in';
@@ -79,5 +79,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
-
-

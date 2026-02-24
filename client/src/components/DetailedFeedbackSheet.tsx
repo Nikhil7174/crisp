@@ -9,6 +9,7 @@ import {
   Collapse,
   Grid,
 } from 'antd';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -43,6 +44,8 @@ interface QuestionBreakdown {
   keyPointsCovered: string[];
   timeTaken?: number;
   hintsUsed?: number;
+  clarificationsUsed?: number;
+  followUpsUsed?: number;
 }
 
 interface CodeReview {
@@ -109,6 +112,9 @@ interface DetailedFeedbackSheetProps {
   evaluation: DetailedEvaluation;
   candidateName?: string;
   interviewDate?: string;
+  role?: string;
+  companyName?: string;
+  companyLogo?: string;
 }
 
 // Design tokens
@@ -126,6 +132,7 @@ const dt = {
 
   // Accent
   indigo600: '#4F46E5',
+  indigo100: '#C7D2FE',
   indigo50:  '#EEF2FF',
 
   // Semantic
@@ -161,37 +168,44 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
   evaluation,
   candidateName,
   interviewDate,
+  role,
+  companyName: propCompanyName,
+  companyLogo: propCompanyLogo,
 }) => {
   const { user } = useAuth();
   const screens = useBreakpoint();
   const containerHorizontalPadding = screens.xl ? spacing.md : spacing.sm;
   const containerVerticalPadding = screens.xl ? spacing.sm : spacing.xs;
 
-  // Get company name and logo from user profile, with fallback
-  const companyName = user?.company || 'Shakra AI interview';
-  const companyLogo = (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || shakraLogo;
+  // Label visibility state - controls which labels to show
+  const [showHints, setShowHints] = React.useState(true);
+  const [showClarifications, setShowClarifications] = React.useState(false);
+  const [showFollowUps, setShowFollowUps] = React.useState(false);
+
+  // Get company name and logo from props (for demo) or user profile, with fallback
+  const companyName = propCompanyName || user?.company || 'Shakra AI interview';
+  const companyLogo = propCompanyLogo || (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || shakraLogo;
 
   const getScoreColor = (score: number): string => {
-    if (score >= 80) return dt.emerald600;
-    if (score >= 70) return '#16a34a';
-    if (score >= 60) return dt.amber600;
-    if (score >= 50) return '#ea580c';
-    return dt.red600;
+    if (score >= 80) return dt.emerald600; // Green
+    if (score >= 70) return dt.amber600; // Orange (changed from green to orange for better distinction)
+    if (score >= 60) return dt.amber600; // Orange
+    if (score >= 50) return '#ea580c'; // Orange/Red
+    return dt.red600; // Red
   };
 
   const getScoreLabel = (score: number) => {
-    if (score >= 90) return { label: 'Excellent', bg: dt.emerald50, color: dt.emerald700 };
-    if (score >= 80) return { label: 'Good', bg: dt.emerald50, color: dt.emerald700 };
-    if (score >= 70) return { label: 'Acceptable', bg: dt.amber50, color: dt.amber700 };
-    if (score >= 60) return { label: 'Below Average', bg: dt.amber50, color: dt.amber700 };
-    return { label: 'Needs Improvement', bg: dt.red50, color: dt.red700 };
+    if (score >= 90) return { label: 'Outstanding', bg: dt.emerald50, color: dt.emerald700, description: 'Top-tier performance. Clear hire signal.' };
+    if (score >= 80) return { label: 'Strong Hire', bg: dt.emerald50, color: dt.emerald700, description: 'Solid performance with minor gaps.' };
+    if (score >= 70) return { label: 'Competent', bg: dt.amber50, color: dt.amber700, description: 'Meets expectations but lacks depth.' };
+    if (score >= 60) return { label: 'Developing', bg: dt.amber50, color: dt.amber700, description: 'Partial understanding; improvement needed.' };
+    return { label: 'Insufficient', bg: dt.red50, color: dt.red700, description: '' };
   };
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
+    return `${mins}m ${secs}s`;
   };
 
   // Compact circular score badge
@@ -201,8 +215,9 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
     showLabel = true,
     noMargin = false,
   }) => {
-    const strokeColor = getScoreColor(score);
-    const { label, bg, color } = getScoreLabel(score);
+    const roundedScore = Math.round(score); // Round score for display
+    const strokeColor = getScoreColor(roundedScore);
+    const { label, bg, color } = getScoreLabel(roundedScore);
     return (
       <div style={{
         display: 'flex',
@@ -214,7 +229,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
       }}>
         <Progress
           type="circle"
-          percent={score}
+          percent={roundedScore}
           size={size}
           strokeColor={strokeColor}
           trailColor={dt.slate200}
@@ -226,7 +241,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               lineHeight: 1,
               letterSpacing: '-0.5px',
             }}>
-              {percent}
+              {Math.round(percent || 0)}
             </span>
           )}
           strokeWidth={11}
@@ -456,21 +471,41 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               <Row gutter={[12, 8]} align="middle">
                 <Col>
                   {/* Company Logo */}
-                  <img
-                    src={companyLogo}
-                    alt="Company Logo"
-                    style={{
-                      height: 40,
-                      width: 'auto',
-                      objectFit: 'contain',
-                      maxWidth: '200px',
-                      paddingRight: 8,
-                    }}
-                    onError={(e) => {
-                      // Fallback to default logo if image fails to load
-                      (e.target as HTMLImageElement).src = shakraLogo;
-                    }}
-                  />
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={companyLogo}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{
+                        height: 40,
+                        width: 40,
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        marginRight: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#f3f4f6',
+                      }}
+                    >
+                      <img
+                        src={companyLogo}
+                        alt="Company Logo"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                        }}
+                        onError={(e) => {
+                          // Fallback to default logo if image fails to load
+                          (e.target as HTMLImageElement).src = shakraLogo;
+                        }}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
                 </Col>
                 <Col flex="auto">
                   <h2 style={{
@@ -481,7 +516,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     letterSpacing: '-0.4px',
                     lineHeight: 1.2,
                   }}>
-                    Detailed Interview Feedback
+                    {role ? `${role} Interview` : 'Detailed Interview Feedback'}
                   </h2>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -508,23 +543,32 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
               </Row>
 
               {/* Component 2: Company Name - Separate below Component 1 */}
-              <div style={{ marginTop: 0 }}>
-                <span style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: dt.slate700,
-                  letterSpacing: '0.3px',
-                  display: 'block',
-                  textAlign: 'left',
-                }}>
-                  {companyName}
-                </span>
+              <div style={{ marginTop: 8 }}>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={companyName}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: dt.slate700,
+                      letterSpacing: '0.3px',
+                      display: 'block',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {companyName}
+                  </motion.span>
+                </AnimatePresence>
               </div>
             </Col>
 
             {/* Right Side: Evaluation Score */}
             <Col>
-              <ScoreCircle score={evaluation.overall.score} size={50} noMargin />
+              <ScoreCircle score={Math.round(evaluation.overall.score)} size={50} noMargin />
             </Col>
           </Row>
         </div>
@@ -556,6 +600,9 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     label: 'Total Hints',
                     iconColor: dt.amber600,
                     iconBg: dt.amber50,
+                    isClickable: true,
+                    isSelected: showHints,
+                    onClick: () => setShowHints(!showHints),
                   },
                   {
                     icon: <HelpCircle size={12} strokeWidth={2} />,
@@ -563,6 +610,9 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     label: 'Clarifications',
                     iconColor: dt.blue600,
                     iconBg: dt.blue50,
+                    isClickable: true,
+                    isSelected: showClarifications,
+                    onClick: () => setShowClarifications(!showClarifications),
                   },
                   {
                     icon: <MessageSquare size={12} strokeWidth={2} />,
@@ -570,6 +620,9 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     label: 'Follow-ups',
                     iconColor: dt.indigo600,
                     iconBg: dt.indigo50,
+                    isClickable: true,
+                    isSelected: showFollowUps,
+                    onClick: () => setShowFollowUps(!showFollowUps),
                   },
                   {
                     icon: <Clock size={12} strokeWidth={2} />,
@@ -577,19 +630,55 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     label: 'Avg Time/Question',
                     iconColor: dt.slate600,
                     iconBg: dt.slate100,
+                    isClickable: false,
+                    isSelected: false,
+                    onClick: undefined,
                   },
-                ].map(({ icon, value, label, iconColor, iconBg }) => (
+                ].map(({ icon, value, label, iconColor, iconBg, isClickable, isSelected, onClick }) => (
                   <Col xs={12} sm={6} key={label}>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      padding: '10px 8px',
-                      background: '#FFFFFF',
-                      border: `1px solid ${dt.border}`,
-                      borderRadius: 8,
-                      gap: 4,
-                    }}>
+                    <div 
+                      onClick={isClickable ? onClick : undefined}
+                      style={{
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        padding: '10px 8px',
+                        background: '#FFFFFF',
+                        border: `1px solid ${dt.border}`,
+                        borderRadius: 8,
+                        gap: 4,
+                        cursor: isClickable ? 'pointer' : 'default',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isClickable) {
+                          e.currentTarget.style.background = dt.slate50;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isClickable) {
+                          e.currentTarget.style.background = '#FFFFFF';
+                        }
+                      }}
+                    >
+                      {isClickable && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 6,
+                          left: 6,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <CheckCircle2 
+                            size={14} 
+                            color={isSelected ? dt.emerald600 : dt.slate200} 
+                            strokeWidth={2.5} 
+                            fill={isSelected ? dt.emerald50 : dt.slate50} 
+                          />
+                        </div>
+                      )}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -643,7 +732,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
           title="Theoretical Section"
           icon={<BookOpen size={15} strokeWidth={2} />}
           accentColor={dt.indigo600}
-          score={evaluation.theoreticalSection.score}
+          score={Math.round(evaluation.theoreticalSection.score)}
           feedback={evaluation.theoreticalSection.feedback}
           strengths={evaluation.theoreticalSection.strengths}
           areasForImprovement={evaluation.theoreticalSection.areasForImprovement}
@@ -677,27 +766,51 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                           <span style={{ fontSize: 13, fontWeight: 600, color: dt.slate800 }}>
                             Question {idx + 1}
                           </span>
-                          <ScoreCircle score={q.score} size={30} showLabel={false} noMargin />
-                          {q.hintsUsed !== undefined && q.hintsUsed > 0 && (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 3,
-                              padding: '2px 7px', borderRadius: 4,
-                              background: dt.amber50, border: `1px solid ${dt.amber100}`,
-                              fontSize: 11, fontWeight: 600, color: dt.amber700,
-                            }}>
-                              <Lightbulb size={10} strokeWidth={2.5} />
-                              {q.hintsUsed} hint{q.hintsUsed > 1 ? 's' : ''}
-                            </span>
-                          )}
+                          <ScoreCircle score={Math.round(q.score)} size={30} showLabel={false} noMargin />
                           {q.timeTaken !== undefined && (
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', gap: 3,
                               padding: '2px 7px', borderRadius: 4,
                               background: dt.slate100, border: `1px solid ${dt.slate200}`,
                               fontSize: 11, fontWeight: 500, color: dt.slate600,
+                              minWidth: '68px',
+                              justifyContent: 'center',
                             }}>
                               <Clock size={10} strokeWidth={2.5} />
                               {formatTime(q.timeTaken)}
+                            </span>
+                          )}
+                          {showHints && q.hintsUsed !== undefined && q.hintsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.amber50, border: `1px solid ${dt.amber100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.amber700,
+                            }}>
+                              <Lightbulb size={10} strokeWidth={2.5} />
+                              {q.hintsUsed}
+                            </span>
+                          )}
+                          {showClarifications && q.clarificationsUsed !== undefined && q.clarificationsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.blue50, border: `1px solid ${dt.blue100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.blue700,
+                            }}>
+                              <HelpCircle size={10} strokeWidth={2.5} />
+                              {q.clarificationsUsed}
+                            </span>
+                          )}
+                          {showFollowUps && q.followUpsUsed !== undefined && q.followUpsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.indigo50, border: `1px solid ${dt.indigo100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.indigo600,
+                            }}>
+                              <MessageSquare size={10} strokeWidth={2.5} />
+                              {q.followUpsUsed}
                             </span>
                           )}
                         </div>
@@ -723,7 +836,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
           title="Coding Section"
           icon={<Code2 size={15} strokeWidth={2} />}
           accentColor={dt.blue600}
-          score={evaluation.codingSection.score}
+          score={Math.round(evaluation.codingSection.score)}
           feedback={evaluation.codingSection.feedback}
           strengths={evaluation.codingSection.strengths}
           areasForImprovement={evaluation.codingSection.areasForImprovement}
@@ -757,27 +870,51 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                           <span style={{ fontSize: 13, fontWeight: 600, color: dt.slate800 }}>
                             Problem {idx + 1}
                           </span>
-                          <ScoreCircle score={p.score} size={30} showLabel={false} noMargin />
-                          {p.hintsUsed !== undefined && p.hintsUsed > 0 && (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 3,
-                              padding: '2px 7px', borderRadius: 4,
-                              background: dt.amber50, border: `1px solid ${dt.amber100}`,
-                              fontSize: 11, fontWeight: 600, color: dt.amber700,
-                            }}>
-                              <Lightbulb size={10} strokeWidth={2.5} />
-                              {p.hintsUsed} hint{p.hintsUsed > 1 ? 's' : ''}
-                            </span>
-                          )}
+                          <ScoreCircle score={Math.round(p.score)} size={30} showLabel={false} noMargin />
                           {p.timeTaken !== undefined && (
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', gap: 3,
                               padding: '2px 7px', borderRadius: 4,
                               background: dt.slate100, border: `1px solid ${dt.slate200}`,
                               fontSize: 11, fontWeight: 500, color: dt.slate600,
+                              minWidth: '68px',
+                              justifyContent: 'center',
                             }}>
                               <Clock size={10} strokeWidth={2.5} />
                               {formatTime(p.timeTaken)}
+                            </span>
+                          )}
+                          {showHints && p.hintsUsed !== undefined && p.hintsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.amber50, border: `1px solid ${dt.amber100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.amber700,
+                            }}>
+                              <Lightbulb size={10} strokeWidth={2.5} />
+                              {p.hintsUsed}
+                            </span>
+                          )}
+                          {showClarifications && (p as any).clarificationsUsed !== undefined && (p as any).clarificationsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.blue50, border: `1px solid ${dt.blue100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.blue700,
+                            }}>
+                              <HelpCircle size={10} strokeWidth={2.5} />
+                              {(p as any).clarificationsUsed}
+                            </span>
+                          )}
+                          {showFollowUps && (p as any).followUpsUsed !== undefined && (p as any).followUpsUsed > 0 && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 2,
+                              padding: '2px 7px', borderRadius: 4,
+                              background: dt.indigo50, border: `1px solid ${dt.indigo100}`,
+                              fontSize: 11, fontWeight: 600, color: dt.indigo600,
+                            }}>
+                              <MessageSquare size={10} strokeWidth={2.5} />
+                              {(p as any).followUpsUsed}
                             </span>
                           )}
                         </div>
@@ -961,35 +1098,132 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
               title: 'Status',
               dataIndex: 'passed',
               key: 'passed',
+              width: 120,
+              align: 'center',
               render: (passed) =>
                 passed ? (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Passed</Tag>
+                  <Tag 
+                    icon={<CheckCircleOutlined style={{ fontSize: 10 }} />} 
+                    color="success"
+                    style={{ 
+                      fontSize: 10, 
+                      padding: '1px 8px',
+                      margin: 0,
+                      minWidth: 70,
+                      height: 20,
+                      lineHeight: '18px',
+                      textAlign: 'center',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    Passed
+                  </Tag>
                 ) : (
-                  <Tag icon={<CloseCircleOutlined />} color="error">Failed</Tag>
+                  <Tag 
+                    icon={<CloseCircleOutlined style={{ fontSize: 10 }} />} 
+                    color="error"
+                    style={{ 
+                      fontSize: 10, 
+                      padding: '1px 8px',
+                      margin: 0,
+                      minWidth: 70,
+                      height: 20,
+                      lineHeight: '18px',
+                      textAlign: 'center',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    Failed
+                  </Tag>
                 ),
             },
             {
               title: 'Input',
               dataIndex: 'input',
               key: 'input',
-              render: (text) => <Typography.Text code>{text}</Typography.Text>,
+              align: 'center',
+              render: (text) => (
+                <Typography.Text style={{ 
+                  background: 'transparent', 
+                  padding: 0,
+                  fontSize: 11,
+                  color: dt2.slate500,
+                  fontFamily: dt.fontMono,
+                  textAlign: 'center',
+                  display: 'block',
+                }}>
+                  {text}
+                </Typography.Text>
+              ),
             },
             {
               title: 'Expected',
               dataIndex: 'expectedOutput',
               key: 'expectedOutput',
-              render: (text) => <Typography.Text code>{text}</Typography.Text>,
+              align: 'center',
+              render: (text) => (
+                <Typography.Text style={{ 
+                  background: 'transparent', 
+                  padding: 0,
+                  fontSize: 11,
+                  color: dt2.slate500,
+                  fontFamily: dt.fontMono,
+                  textAlign: 'center',
+                  display: 'block',
+                }}>
+                  {text}
+                </Typography.Text>
+              ),
             },
             {
               title: 'Actual',
               dataIndex: 'actualOutput',
               key: 'actualOutput',
-              render: (text) => <Typography.Text code>{text}</Typography.Text>,
+              align: 'center',
+              render: (text) => (
+                <Typography.Text style={{ 
+                  background: 'transparent', 
+                  padding: 0,
+                  fontSize: 11,
+                  color: dt2.slate500,
+                  fontFamily: dt.fontMono,
+                  textAlign: 'center',
+                  display: 'block',
+                }}>
+                  {text}
+                </Typography.Text>
+              ),
             },
           ]}
           pagination={false}
           size="small"
+          rowClassName={() => 'test-result-row'}
+          style={{ fontSize: 11 }}
         />
+        <style>
+          {`
+            .test-result-row:hover {
+              background: transparent !important;
+            }
+            .test-result-row td {
+              background: transparent !important;
+              padding: 8px 12px !important;
+              font-size: 11px !important;
+              text-align: center !important;
+            }
+            .test-result-row th {
+              font-size: 11px !important;
+              padding: 8px 12px !important;
+              font-weight: 600 !important;
+              color: ${dt2.slate600} !important;
+              text-align: center !important;
+            }
+          `}
+        </style>
       </div>
     )}
   </div>

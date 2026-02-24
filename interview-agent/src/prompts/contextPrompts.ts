@@ -114,13 +114,41 @@ export function getInterviewContextPrompt(
 
         log().info({ currentNotepad }, " currentNotepad  ");
 
-        return getDSADepthContextPrompt(
+        // Always include a concise problem summary in the system prompt so the LLM
+        // can see the coding question even if earlier turns were pruned.
+        const constraintsText = currentProblem.constraints
+            ? (Array.isArray(currentProblem.constraints)
+                ? currentProblem.constraints.join(', ')
+                : String(currentProblem.constraints))
+            : 'None';
+
+        const examplesText = currentProblem.examples
+            ? (Array.isArray(currentProblem.examples)
+                ? currentProblem.examples.map((ex: any) =>
+                    typeof ex === 'string'
+                        ? ex
+                        : JSON.stringify(ex)
+                  ).join(' | ')
+                : String(currentProblem.examples))
+            : 'None';
+
+        const problemSummary = `
+# CODING PROBLEM
+Title: ${currentProblem.title}
+Description: ${currentProblem.description}
+Constraints: ${constraintsText}
+Examples: ${examplesText}
+`;
+
+        const dsaPrompt = getDSADepthContextPrompt(
             hintDepth,
             debugHintDepth,
             state.codingSubState,
             currentCode,
             currentNotepad
         );
+
+        return `${problemSummary}\n${dsaPrompt}`;
     }
 
     return null;

@@ -132,6 +132,11 @@ interface InterviewDetails {
     updated_at: string;
   } | null;
   created_at: string;
+  interview_link?: {
+    id: number;
+    role: string | null;
+    title: string;
+  } | null;
   finalEvaluation?: FinalEvaluationSummary | null;
 }
 
@@ -391,6 +396,7 @@ export const InterviewDetails: React.FC = () => {
                         evaluation={llmEvaluation}
                         candidateName={interview.candidate_name}
                         interviewDate={dayjs(interview.start_time).format('MMM D, YYYY')}
+                        role={interview.interview_link?.role || undefined}
                       />
                     </>
                   ) : (
