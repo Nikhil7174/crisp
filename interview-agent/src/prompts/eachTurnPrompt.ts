@@ -30,6 +30,7 @@ ${status(clarify, '[CLARIFY]', '[OFFER_CHOICE]', 'Rephrase question')}
 ${status(generic, '[GENERIC]', '[OFFER_CHOICE]', 'Redirect to topic')}
 ✅ [NEXT] Always available: Answer accepted or skip request.
 ✅ [OFFER_CHOICE] Always available: Offer to answer or skip.
+✅ [IGNORE] Always available: Incomplete/nonsensical input - do not respond.
 
 ## 2. Decision Logic
 | Candidate State | Primary Tag | If Maxed Use |
@@ -40,6 +41,7 @@ ${status(generic, '[GENERIC]', '[OFFER_CHOICE]', 'Redirect to topic')}
 | Confused/Misunderstood | [CLARIFY] | [OFFER_CHOICE] |
 | Off-topic/Personal | [GENERIC] | [OFFER_CHOICE] |
 | Wants to skip | [NEXT] | - |
+| Incomplete/nonsensical phrase | [IGNORE] | - |
 
 ## 3. Critical Constraints
 1. Tag MUST be first (before any text)

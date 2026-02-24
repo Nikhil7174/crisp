@@ -12,6 +12,8 @@ import {
   Tabs,
   Collapse,
   Rate,
+  Row,
+  Col,
 } from 'antd';
 import {
   UserOutlined,
@@ -130,13 +132,18 @@ interface InterviewDetails {
     updated_at: string;
   } | null;
   created_at: string;
+  interview_link?: {
+    id: number;
+    role: string | null;
+    title: string;
+  } | null;
   finalEvaluation?: FinalEvaluationSummary | null;
 }
 
 export const InterviewDetails: React.FC = () => {
   const { linkId, id } = useParams<{ linkId: string; id: string }>();
   const navigate = useNavigate();
-  const { getFreshToken } = useAuth();
+  const { getFreshToken, user } = useAuth();
   const [interview, setInterview] = useState<InterviewDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [llmEvaluation, setLlmEvaluation] = useState<{
@@ -200,7 +207,6 @@ export const InterviewDetails: React.FC = () => {
       averageTimePerProblem: number;
     };
   } | null>(null);
-  const [generatingEvaluation, setGeneratingEvaluation] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -208,53 +214,38 @@ export const InterviewDetails: React.FC = () => {
     }
   }, [id]);
 
-  // Check for existing LLM evaluation or generate it when interview data is loaded
+  // Update llmEvaluation state when interview data changes
   useEffect(() => {
-    if (interview?.finalEvaluation) {
-      // First check if LLM evaluation already exists in finalEvaluation
-      if (interview.finalEvaluation.llmEvaluation) {
-        setLlmEvaluation(interview.finalEvaluation.llmEvaluation);
-        return;
-      }
-
-      // If no LLM evaluation exists and we have conversation history, generate it
-      if (
-        interview.finalEvaluation.fullConversationHistory &&
-        interview.finalEvaluation.fullConversationHistory.length > 0 &&
-        !llmEvaluation &&
-        !generatingEvaluation
-      ) {
-        generateLLMEvaluation();
-      }
+    if (interview?.finalEvaluation?.llmEvaluation) {
+      setLlmEvaluation(interview.finalEvaluation.llmEvaluation);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interview]);
 
   const fetchInterviewDetails = async () => {
     try {
       setLoading(true);
       const freshToken = await getFreshToken();
-      const response = await fetch(`${API_BASE_URL}/interviewer/interview/${id}`, {
+      const fetchUrl = `${API_BASE_URL}/interviewer/interview/${id}`;
+      const response = await fetch(fetchUrl, {
         headers: { Authorization: `Bearer ${freshToken}` },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
-      if (data.success && data.data) {
-        setInterview(data.data);
-      } else {
-        message.error(data.message || 'Failed to fetch interview details');
-        // Navigate back to candidates list for this link
+      if (!response.ok || !data?.success || !data?.data) {
+        message.error(data?.message || data?.error || 'Failed to fetch interview details');
         if (linkId) {
           navigate(`/interviewer/link/${linkId}/candidates`);
         } else {
           navigate('/interviewer/dashboard');
         }
+        return;
       }
+
+      setInterview(data.data);
     } catch (error) {
       console.error('Error fetching interview details:', error);
       message.error('Failed to fetch interview details');
-      // Navigate back to candidates list for this link
       if (linkId) {
         navigate(`/interviewer/link/${linkId}/candidates`);
       } else {
@@ -294,98 +285,43 @@ export const InterviewDetails: React.FC = () => {
   const formatTimestamp = (timestamp?: number) =>
     timestamp ? dayjs(timestamp).format('MMM D, YYYY HH:mm:ss') : 'Time not recorded';
 
-  const generateLLMEvaluation = async () => {
-    if (!interview?.finalEvaluation?.fullConversationHistory || !interview?.id) {
-      return;
-    }
-
-    try {
-      setGeneratingEvaluation(true);
-
-      // Try to send full evaluation payload if available, otherwise fall back to conversation history
-      const payload: any = {
-        interviewId: interview.id,
-      };
-
-      // Check if we have the full evaluation structure to send
-      if (interview.finalEvaluation &&
-        interview.finalEvaluation.theoreticalSection &&
-        interview.finalEvaluation.codingSection) {
-        // Send full evaluation payload for enhanced evaluation
-        payload.fullEvaluationPayload = {
-          sessionId: interview.session_id,
-          candidateId: interview.candidate_email,
-          interviewLinkId: (interview as any).interview_link_id,
-          startTime: interview.start_time,
-          endTime: interview.end_time || new Date().toISOString(),
-          duration: interview.duration || 0,
-          fullConversationHistory: interview.finalEvaluation.fullConversationHistory,
-          theoreticalSection: interview.finalEvaluation.theoreticalSection,
-          codingSection: interview.finalEvaluation.codingSection,
-          totalScore: interview.finalEvaluation.totalScore || 0,
-          strengths: interview.finalEvaluation.strengths || [],
-          areasForImprovement: interview.finalEvaluation.areasForImprovement || [],
-          overallFeedback: interview.finalEvaluation.overallFeedback || '',
-          hintRequestCount: interview.finalEvaluation.hintRequestCount || 0,
-          clarificationRequestCount: interview.finalEvaluation.clarificationRequestCount || 0,
-          followUpCount: interview.finalEvaluation.followUpCount || 0,
-          averageTimePerQuestion: interview.finalEvaluation.averageTimePerQuestion || 0,
-          averageTimePerCodingProblem: interview.finalEvaluation.averageTimePerCodingProblem || 0,
-        };
-      } else {
-        // Fall back to conversation history only (backward compatibility)
-        payload.conversationHistory = interview.finalEvaluation.fullConversationHistory;
-      }
-
-      const freshToken = await getFreshToken();
-      const response = await fetch(`${API_BASE_URL}/llm/generate-comprehensive-evaluation`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${freshToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.evaluation) {
-        setLlmEvaluation(data.evaluation);
-        if (data.cached) {
-          console.log('✅ Loaded cached LLM evaluation from database');
-        } else {
-          console.log('✅ Generated and stored new LLM evaluation');
-        }
-      } else {
-        console.error('Failed to generate evaluation:', data.error);
-      }
-    } catch (error) {
-      console.error('Error generating LLM evaluation:', error);
-    } finally {
-      setGeneratingEvaluation(false);
-    }
-  };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '80px 0 32px', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 20, left: 24 }}>
-        <BackButton
-          label="Back"
-          onClick={() => {
-            if (linkId) {
-              navigate(`/interviewer/link/${linkId}/candidates`);
-            } else {
-              navigate(-1);
-            }
-          }}
-        />
-      </div>
+    <div style={{ minHeight: '100vh', background: '#F9FAFB', padding: '32px 0', position: 'relative' }}>
+      <div style={{ marginBottom: 24, marginLeft: 32 }}>
+          <BackButton
+            label="Back"
+            onClick={() => {
+              if (linkId) {
+                navigate(`/interviewer/link/${linkId}/candidates`);
+              } else {
+                navigate(-1);
+              }
+            }}
+          />
+        </div>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 32px' }}>
+        
         {/* Header */}
-        <div style={{ marginBottom: spacing.xl }}>
-          <Title level={2} style={{ margin: 0 }}>
-            Interview Details
-          </Title>
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            borderRadius: 8,
+            padding: '24px 32px',
+            marginBottom: 32,
+          }}
+        >
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1, color: '#111827' }}>
+                Candidate Report
+              </Title>
+              <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
+                Detailed insights and evaluation for {interview.candidate_name}
+              </Text>
+            </Col>
+          </Row>
         </div>
 
         <Tabs
@@ -400,8 +336,9 @@ export const InterviewDetails: React.FC = () => {
 
                   {/* Candidate Information */}
                   <Card
-                    title="Candidate Information"
-                    style={{ marginBottom: spacing.xl }}
+                    title={<span style={{ fontWeight: 600, fontSize: 18, color: '#111827' }}>Candidate Information</span>}
+                    style={{ marginBottom: spacing.xl, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: 'none', borderRadius: 8 }}
+                    bodyStyle={{ padding: 24 }}
                   >
                     <Descriptions column={{ xs: 1, sm: 2 }}>
                       <Descriptions.Item label="Name">
@@ -437,12 +374,18 @@ export const InterviewDetails: React.FC = () => {
                       <div style={{ marginBottom: spacing.md, display: 'flex', justifyContent: 'flex-end' }}>
                         <Button
                           type="primary"
+                          size="small"
                           icon={<DownloadOutlined />}
+                          style={{ fontSize: 12, padding: '16px 16px' }}
                           onClick={() => {
+                            const companyName = user?.company || 'Shakra AI interview';
+                            const companyLogo = (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || undefined;
                             generateFeedbackPDF(
                               llmEvaluation,
                               interview.candidate_name,
-                              dayjs(interview.start_time).format('YYYY-MM-DD')
+                              dayjs(interview.start_time).format('YYYY-MM-DD'),
+                              companyName,
+                              companyLogo
                             );
                           }}
                         >
@@ -453,26 +396,18 @@ export const InterviewDetails: React.FC = () => {
                         evaluation={llmEvaluation}
                         candidateName={interview.candidate_name}
                         interviewDate={dayjs(interview.start_time).format('MMM D, YYYY')}
+                        role={interview.interview_link?.role || undefined}
                       />
                     </>
-                  ) : generatingEvaluation ? (
-                    <Card style={{ marginBottom: spacing.xl }}>
-                      <div style={{ textAlign: 'center', padding: spacing.xl }}>
-                        <Spin size="large" />
-                        <Paragraph type="secondary" style={{ marginTop: spacing.md }}>
-                          Generating detailed evaluation from conversation history...
-                        </Paragraph>
-                      </div>
-                    </Card>
                   ) : (
-                    <Card style={{ marginBottom: spacing.xl }}>
+                    <Card style={{ marginBottom: spacing.xl, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: 'none', borderRadius: 8 }}>
                       <div style={{ textAlign: 'center', padding: spacing.xl }}>
                         <RobotOutlined
                           style={{ fontSize: 48, color: colors.neutral[400], marginBottom: spacing.md }}
                         />
                         <Paragraph type="secondary">
                           {interview?.finalEvaluation?.fullConversationHistory
-                            ? 'Evaluation will be generated automatically...'
+                            ? 'Evaluation will be available soon...'
                             : 'No conversation history available for evaluation'}
                         </Paragraph>
                       </div>
@@ -486,9 +421,9 @@ export const InterviewDetails: React.FC = () => {
               label: 'Detailed Answers',
               children: (
                 <Card
-                  title="Conversation History"
-                  style={{ marginTop: spacing.xl }}
-                  bodyStyle={{ paddingLeft: 60, paddingRight: 60 }}
+                  title={<span style={{ fontWeight: 600, fontSize: 18, color: '#111827' }}>Conversation History</span>}
+                  style={{ marginTop: spacing.xl, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: 'none', borderRadius: 8 }}
+                  bodyStyle={{ padding: '24px 60px' }}
                 >
                   {conversationData.length > 0 ? (
                     <>

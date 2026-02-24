@@ -34,9 +34,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Not signed in - redirect to login
+  // Not signed in - redirect to login or signup
   if (!isSignedIn) {
-    return <Navigate to="/sign-in" state={{ from: location.pathname }} replace />;
+    const isTryInterview = location.pathname.startsWith('/try-interview');
+    const roleParam = isTryInterview ? '&role=interviewer' : '';
+    const reasonParam = isTryInterview ? '&reason=demo' : '';
+    const redirectUrl = encodeURIComponent(location.pathname + location.search);
+    const targetRoute = isTryInterview ? '/sign-up' : '/sign-in';
+    return <Navigate to={`${targetRoute}?redirect=${redirectUrl}${roleParam}${reasonParam}`} replace />;
   }
 
   // Signed in to Clerk but backend user not synced yet
@@ -74,5 +79,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
-
-

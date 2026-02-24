@@ -35,5 +35,10 @@ router.post('/ticket', authMiddleware, (req: Request, res: Response) => {
     authController.createSignInTicket(req, res);
 });
 
+// Profile completion (interviewers: company + job role)
+router.patch('/profile', authMiddleware, (req: Request, res: Response) => {
+    authController.updateProfile(req, res);
+});
+
 export default router;
 

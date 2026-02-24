@@ -12,6 +12,7 @@ import {
   Row,
   Col,
   Dropdown,
+  Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -30,6 +31,7 @@ import {
   EllipsisOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
+import { User } from 'lucide-react';
 import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchDashboardData, removeLink } from '../store/slices/dashboardSlice';
@@ -384,12 +386,36 @@ export const InterviewerDashboard: React.FC = () => {
         >
           <Row justify="space-between" align="middle">
             <Col>
-              <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
-                Your Interviews
-              </Title>
-              <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
-                Welcome back, {user?.fullName}
-              </Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Tooltip title="Profile Settings" overlayInnerStyle={{ borderRadius: '8px' }}>
+                  <Button
+                    icon={<User size={16} strokeWidth={1.5} />}
+                    onClick={() => navigate('/interviewer/profile')}
+                    size="large"
+                    type="text"
+                    style={{
+                      color: '#475569',
+                      border: '1px solid #CBD5E1',
+                      background: '#F3F4F6',
+                      borderRadius: '50%',
+                      height: 32,
+                      width: 32,
+                      fontSize: 16,
+                      padding: '12px',
+                      marginRight: 8,
+                    }}
+                  >
+                  </Button>
+                </Tooltip>
+                <div>
+                  <Title level={2} style={{ margin: 0, marginBottom: 4, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+                    Your Interviews
+                  </Title>
+                  <Text style={{ color: '#6B7280', fontSize: 14, lineHeight: 1.6 }}>
+                    Welcome back, {user?.fullName}
+                  </Text>
+                </div>
+              </div>
             </Col>
             <Col>
               <Space size={12}>

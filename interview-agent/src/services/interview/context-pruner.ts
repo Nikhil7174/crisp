@@ -23,9 +23,9 @@ export function getPrunedContext(
   currentState: InterviewState,
   nodeSpecificContext: string
 ): PrunedContext {
-  // Get last 2 turns (user + assistant pairs)
-  // This ensures we have recent context but remove old jailbreak attempts
-  const lastNTurns = 2;
+  // Get last 4 turns (user + assistant pairs)
+  // This ensures we have recent context but still removes old jailbreak attempts
+  const lastNTurns = 4;
   const prunedMessages: llm.ChatMessage[] = [];
   
   // Count turns (user + assistant = 1 turn)

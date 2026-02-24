@@ -8,6 +8,8 @@ export interface User {
   userType: 'candidate' | 'interviewer';
   phone?: string;
   company?: string;
+  companyLogoUrl?: string;
+  jobRole?: string;
   createdAt?: string;
   lastLogin?: string;
 }

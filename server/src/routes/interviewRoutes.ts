@@ -10,9 +10,25 @@ router.get('/link/:token', (req: Request, res: Response) => {
     interviewController.validateLink(req, res);
 });
 
+// Public endpoint - get interview details without auth
+router.get('/public/:id', (req: Request, res: Response) => {
+    interviewController.getPublicInterviewDetails(req, res);
+});
+
 // Start interview endpoint - requires authentication and link token
 router.post('/start', authMiddleware as any, (req: Request, res: Response) => {
     interviewController.startInterview(req as AuthRequest, res);
+});
+
+// Start demo interview endpoint - public, no auth required
+router.post('/demo-start', (req: Request, res: Response) => {
+    interviewController.startDemoInterview(req, res);
+});
+
+// End interview - called by frontend when user ends the call.
+// This is the authoritative signal; it doesn't depend on the agent.
+router.post('/end/:sessionId', (req: Request, res: Response) => {
+    interviewController.endInterview(req, res);
 });
 
 // Get interview questions endpoint - public (used by agent process)

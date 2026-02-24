@@ -56,6 +56,7 @@ model InterviewLink {
 model Interview {
   id                       Int                 @id @default(autoincrement())
   session_id               String              @unique
+  status                   String              @default("started")  // started | awaiting_evaluation | evaluating | completed | failed
   user_id                  Int?
   interview_link_id        Int?
   candidate_name           String
@@ -141,6 +142,8 @@ model Interviewer {
   full_name               String
   phone                   String?
   company                 String?
+  company_logo_url        String?
+  job_role                String?
   company_id              Int?
   company_relation        Company?        @relation(fields: [company_id], references: [id])
   created_at              DateTime        @default(now())

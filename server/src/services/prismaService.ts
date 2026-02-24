@@ -529,6 +529,25 @@ export class PrismaService {
             },
         });
 
+        return this.parseInterview(interview);
+    }
+
+    public async getInterviewBySessionId(sessionId: string) {
+        const interview = await prisma.interview.findUnique({
+            where: { session_id: sessionId },
+            include: {
+                final_evaluation: true,
+                security_events: {
+                    orderBy: { created_at: 'desc' }
+                },
+                candidate_feedback: true
+            },
+        });
+
+        return this.parseInterview(interview);
+    }
+
+    private parseInterview(interview: any) {
         if (!interview) return null;
 
         // Parse JSON fields
@@ -564,6 +583,7 @@ export class PrismaService {
         return {
             id: interview.id,
             session_id: interview.session_id,
+            status: interview.status || 'started',
             candidate_name: interview.candidate_name,
             candidate_email: interview.candidate_email,
             candidate_phone: interview.candidate_phone,
@@ -602,11 +622,13 @@ export class PrismaService {
                 created_at: interview.candidate_feedback.created_at,
                 updated_at: interview.candidate_feedback.updated_at
             } : null,
+            interview_link_id: interview.interview_link_id,
             created_at: interview.created_at,
             updated_at: interview.updated_at,
             finalEvaluation,
         };
     }
+
 
     public async verifyInterviewerAccess(interviewId: number, interviewerId: number) {
         const interview = await prisma.interview.findFirst({
@@ -755,6 +777,7 @@ export class PrismaService {
         fullName: string;
         phone?: string;
         company?: string;
+        jobRole?: string;
         companyId?: number;
     }) {
         return await prisma.interviewer.create({
@@ -763,6 +786,7 @@ export class PrismaService {
                 full_name: interviewerData.fullName,
                 phone: interviewerData.phone,
                 company: interviewerData.company,
+                job_role: interviewerData.jobRole,
                 company_id: interviewerData.companyId,
             },
         });
@@ -783,6 +807,8 @@ export class PrismaService {
                 full_name: true,
                 phone: true,
                 company: true,
+                company_logo_url: true,
+                job_role: true,
                 created_at: true,
                 last_login: true,
                 is_active: true,
@@ -794,6 +820,26 @@ export class PrismaService {
         return await prisma.interviewer.update({
             where: { id: interviewerId },
             data: { last_login: new Date() },
+        });
+    }
+
+    public async updateInterviewerProfile(interviewerId: number, data: {
+        fullName?: string;
+        company?: string;
+        companyLogoUrl?: string;
+        jobRole?: string;
+        phone?: string;
+    }) {
+        const updateData: any = {};
+        if (data.fullName !== undefined) updateData.full_name = data.fullName?.trim() || null;
+        if (data.company !== undefined) updateData.company = data.company?.trim() || null;
+        if (data.companyLogoUrl !== undefined) updateData.company_logo_url = data.companyLogoUrl?.trim() || null;
+        if (data.jobRole !== undefined) updateData.job_role = data.jobRole?.trim() || null;
+        if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
+        
+        return await prisma.interviewer.update({
+            where: { id: interviewerId },
+            data: updateData,
         });
     }
 
@@ -872,17 +918,36 @@ export class PrismaService {
             console.log('Warning types:', Object.keys(payload.visionSecurityWarnings));
         }
 
-        // Find or create the interview by session_id
+        // ── Step 1: Find the interview record ───────────────────────────
+        // Primary lookup: exact session_id match (ideal path).
+        // Fallback lookup: if the agent's room-derived session_id differs
+        //   from the frontend-generated session_id (pre-created record),
+        //   look for the most recent record with the same interview_link_id
+        //   that is still waiting for evaluation.
         let interview = await prisma.interview.findUnique({
             where: { session_id: payload.sessionId },
         });
 
+        if (!interview && payload.interviewLinkId) {
+            console.log(`⚠️ No interview for session_id="${payload.sessionId}" — trying fallback by interview_link_id=${payload.interviewLinkId}`);
+            interview = await prisma.interview.findFirst({
+                where: {
+                    interview_link_id: payload.interviewLinkId,
+                    status: { in: ['started', 'awaiting_evaluation'] },
+                },
+                orderBy: { created_at: 'desc' },
+            });
+            if (interview) {
+                console.log(`✅ Fallback matched interview ${interview.id} (session_id="${interview.session_id}"). Agent session was "${payload.sessionId}".`);
+            }
+        }
+
         if (!interview) {
-            console.log('⚠️ Interview not found for session ID:', payload.sessionId, '- creating new interview record');
-            // Create interview record from final evaluation data
+            console.log('⚠️ Interview not found by session_id or fallback — creating new record');
             interview = await prisma.interview.create({
                 data: {
                     session_id: payload.sessionId,
+                    status: 'evaluating',
                     interview_link_id: payload.interviewLinkId || null,
                     candidate_name: payload.candidateId,
                     candidate_email: payload.candidateId,
@@ -906,15 +971,14 @@ export class PrismaService {
             console.log('✅ Interview record created:', interview.id);
         } else {
             console.log('✅ Interview found:', interview.id, 'Session:', interview.session_id);
-            // Updating the parent Interview table with final stats is crucial for the dashboard
             await prisma.interview.update({
                 where: { id: interview.id },
                 data: {
+                    status: 'evaluating',
                     duration: payload.duration,
                     time_spent: payload.duration,
                     score: Math.round(payload.totalScore),
                     end_time: new Date(payload.endTime),
-                    // Also ensure candidate info is up to date if provided
                     candidate_name: payload.candidateId,
                     candidate_email: payload.candidateId,
                     total_questions: (payload.theoreticalSection?.totalQuestions || 0) + (payload.codingSection?.totalProblems || 0),
@@ -1108,17 +1172,16 @@ export class PrismaService {
                 },
             });
 
-            // Also update the interview.score field with the LLM evaluation overall score if available
-            // This ensures the score is easily accessible for statistics
+            // Mark interview as completed and update score
+            const updateData: any = { status: 'completed' };
             if (llmEvaluation?.overall?.score !== null && llmEvaluation?.overall?.score !== undefined) {
-                await prisma.interview.update({
-                    where: { id: interviewId },
-                    data: {
-                        score: Math.round(llmEvaluation.overall.score),
-                    },
-                });
-                console.log(`✅ Interview score updated to ${llmEvaluation.overall.score} for interview ${interviewId}`);
+                updateData.score = Math.round(llmEvaluation.overall.score);
             }
+            await prisma.interview.update({
+                where: { id: interviewId },
+                data: updateData,
+            });
+            console.log(`✅ Interview ${interviewId} marked as completed with score ${updateData.score ?? 'N/A'}`);
 
             console.log(`✅ LLM evaluation saved for interview ${interviewId}`);
             return result;
