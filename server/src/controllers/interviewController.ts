@@ -710,11 +710,12 @@ export class InterviewController {
    */
   async endInterview(req: Request, res: Response): Promise<void> {
     try {
-      const { sessionId } = req.params;
-      if (!sessionId) {
+      const { sessionId: sessionIdParam } = req.params;
+      if (!sessionIdParam || typeof sessionIdParam !== 'string') {
         res.status(400).json({ error: 'sessionId is required' });
         return;
       }
+      const sessionId: string = sessionIdParam;
 
       const interview = await prisma.interview.findUnique({
         where: { session_id: sessionId },
@@ -983,6 +984,7 @@ export class InterviewController {
         });
         return;
       }
+      const sessionIdString: string = sessionId;
 
       if (!suspiciousEvents || !Array.isArray(suspiciousEvents)) {
         res.status(400).json({
@@ -994,7 +996,7 @@ export class InterviewController {
 
       // Store security events in SecurityEvent table
       const interview = await prisma.interview.findUnique({
-        where: { session_id: sessionId },
+        where: { session_id: sessionIdString },
         include: { interview_link: true }
       });
 
@@ -1220,13 +1222,14 @@ export class InterviewController {
         wouldRecommend
       } = req.body;
 
-      if (!sessionId || !rating) {
+      if (!sessionId || typeof sessionId !== 'string' || !rating) {
         res.status(400).json({
           success: false,
           error: 'Session ID and rating are required'
         });
         return;
       }
+      const sessionIdString: string = sessionId;
 
       if (rating < 1 || rating > 5) {
         res.status(400).json({
@@ -1238,7 +1241,7 @@ export class InterviewController {
 
       // Find interview by session ID using prisma directly
       const interview = await prisma.interview.findUnique({
-        where: { session_id: sessionId }
+        where: { session_id: sessionIdString }
       });
 
       if (!interview) {
