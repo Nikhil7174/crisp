@@ -145,6 +145,12 @@ export interface InterviewQuestion {
     expectedOutput: string;
   }>;
   instructions?: string;
+  constraints?: string[]; // For agent context (coding problems)
+  examples?: Array<{
+    input?: string;
+    output?: string;
+    explanation?: string;
+  }> | string; // For agent context (coding problems)
 }
 
 export interface InterviewAnswer {

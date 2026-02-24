@@ -187,27 +187,27 @@ export class InterviewController {
         }
 
         return {
-          id: q.id,
-          question: q.question,
-          title: q.question,    // Required by Orchestrator
-          description: q.problemStatement || q.question, // Required by Orchestrator
-          type: 'coding',
-          difficulty: q.difficulty,
-          timeLimit: q.timeLimit || timeLimit,
-          expectedAnswer: q.expectedAnswer,
-          explanation: q.explanation,
-          keyPoints: q.keyPoints,
-          documentation: q.documentation,
-          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
-            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
-            : 'javascript',
-          initialCode: q.starterCode,
-          starterCodes: q.starterCodes, // Include multi-language starter codes
-          expectedOutput: q.testCases?.[0]?.expectedOutput,
-          testCases: q.testCases,
-          instructions: q.problemStatement,
-          constraints: q.constraints,
-          examples: q.examples
+        id: q.id,
+        question: q.question,
+        title: q.question,    // Required by Orchestrator
+        description: q.problemStatement || q.question, // Required by Orchestrator
+        type: 'coding',
+        difficulty: q.difficulty,
+        timeLimit: q.timeLimit || timeLimit,
+        expectedAnswer: q.expectedAnswer,
+        explanation: q.explanation,
+        keyPoints: q.keyPoints,
+        documentation: q.documentation,
+        language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
+          ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
+          : 'javascript',
+        initialCode: q.starterCode,
+        starterCodes: q.starterCodes, // Include multi-language starter codes
+        expectedOutput: q.testCases?.[0]?.expectedOutput,
+        testCases: q.testCases,
+        instructions: q.problemStatement,
+        constraints: Array.isArray(q.constraints) ? q.constraints : undefined,
+        examples: q.examples,
         };
       });
 
@@ -844,7 +844,7 @@ export class InterviewController {
           expectedOutput: q.testCases?.[0]?.expectedOutput,
           testCases: q.testCases,
           instructions: q.problemStatement,
-          constraints: q.constraints,
+          constraints: Array.isArray(q.constraints) ? q.constraints : undefined,
           examples: q.examples,
         };
       });
