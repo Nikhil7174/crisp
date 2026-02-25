@@ -7,6 +7,7 @@ import { usePostHog } from '@posthog/react';
 import { colors, typography, spacing } from '../../styles';
 import { INTERVIEW_ROLES } from '../../constants/interview';
 import { DetailedFeedbackSheet } from '../DetailedFeedbackSheet';
+import shakraLogo from '../../assets/images/shakra.png';
 
 const { Title, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -164,7 +165,7 @@ const DEMO_COMPANIES = [
     name: 'Shakra AI',
     // If shakra.png is in the public/ folder, this path will work in Vite.
     // Otherwise, adjust the path/import as needed.
-    logo: '/shakra.png',
+    logo: shakraLogo,
   },
   {
     name: 'Atlas Systems',
@@ -298,7 +299,7 @@ export const HeroSection: React.FC = () => {
 
   return (
     <div style={{
-      padding: `${spacing.xxxl * 2}px ${spacing.lg}px 0 ${spacing.lg}px`,
+      padding: `${screens.md ? spacing.xxxl * 2 : spacing.xxxl}px ${screens.md ? spacing.lg : spacing.md}px 0 ${screens.md ? spacing.lg : spacing.md}px`,
       background: '#fff', // Soft off-white background
       maxWidth: 1600,
       margin: '0 auto',
@@ -319,30 +320,30 @@ export const HeroSection: React.FC = () => {
           >
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: screens.lg ? 'flex-start' : 'center' }}>
-              <Title level={1} style={{
-                fontSize: screens.lg 
-                  ? (windowWidth < 1400 ? '48px' : '56px')
-                  : '42px',
-                fontWeight: 600,
-                color: '#111827', // Rich dark charcoal
-                letterSpacing: '-0.02em',
-                lineHeight: 1.1,
-                marginBottom: spacing.md,
-                marginTop: 0,
-                paddingTop: 0,
-                maxWidth: 600,
-                fontFamily: typography.fontFamily.primary,
-                textAlign: screens.lg ? 'left' : 'center',
-              }}>
-                Technical Interviews on{' '}
-                <span style={{ 
-                  color: '#111827',
-                  textDecoration: 'underline',
-                  textDecorationColor: colors.primary.main,
-                  textDecorationThickness: '2px',
-                  textUnderlineOffset: '4px',
-                }}>Autopilot</span>
-              </Title>
+                <Title level={1} style={{
+                  fontSize: screens.lg
+                    ? (windowWidth < 1400 ? '48px' : '56px')
+                    : '42px',
+                  fontWeight: 600,
+                  color: '#111827', // Rich dark charcoal
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.1,
+                  marginBottom: spacing.md,
+                  marginTop: 0,
+                  paddingTop: 0,
+                  maxWidth: 600,
+                  fontFamily: typography.fontFamily.primary,
+                  textAlign: screens.lg ? 'left' : 'center',
+                }}>
+                  Technical Interviews on{' '}
+                  <span style={{
+                    color: '#111827',
+                    textDecoration: 'underline',
+                    textDecorationColor: colors.primary.main,
+                    textDecorationThickness: '2px',
+                    textUnderlineOffset: '4px',
+                  }}>Autopilot</span>
+                </Title>
               </span>
 
               <Paragraph style={{
@@ -451,30 +452,30 @@ export const HeroSection: React.FC = () => {
               <div style={{
                 background: '#F5F5F5',
                 borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
-                padding: '12px 16px',
+                padding: screens.md ? '12px 16px' : '10px 12px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: screens.md ? 8 : 6,
               }}>
                 {/* Window Controls */}
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: screens.md ? 6 : 4 }}>
                   <div style={{
-                    width: 12,
-                    height: 12,
+                    width: screens.md ? 12 : 10,
+                    height: screens.md ? 12 : 10,
                     borderRadius: '50%',
                     background: '#FF5F57',
                     border: '1px solid rgba(0, 0, 0, 0.1)',
                   }} />
                   <div style={{
-                    width: 12,
-                    height: 12,
+                    width: screens.md ? 12 : 10,
+                    height: screens.md ? 12 : 10,
                     borderRadius: '50%',
                     background: '#FFBD2E',
                     border: '1px solid rgba(0, 0, 0, 0.1)',
                   }} />
                   <div style={{
-                    width: 12,
-                    height: 12,
+                    width: screens.md ? 12 : 10,
+                    height: screens.md ? 12 : 10,
                     borderRadius: '50%',
                     background: '#28CA42',
                     border: '1px solid rgba(0, 0, 0, 0.1)',
@@ -484,15 +485,18 @@ export const HeroSection: React.FC = () => {
                 <div style={{
                   flex: 1,
                   textAlign: 'center',
-                  fontSize: 13,
+                  fontSize: screens.md ? 13 : 11,
                   color: '#6B7280',
                   fontWeight: 500,
                   fontFamily: 'system-ui, -apple-system, sans-serif',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}>
-                  Sample Detailed Interview Feedback
+                  {screens.md ? 'Sample Detailed Interview Feedback' : 'Detailed Interview Feedback'}
                 </div>
                 {/* Spacer for symmetry */}
-                <div style={{ width: 60 }} />
+                <div style={{ width: screens.md ? 60 : 42 }} />
               </div>
 
               {/* Content Area with Custom Scrollbar - No max-height, let it bleed */}

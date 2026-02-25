@@ -128,40 +128,40 @@ const dt = {
   slate400: '#94A3B8',
   slate200: '#E2E8F0',
   slate100: '#F1F5F9',
-  slate50:  '#F8FAFC',
+  slate50: '#F8FAFC',
 
   // Accent
   indigo600: '#4F46E5',
   indigo100: '#C7D2FE',
-  indigo50:  '#EEF2FF',
+  indigo50: '#EEF2FF',
 
   // Semantic
   emerald700: '#047857',
   emerald600: '#059669',
   emerald100: '#D1FAE5',
-  emerald50:  '#ECFDF5',
+  emerald50: '#ECFDF5',
 
-  amber700:   '#B45309',
-  amber600:   '#D97706',
-  amber100:   '#FEF3C7',
-  amber50:    '#FFFBEB',
+  amber700: '#B45309',
+  amber600: '#D97706',
+  amber100: '#FEF3C7',
+  amber50: '#FFFBEB',
 
-  red700:     '#B91C1C',
-  red600:     '#DC2626',
-  red100:     '#FEE2E2',
-  red50:      '#FEF2F2',
+  red700: '#B91C1C',
+  red600: '#DC2626',
+  red100: '#FEE2E2',
+  red50: '#FEF2F2',
 
-  blue700:    '#1D4ED8',
-  blue600:    '#2563EB',
-  blue100:    '#DBEAFE',
-  blue50:     '#EFF6FF',
+  blue700: '#1D4ED8',
+  blue600: '#2563EB',
+  blue100: '#DBEAFE',
+  blue50: '#EFF6FF',
 
   // Border
-  border:     '#E2E8F0',
-  borderLight:'#F1F5F9',
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
 
   // Typography
-  fontMono:   `'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`,
+  fontMono: `'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`,
 };
 
 export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
@@ -467,10 +467,10 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
           <Row gutter={[12, 8]} align="middle">
             {/* Left Side */}
             <Col flex="auto">
-              {/* Component 1: Logo, Heading, Candidate Info */}
-              <Row gutter={[12, 8]} align="middle">
-                <Col>
-                  {/* Company Logo */}
+              {/* Left Side Layout */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Component 1: Logo and Company Name together */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={companyLogo}
@@ -484,7 +484,6 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                         borderRadius: 6,
                         overflow: 'hidden',
                         flexShrink: 0,
-                        marginRight: 8,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -500,14 +499,33 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                           objectFit: 'contain',
                         }}
                         onError={(e) => {
-                          // Fallback to default logo if image fails to load
                           (e.target as HTMLImageElement).src = shakraLogo;
                         }}
                       />
                     </motion.div>
                   </AnimatePresence>
-                </Col>
-                <Col flex="auto">
+
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={companyName}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: dt.slate700,
+                        letterSpacing: '0.3px',
+                      }}
+                    >
+                      {companyName}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
+
+                {/* Component 2: Heading, Candidate Info */}
+                <div>
                   <h2 style={{
                     margin: 0,
                     fontSize: 17,
@@ -515,11 +533,12 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                     color: dt.slate900,
                     letterSpacing: '-0.4px',
                     lineHeight: 1.2,
+                    marginBottom: 4,
                   }}>
                     {role ? `${role} Interview` : 'Detailed Interview Feedback'}
                   </h2>
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: screens.md ? 12 : 4, alignItems: 'center' }}>
                     {candidateName && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <User size={12} color={dt.slate500} strokeWidth={2} />
@@ -539,30 +558,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                       </div>
                     )}
                   </div>
-                </Col>
-              </Row>
-
-              {/* Component 2: Company Name - Separate below Component 1 */}
-              <div style={{ marginTop: 8 }}>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={companyName}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: dt.slate700,
-                      letterSpacing: '0.3px',
-                      display: 'block',
-                      textAlign: 'left',
-                    }}
-                  >
-                    {companyName}
-                  </motion.span>
-                </AnimatePresence>
+                </div>
               </div>
             </Col>
 
@@ -636,7 +632,7 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                   },
                 ].map(({ icon, value, label, iconColor, iconBg, isClickable, isSelected, onClick }) => (
                   <Col xs={12} sm={6} key={label}>
-                    <div 
+                    <div
                       onClick={isClickable ? onClick : undefined}
                       style={{
                         position: 'relative',
@@ -671,11 +667,11 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}>
-                          <CheckCircle2 
-                            size={14} 
-                            color={isSelected ? dt.emerald600 : dt.slate200} 
-                            strokeWidth={2.5} 
-                            fill={isSelected ? dt.emerald50 : dt.slate50} 
+                          <CheckCircle2
+                            size={14}
+                            color={isSelected ? dt.emerald600 : dt.slate200}
+                            strokeWidth={2.5}
+                            fill={isSelected ? dt.emerald50 : dt.slate50}
                           />
                         </div>
                       )}
@@ -1102,11 +1098,11 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
               align: 'center',
               render: (passed) =>
                 passed ? (
-                  <Tag 
-                    icon={<CheckCircleOutlined style={{ fontSize: 10 }} />} 
+                  <Tag
+                    icon={<CheckCircleOutlined style={{ fontSize: 10 }} />}
                     color="success"
-                    style={{ 
-                      fontSize: 10, 
+                    style={{
+                      fontSize: 10,
                       padding: '1px 8px',
                       margin: 0,
                       minWidth: 70,
@@ -1121,11 +1117,11 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
                     Passed
                   </Tag>
                 ) : (
-                  <Tag 
-                    icon={<CloseCircleOutlined style={{ fontSize: 10 }} />} 
+                  <Tag
+                    icon={<CloseCircleOutlined style={{ fontSize: 10 }} />}
                     color="error"
-                    style={{ 
-                      fontSize: 10, 
+                    style={{
+                      fontSize: 10,
                       padding: '1px 8px',
                       margin: 0,
                       minWidth: 70,
@@ -1147,8 +1143,8 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
               key: 'input',
               align: 'center',
               render: (text) => (
-                <Typography.Text style={{ 
-                  background: 'transparent', 
+                <Typography.Text style={{
+                  background: 'transparent',
                   padding: 0,
                   fontSize: 11,
                   color: dt2.slate500,
@@ -1166,8 +1162,8 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
               key: 'expectedOutput',
               align: 'center',
               render: (text) => (
-                <Typography.Text style={{ 
-                  background: 'transparent', 
+                <Typography.Text style={{
+                  background: 'transparent',
                   padding: 0,
                   fontSize: 11,
                   color: dt2.slate500,
@@ -1185,8 +1181,8 @@ const ProblemContent: React.FC<{ problem: ProblemBreakdown }> = ({ problem: p })
               key: 'actualOutput',
               align: 'center',
               render: (text) => (
-                <Typography.Text style={{ 
-                  background: 'transparent', 
+                <Typography.Text style={{
+                  background: 'transparent',
                   padding: 0,
                   fontSize: 11,
                   color: dt2.slate500,

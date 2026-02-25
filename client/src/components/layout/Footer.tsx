@@ -28,6 +28,10 @@ export const Footer: React.FC = () => {
             margin-left: 0 !important;
             margin-right: 0 !important;
             row-gap: ${spacing.lg}px !important;
+            text-align: center !important;
+          }
+          .footer-row .ant-space {
+            align-items: center !important;
           }
           .footer-row .ant-col {
             padding-left: 0 !important;
@@ -55,8 +59,21 @@ export const Footer: React.FC = () => {
           .footer-row {
             row-gap: ${spacing.md}px !important;
           }
-          .footer-row .ant-col {
+          /* Brand Column takes full width */
+          .footer-row > .ant-col:first-child {
+            width: 100% !important;
+            max-width: 100% !important;
+            flex: 0 0 100% !important;
+            margin-bottom: ${spacing.lg}px;
+          }
+          /* Other columns take 50% width */
+          .footer-row > .ant-col:not(:first-child) {
+            width: 50% !important;
+            max-width: 50% !important;
+            flex: 0 0 50% !important;
             margin-bottom: ${spacing.md}px;
+            padding-right: ${spacing.sm}px !important;
+            padding-left: ${spacing.sm}px !important;
           }
         }
       `}</style>
