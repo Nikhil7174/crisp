@@ -165,7 +165,7 @@ export const DownloadSection: React.FC = () => {
                               <>
                                 <div style={{ position: 'relative', width: 180, display: 'flex', justifyContent: 'center' }}>
                                   <Button
-                                    type="primary"
+                                    type="default"
                                     size="small"
                                     icon={<DownloadOutlined />}
                                     onClick={() => handleDownload(option.downloads[0].url, option.platform, option.downloads[0].format)}
@@ -175,10 +175,10 @@ export const DownloadSection: React.FC = () => {
                                       fontWeight: typography.fontWeight.medium,
                                       borderRadius: borderRadius.md,
                                       width: 180,
-                                      background: colors.primary.main,
-                                      border: 'none',
-                                      color: 'white',
-                                      boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
+                                      background: colors.background.primary,
+                                      border: `1px solid ${colors.primary.main}`,
+                                      color: colors.primary.main,
+                                      boxShadow: '0 0 0 1px rgba(9, 88, 217, 0.06), 0 4px 10px rgba(9, 88, 217, 0.16)',
                                     }}
                                   >
                                     {option.downloads[0].name}
@@ -261,7 +261,7 @@ export const DownloadSection: React.FC = () => {
                               </Button>
                             ) : (
                               <Button
-                                type="primary"
+                                type="default"
                                 size="small"
                                 icon={<DownloadOutlined />}
                                 onClick={() => handleDownload(option.downloads[0].url, option.platform, option.downloads[0].format)}
@@ -271,10 +271,10 @@ export const DownloadSection: React.FC = () => {
                                   fontWeight: typography.fontWeight.medium,
                                   borderRadius: borderRadius.md,
                                   width: 180,
-                                  background: colors.primary.main,
-                                  border: 'none',
-                                  color: 'white',
-                                  boxShadow: `0 4px 12px rgba(9, 88, 217, 0.3)`,
+                                  background: colors.background.primary,
+                                  border: `1px solid ${colors.primary.main}`,
+                                  color: colors.primary.main,
+                                  boxShadow: '0 0 0 1px rgba(9, 88, 217, 0.06), 0 4px 10px rgba(9, 88, 217, 0.16)',
                                 }}
                               >
                                 {option.downloads[0].name}
