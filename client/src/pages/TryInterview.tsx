@@ -139,7 +139,7 @@ const TryInterview: React.FC = () => {
     if (!session) return null
 
     // Hard cap for demo interviews so they don't run indefinitely (in seconds)
-    const DEMO_MAX_DURATION_SECONDS = 20 * 60 // 20 minutes
+    const DEMO_MAX_DURATION_SECONDS = 15 * 60 // 15 minutes
 
     return (
         <WebInterviewSession
