@@ -322,8 +322,8 @@ export const HeroSection: React.FC = () => {
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: screens.lg ? 'flex-start' : 'center' }}>
                 <Title level={1} style={{
                   fontSize: screens.lg
-                    ? (windowWidth < 1400 ? '48px' : '56px')
-                    : '42px',
+                    ? (windowWidth < 1400 ? '48px' : '48px')
+                    : '36px',
                   fontWeight: 600,
                   color: '#111827', // Rich dark charcoal
                   letterSpacing: '-0.02em',
@@ -335,14 +335,14 @@ export const HeroSection: React.FC = () => {
                   fontFamily: typography.fontFamily.primary,
                   textAlign: screens.lg ? 'left' : 'center',
                 }}>
-                  Technical Interviews on{' '}
+                  Win Bigger Hiring Contracts. {' '}
                   <span style={{
                     color: '#111827',
                     textDecoration: 'underline',
                     textDecorationColor: colors.primary.main,
                     textDecorationThickness: '2px',
                     textUnderlineOffset: '4px',
-                  }}>Autopilot</span>
+                  }}>Screen 10x Faster.</span>
                 </Title>
               </span>
 
@@ -357,7 +357,7 @@ export const HeroSection: React.FC = () => {
                 marginLeft: screens.lg ? 0 : 'auto',
                 marginRight: screens.lg ? 0 : 'auto',
               }}>
-                Screen hundreds of candidates simultaneously with AI-driven technical rounds. Every result verified, every candidate evaluated fairly.
+                Live AI technical interviews equipped with strict cheat detection, designed exclusively for IT staffing agencies.
               </Paragraph>
 
               <Space direction="vertical" size="small" style={{ width: '100%', alignItems: screens.lg ? 'flex-start' : 'center' }}>

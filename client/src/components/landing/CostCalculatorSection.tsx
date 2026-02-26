@@ -75,7 +75,7 @@ const CostCalculatorSection: React.FC = () => {
   const [numHires, setNumHires] = useState<number>(80);
   const [activeView, setActiveView] = useState<ViewType>('time');
   const [country, setCountry] = useState<Country>('india');
-  const [scenario, setScenario] = useState<Scenario>('mid');
+  const [scenario, setScenario] = useState<Scenario>('worst');
   const [hoveredSegment, setHoveredSegment] = useState<{ barIndex: number; segmentKey: string } | null>(null);
 
   // Get country-specific constants

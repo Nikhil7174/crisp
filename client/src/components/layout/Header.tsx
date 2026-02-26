@@ -1,6 +1,6 @@
 // src/components/layout/Header.tsx
 import React from 'react';
-import { Layout, Button, Space, Grid, Drawer } from 'antd';
+import { Layout, Button, Space, Grid, Drawer, Dropdown } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePostHog } from '@posthog/react';
@@ -36,19 +36,48 @@ export const Header: React.FC = () => {
     setDrawerVisible(false);
   };
 
-  const handleFeaturesClick = () => {
-    posthog?.capture('features_clicked');
-    const featuresSection = document.getElementById('features-section');
-    if (featuresSection) {
-      featuresSection.scrollIntoView({ behavior: 'smooth' });
+  const handleHowItWorksClick = () => {
+    posthog?.capture('how_it_works_clicked');
+
+    const scrollToTarget = () => {
+      const target = document.getElementById('process-flow-section');
+      target?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const onHomePage = location.pathname === '/' || location.pathname === '/home';
+
+    if (onHomePage) {
+      scrollToTarget();
     } else {
       navigate('/');
-      // Wait for navigation then scroll
-      setTimeout(() => {
-        const section = document.getElementById('features-section');
-        section?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+      setTimeout(scrollToTarget, 150);
     }
+
+    setDrawerVisible(false);
+  };
+
+  const handleFeaturesClick = (featureType?: string) => {
+    posthog?.capture('features_clicked', { featureType });
+
+    const targetId = featureType
+      ? `features-${featureType}`
+      : 'features-section';
+
+    const scrollToTarget = () => {
+      const target = document.getElementById(targetId) || document.getElementById('features-section');
+      target?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const onHomePage = location.pathname === '/' || location.pathname === '/home';
+
+    if (onHomePage) {
+      scrollToTarget();
+    } else {
+      navigate('/');
+      // Wait for navigation then scroll to the specific subsection
+      setTimeout(scrollToTarget, 150);
+    }
+
     setDrawerVisible(false);
   };
 
@@ -86,12 +115,42 @@ export const Header: React.FC = () => {
     setDrawerVisible(false);
   };
 
+  const featuresMenuItems = [
+    {
+      key: 'security',
+      label: (
+        <span style={{ fontSize: 14 }}>
+          Security &amp; Anti-Cheating
+        </span>
+      ),
+      onClick: () => handleFeaturesClick('security'),
+    },
+    {
+      key: 'core-features',
+      label: (
+        <span style={{ fontSize: 14 }}>
+          Core Features
+        </span>
+      ),
+      onClick: () => handleFeaturesClick('core-features'),
+    },
+    {
+      key: 'platform',
+      label: (
+        <span style={{ fontSize: 14 }}>
+          Platform Management
+        </span>
+      ),
+      onClick: () => handleFeaturesClick('platform'),
+    },
+  ];
+
   const MobileMenu = () => (
     <Space direction="vertical" size="large" style={{ width: '100%', marginTop: spacing.lg }}>
       <Button
         type="text"
-        onClick={handleFeaturesClick}
         block
+        onClick={handleHowItWorksClick}
         style={{
           color: colors.neutral[900],
           height: 40,
@@ -101,7 +160,52 @@ export const Header: React.FC = () => {
           paddingLeft: 0,
         }}
       >
-        Features
+        How it Works
+      </Button>
+      <Button
+        type="text"
+        block
+        onClick={() => handleFeaturesClick('security')}
+        style={{
+          color: colors.neutral[900],
+          height: 40,
+          fontSize: 16,
+          fontWeight: 500,
+          textAlign: 'left',
+          paddingLeft: 0,
+        }}
+      >
+        Security & Anti-Cheating
+      </Button>
+      <Button
+        type="text"
+        block
+        onClick={() => handleFeaturesClick('core-features')}
+        style={{
+          color: colors.neutral[900],
+          height: 40,
+          fontSize: 16,
+          fontWeight: 500,
+          textAlign: 'left',
+          paddingLeft: 0,
+        }}
+      >
+        Core Features
+      </Button>
+      <Button
+        type="text"
+        block
+        onClick={() => handleFeaturesClick('platform')}
+        style={{
+          color: colors.neutral[900],
+          height: 40,
+          fontSize: 16,
+          fontWeight: 500,
+          textAlign: 'left',
+          paddingLeft: 0,
+        }}
+      >
+        Platform Management
       </Button>
       {isAuthenticated ? (
         <>
@@ -236,7 +340,7 @@ export const Header: React.FC = () => {
           <Space>
             <Button
               type="text"
-              onClick={handleFeaturesClick}
+              onClick={handleHowItWorksClick}
               style={{
                 color: colors.neutral[900],
                 height: 32,
@@ -244,8 +348,29 @@ export const Header: React.FC = () => {
                 fontWeight: 500,
               }}
             >
-              Features
+              How it Works
             </Button>
+            <Dropdown
+              menu={{ items: featuresMenuItems }}
+              trigger={['hover']}
+              placement="bottom"
+            >
+              <Button
+                type="text"
+                style={{
+                  color: colors.neutral[900],
+                  height: 32,
+                  fontSize: 16,
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Features
+                <span style={{ fontSize: 10, opacity: 0.7 }}>⌄</span>
+              </Button>
+            </Dropdown>
             {isAuthenticated ? (
               <Space size="middle">
                 <Button
