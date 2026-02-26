@@ -27,6 +27,7 @@ interface Feature {
 }
 
 interface FeatureCategory {
+    id: string;
     title: string;
     description: string;
     features: Feature[];
@@ -38,6 +39,7 @@ const ICON_STROKE = 1.5;
 
 const featureCategories: FeatureCategory[] = [
     {
+        id: 'core-features',
         title: 'Core Interview Features',
         description: 'Powerful AI-driven interview capabilities',
         accentColor: '#3B82F6',
@@ -65,6 +67,7 @@ const featureCategories: FeatureCategory[] = [
         ],
     },
     {
+        id: 'security',
         title: 'Security & Anti-Cheating',
         description: 'Enterprise-grade security monitoring',
         accentColor: '#10B981',
@@ -92,6 +95,7 @@ const featureCategories: FeatureCategory[] = [
         ],
     },
     {
+        id: 'platform',
         title: 'Platform & Management',
         description: 'Complete interview management ecosystem',
         accentColor: '#8B5CF6',
@@ -168,6 +172,7 @@ export const FeaturesSection: React.FC = () => {
                             {featureCategories.map((category, categoryIndex) => (
                                 <motion.div
                                     key={categoryIndex}
+                                    id={`features-${category.id}`}
                                     initial={{ opacity: 0, y: 30 }}
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}

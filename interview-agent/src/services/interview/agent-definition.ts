@@ -888,7 +888,7 @@ export const agent = defineAgent({
           model: 'sonic-3',
           voice: process.env.CARTESIA_ARUSHI_VOICE_ID || 'f786b574-daa5-4673-aa0c-cbe3e8534c02', // Arushi voice ID
           language: 'en',
-          speed: 0.9,
+          speed: 0.8,
           // Note: volume and emotion are available but may need to be set via Cartesia API directly
         }),
         userData: {
