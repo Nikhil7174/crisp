@@ -333,7 +333,7 @@ const CostCalculatorSection: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        Let your <span style={{ color: colors.success.main }}>Devs Build</span> and Shakra Interview.
+                        Increase your  {' '}<span style={{ color: colors.success.main }}>Interviewer </span> Bandwidth.
                       </>
                     )}
                   </Title>
