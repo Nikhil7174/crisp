@@ -108,7 +108,11 @@ export const SignUpPage = () => {
             if (completeSignUp.status === 'complete') {
                 await setActive({ session: completeSignUp.createdSessionId });
                 const baseRoute = isDesktop ? '/auth/desktop-callback' : '/auth/callback';
-                navigate(`${baseRoute}${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`);
+                const params = new URLSearchParams();
+                if (redirect) params.set('redirect', redirect);
+                if (reason) params.set('reason', reason);
+                const queryString = params.toString();
+                navigate(`${baseRoute}${queryString ? `?${queryString}` : ''}`);
             } else {
                 console.log('Verification incomplete:', completeSignUp);
                 setError('Verification incomplete. Please try again.');

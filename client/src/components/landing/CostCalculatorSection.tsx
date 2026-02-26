@@ -266,7 +266,7 @@ const CostCalculatorSection: React.FC = () => {
                 >
                   <Option value="best">Freelance Marketplace</Option>
                   <Option value="mid">Internal Hiring Team</Option>
-                  <Option value="worst">Specialized Agency</Option>
+                  <Option value="worst">IT Staffing Agency</Option>
                 </Select>
                 {/* Country Selector Dropdown */}
                 <Select
