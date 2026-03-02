@@ -72,6 +72,8 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
     setNotepadContent('')
     setTimeComplexity('')
     setSpaceComplexity('')
+    // Reset language to problem's default language when problem changes
+    setSelectedLanguage(problem.language || 'cpp')
   }, [problem.id])
 
   // Timer countdown
@@ -168,7 +170,15 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
               <button className={`web-editor-tab ${activeTab === 'notepad' ? 'active' : ''}`} onClick={() => setActiveTab('notepad')}>Notepad</button>
             </div>
             {activeTab === 'code' && (
-              <select className="web-language-selector" value={selectedLanguage} onChange={(e) => setSelectedLanguage(e.target.value)} disabled={readOnly}>
+              <select 
+                className="web-language-selector" 
+                value={selectedLanguage} 
+                onChange={(e) => {
+                  const newLang = e.target.value
+                  setSelectedLanguage(newLang)
+                }} 
+                disabled={readOnly}
+              >
                 {availableLanguages.map((l) => (
                   <option key={l} value={l}>{l === 'cpp' ? 'C++' : l === 'python' ? 'Python 3' : l === 'java' ? 'Java' : 'JavaScript'}</option>
                 ))}
@@ -180,11 +190,20 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
               <div style={{ flex: 1, minHeight: 0 }}>
                 <Editor
+                  key={`${problem.id}-${selectedLanguage}`}
                   height="100%"
                   language={getMonacoLang(selectedLanguage)}
                   theme="vs-dark"
                   defaultValue={getStarterCode()}
-                  onMount={(editor) => { editorRef.current = editor }}
+                  onMount={(editor) => { 
+                    editorRef.current = editor
+                    // Set initial value when editor mounts to ensure correct starter code
+                    const starterCode = getStarterCode()
+                    if (starterCode) {
+                      editor.setValue(starterCode)
+                      onCodeChange?.(starterCode)
+                    }
+                  }}
                   onChange={(value) => onCodeChange?.(value || '')}
                   options={{
                     minimap: { enabled: false },

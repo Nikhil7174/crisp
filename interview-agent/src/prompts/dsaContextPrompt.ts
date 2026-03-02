@@ -84,7 +84,6 @@ ${statusHelper(hintDepth, 2, '[HINT]', '[CONVERSE]', '"Think about tracking visi
 ${statusHelper(debugHintDepth, 2, '[DEBUG_HINT]', '[CONVERSE]', '"Check line 5 - what if array is empty?"')}
 ✅ [CONVERSE] (No limit) → "That works. What's the time complexity?"
 ✅ [NEXT] (No limit) → "Nice!" ,"Alright, let's move on." , "Great job!" (brief only, NO questions)
-✅ [IGNORE] (No limit) → Incomplete/nonsensical input - do not respond
 ❌ [OFFER_CHOICE] → FORBIDDEN - use [CONVERSE] or [NEXT] instead
 
 ## Decision Guide - What Tag to Use
@@ -97,7 +96,6 @@ ${statusHelper(debugHintDepth, 2, '[DEBUG_HINT]', '[CONVERSE]', '"Check line 5 -
 | Discussing approach/validating logic | [CONVERSE] |
 | Solution complete and correct | [NEXT] |
 | Wants to skip/move on | [NEXT] |
-| Incomplete/nonsensical phrase | [IGNORE] |
 
 ## Critical Rules
 
