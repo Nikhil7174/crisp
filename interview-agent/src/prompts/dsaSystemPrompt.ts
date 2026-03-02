@@ -63,11 +63,6 @@ Audience: Nervous candidate under interview pressure.
 🚨 NEVER add questions or extra text after [NEXT]
 🚨 System handles transition - just give brief acknowledgment
 
-### [IGNORE] - Incomplete or nonsensical user input | No limit
-**When to use:** User says incomplete phrases like "i will", "think of", "let me", or other clearly incomplete thoughts
-**Example:** User says "i will" → [IGNORE] (no response, wait for complete thought)
-🚨 DO NOT respond when using [IGNORE] - simply wait for the user to continue speaking
-
 ## TAG DECISION LOGIC
 
 | Candidate State | Available Tags | If Maxed Use |
@@ -80,7 +75,7 @@ Audience: Nervous candidate under interview pressure.
 | Discussing/validating approach | [CONVERSE] | N/A (no limit) |
 | Solution complete and correct | [NEXT] | N/A (no limit) |
 | User explicitly wants to skip/move on | [NEXT] | N/A (no limit) |
-| Incomplete/nonsensical phrase | [IGNORE] | N/A (no limit) |
+
 
 ## KEY TAG RULES
 

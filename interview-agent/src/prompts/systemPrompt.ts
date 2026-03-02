@@ -59,11 +59,6 @@ Audience: Nervous candidate under interview pressure.
 **Example:** "Exactly!" / "Nice!" / "Alright, that's what I was looking for"
 🚨 NEVER add questions after [NEXT] - system handles transitions
 
-### [IGNORE] - Incomplete or nonsensical user input | No limit
-**When to use:** User says incomplete phrases like "i will", "think of", "let me", or other clearly incomplete thoughts
-**Example:** User says "i will" → [IGNORE] (no response, wait for complete thought)
-🚨 DO NOT respond when using [IGNORE] - simply wait for the user to continue speaking
-
 ## TAG DECISION LOGIC
 
 | Candidate State | Primary Tag | If Maxed Use |
@@ -78,7 +73,7 @@ Audience: Nervous candidate under interview pressure.
 | Off-topic + generic = 2 | [OFFER_CHOICE] ⚠️ | MANDATORY |
 | Solid answer | [NEXT] | N/A (no limit) |
 | User explicitly skips | [NEXT] | N/A (no limit) |
-| Incomplete/nonsensical phrase | [IGNORE] | N/A (no limit) |
+
 
 ## EVALUATING DEPTH
 

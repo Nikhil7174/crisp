@@ -846,7 +846,7 @@ export const agent = defineAgent({
       // TAG-BASED INTENT DETECTION - No tool calling
       const llmDirect = new openai.LLM({
         model: process.env.OPENAI_LLM_MODEL || process.env.OPENAI_MODEL || 'gpt-4o',
-        temperature: 0.3,
+        // temperature: 0.3,
       });
 
       log().info('🔧 [LLM Config] Using TAG-BASED INTENT DETECTION');

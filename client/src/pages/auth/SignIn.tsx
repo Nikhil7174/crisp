@@ -87,7 +87,11 @@ export const SignInPage = () => {
             if (result.status === "complete") {
                 await setActive({ session: result.createdSessionId });
                 const baseRoute = isDesktop ? '/auth/desktop-callback' : '/auth/callback';
-                navigate(`${baseRoute}${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`);
+                const params = new URLSearchParams();
+                if (redirect) params.set('redirect', redirect);
+                if (reason) params.set('reason', reason);
+                const queryString = params.toString();
+                navigate(`${baseRoute}${queryString ? `?${queryString}` : ''}`);
             } else {
                 console.log(result);
                 setError('Additional steps required to complete sign in.');
