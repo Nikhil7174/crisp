@@ -13,23 +13,23 @@ const downloadOptions = [
     platform: 'Windows',
     icon: <WindowsOutlined />,
     downloads: [
-      { name: 'Windows', format: 'exe', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v1.0.0/shakra-interview-app-win-1.0.0-setup.exe' },
+      { name: 'Windows', format: 'exe', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v2.0.0/shakra-ai-interview-1.0.0-setup.exe' },
     ],
   },
   {
     platform: 'macOS',
     icon: <AppleOutlined />,
     downloads: [
-      { name: 'macOS', format: 'dmg', url: 'https://shakra.com/download/macos' },
+      { name: 'macOS', format: 'dmg', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v2.0.0/shakra-ai-interview-1.0.0.dmg' },
     ],
   },
   {
     platform: 'Linux',
     icon: <LinuxOutlined />,
     downloads: [
-      { name: 'AppImage', format: 'AppImage', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v1.0.0/shakra-interview-app-1.0.0.AppImage' },
-      { name: 'Debian', format: 'deb', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v1.0.0/shakra-interview-app_1.0.0_amd64.deb' },
-      { name: 'Snap', format: 'snap', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v1.0.0/shakra-interview-app_1.0.0_amd64.snap' },
+      { name: 'AppImage', format: 'AppImage', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v2.0.0/shakra-ai-interview-1.0.0.AppImage' },
+      { name: 'Debian', format: 'deb', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v2.0.0/shakra-ai-interview_1.0.0_amd64.deb' },
+      { name: 'Snap', format: 'snap', url: 'https://github.com/Nikhil7174/Shakra-Builds/releases/download/v2.0.0/shakra-ai-interview_1.0.0_amd64.snap' },
     ],
   },
 ];
@@ -239,32 +239,18 @@ export const DownloadSection: React.FC = () => {
                                   </Space>
                                 )}
                               </>
-                            ) : option.platform === 'macOS' ? (
-                              <Button
-                                type="primary"
-                                size="small"
-                                disabled
-                                style={{
-                                  height: 36,
-                                  fontSize: typography.fontSize.sm,
-                                  fontWeight: typography.fontWeight.medium,
-                                  borderRadius: borderRadius.md,
-                                  width: 180,
-                                  background: colors.neutral[200],
-                                  border: 'none',
-                                  color: colors.neutral[500],
-                                  cursor: 'not-allowed',
-                                  boxShadow: 'none',
-                                }}
-                              >
-                                Coming Soon
-                              </Button>
                             ) : (
                               <Button
                                 type="default"
                                 size="small"
                                 icon={<DownloadOutlined />}
-                                onClick={() => handleDownload(option.downloads[0].url, option.platform, option.downloads[0].format)}
+                                onClick={() =>
+                                  handleDownload(
+                                    option.downloads[0].url,
+                                    option.platform,
+                                    option.downloads[0].format
+                                  )
+                                }
                                 style={{
                                   height: 36,
                                   fontSize: typography.fontSize.sm,
