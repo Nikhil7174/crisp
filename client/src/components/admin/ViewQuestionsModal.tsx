@@ -67,7 +67,7 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
   linkId,
   linkTitle,
 }) => {
-  const { token } = useAuth();
+  const { getFreshToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<GeneratedQuestion[]>([]);
@@ -99,6 +99,7 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
     try {
       setLoading(true);
       
+      const token = await getFreshToken();
       if (!token) {
         message.error('No authentication token found');
         return;
@@ -131,6 +132,7 @@ export const ViewQuestionsModal: React.FC<ViewQuestionsModalProps> = ({
     try {
       setLoading(true);
       
+      const token = await getFreshToken();
       if (!token) {
         message.error('No authentication token found');
         return;
