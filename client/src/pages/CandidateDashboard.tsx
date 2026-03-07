@@ -47,7 +47,7 @@ interface InterviewAttempt {
 }
 
 export const CandidateDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getFreshToken } = useAuth();
   const navigate = useNavigate();
 
   // State management
@@ -56,13 +56,13 @@ export const CandidateDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  // Memoized fetch function - React will handle when to call this
+  // Memoized fetch function - always uses a fresh Clerk token
   const fetchAttempts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('authToken');
+      const token = await getFreshToken();
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -92,7 +92,7 @@ export const CandidateDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array - this function doesn't depend on any props/state
+  }, [getFreshToken]);
 
   // Manual refetch function
   const refetch = useCallback(() => {

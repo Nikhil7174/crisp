@@ -40,7 +40,8 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
     instructions: string,
     orchestrator: Orchestrator,
     stateProvider: StateProvider,
-    role: string = 'Backend Engineer'
+    role: string = 'Backend Engineer',
+    private candidateName?: string
   ) {
     // TAG-BASED INTENT DETECTION - No tool calling
     super({
@@ -59,9 +60,51 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
     try {
       log().info('💬 [Agent] Speaking greeting and first question...');
 
-      // Speak greeting
-      const greeting = "Hello! I'm your AI interviewer today. Let's begin with some technical questions.";
+      // Build a dynamic greeting based on interview composition
       const { orchestrator, stateProvider, interviewId } = this.session.userData;
+      const qCount = orchestrator.getQuestionCount();
+      const pCount = orchestrator.getProblemCount();
+
+      let greeting: string;
+
+      // Determine the name to use (use first part of email if it's an email, or default to general greeting)
+      let nameToUse = '';
+      if (this.candidateName) {
+        if (this.candidateName.includes('@')) {
+          nameToUse = ' ' + this.candidateName.split('@')[0];
+        } else if (this.candidateName.toLowerCase() !== 'candidate' && this.candidateName.toLowerCase() !== 'demo user') {
+          // Extract just the first name if a full name with spaces is provided
+          nameToUse = ' ' + this.candidateName.trim().split(' ')[0];
+        }
+      }
+
+      if (qCount > 0 && pCount > 0) {
+        // Both sections — keep coding count, drop theoretical count
+        const greetings = [
+          `Hello${nameToUse}! I'm your AI interviewer today. This session has two parts: we'll start with some conceptual questions to assess your theoretical understanding, then move on to ${pCount} coding problem${pCount > 1 ? 's' : ''}. Let's get started!`,
+          `Hi${nameToUse ? nameToUse : ' there'}! Welcome to your interview. Today covers a theoretical round followed by ${pCount} coding problem${pCount > 1 ? 's' : ''}. Take your time and think out loud through each part. Ready? Let's begin.`,
+          `Hello${nameToUse}! I'll be your AI interviewer. We'll work through some conceptual questions first — I'm looking at how you reason through ideas — then ${pCount} hands-on coding problem${pCount > 1 ? 's' : ''}. Feel free to ask for clarification at any point. Let's get started!`,
+        ];
+        greeting = greetings[Math.floor(Math.random() * greetings.length)];
+      } else if (qCount > 0) {
+        // Theoretical only — no count
+        const greetings = [
+          `Hello${nameToUse}! I'm your AI interviewer today. This session is a conceptual round — I'm interested in how you think, so feel free to walk me through your reasoning. Let's begin!`,
+          `Hi${nameToUse}! Welcome to your interview. Today covers core concepts and theoretical questions. Take your time and think out loud. Ready? Let's get started.`,
+          `Hello${nameToUse}! Today's interview is a conceptual round. I'm looking for clarity of thought, so don't rush — explain your reasoning as you go. Let's dive in!`,
+        ];
+        greeting = greetings[Math.floor(Math.random() * greetings.length)];
+      } else if (pCount > 0) {
+        // Coding only — keep count
+        const greetings = [
+          `Hello${nameToUse}! I'm your AI interviewer. Today's session is a coding round with ${pCount} problem${pCount > 1 ? 's' : ''} for you to work through. Feel free to think out loud and discuss your approach as you code. Let's get started!`,
+          `Hi${nameToUse ? nameToUse : ' there'}! Welcome to your coding interview. You'll have ${pCount} programming problem${pCount > 1 ? 's' : ''} today. Walk me through your thought process as you solve each one — that's just as important as the final solution. Let's begin!`,
+          `Hello${nameToUse}! This is a coding interview with ${pCount} problem${pCount > 1 ? 's' : ''} to solve. Take your time, explain your reasoning, and don't hesitate to ask for clarification. Ready? Let's dive in!`,
+        ];
+        greeting = greetings[Math.floor(Math.random() * greetings.length)];
+      } else {
+        greeting = `Hello${nameToUse}! I'm your AI interviewer today. Let's get started.`;
+      }
 
       // Log greeting to state history to ensure correct ordering
       stateProvider.addConversationMessage(interviewId, {
@@ -70,57 +113,57 @@ export class InterviewAgent extends voice.Agent<InterviewSessionData> {
         metadata: { type: 'greeting', section: 'theoretical' },
       });
 
-      await this.session.say(greeting);
+      const introSpeech = this.session.say(greeting);
       const state = stateProvider.getState(interviewId);
 
       let shouldStartCoding = false;
       if (state && state.currentState === 'coding') {
         shouldStartCoding = true;
       } else {
-        // Default to theoretical flow
-        orchestrator.startTheoreticalQuestions();
-
-        // CHECK: Do we already have an active question? (Handle reconnects/re-entry)
-        let question: any = null;
-        let shouldMoveToCoding = false;
-        let isNewQuestion = false;
-
+        // Check if we are resuming an existing question
         if (state && state.currentQuestionId) {
           log().info(`🔄 [Agent] Resuming existing theoretical question: ${state.currentQuestionId}`);
-          question = orchestrator.getQuestionById(state.currentQuestionId);
-        } else {
-          // No active question, get the next one
-          log().info(`🆕 [Agent] No active question, asking next one`);
-          const result = orchestrator.askNextQuestion();
-          question = result.question;
-          shouldMoveToCoding = result.shouldMoveToCoding;
-          isNewQuestion = true;
-        }
 
-        if (shouldMoveToCoding) {
-          shouldStartCoding = true;
-        } else if (question) {
-          const { sendQuestionToUI } = this.session.userData;
-          if (sendQuestionToUI) {
-            const state = stateProvider.getState(interviewId);
-            // Calculate index: If new question, state was just incremented. If resuming, state is stable.
-            // Ideally rely on state.currentQuestionIndex which points to the *next* slot, so current is index-1
-            const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
-            await sendQuestionToUI(question, questionIndex, 'theoretical');
+          // Since we are resuming, ensure state is set to theoretical
+          if (state.currentState !== 'theoretical') {
+            orchestrator.startTheoreticalQuestions();
           }
-          // Store question in conversation history only if it's new (avoid dupe on resume)
-          // [REMOVED] Using LiveKit ChatContext for verbal history
-          /*
-          if (isNewQuestion) {
-            stateProvider.addConversationMessage(interviewId, {
-              role: 'assistant',
-              content: question.question,
-              metadata: { type: 'question', section: 'theoretical', questionId: question.id, phase: 'theoretical' },
-            });
+
+          const question = orchestrator.getQuestionById(state.currentQuestionId);
+          if (question) {
+            const { sendQuestionToUI } = this.session.userData;
+            if (sendQuestionToUI) {
+              const questionIndex = Math.max((state.currentQuestionIndex || 1) - 1, 0);
+              await sendQuestionToUI(question, questionIndex, 'theoretical');
+            }
+            log().info({ question: question.question }, '📝 [Agent] Speaking question:');
+            await this.session.say(question.question);
           }
-          */
-          log().info({ question: question.question }, '📝 [Agent] Speaking question:');
-          await this.session.say(question.question);
+        } else {
+          // No active question, we are starting fresh in the intro phase!
+          log().info(`🆕 [Agent] Starting interview in intro phase, waiting for greeting to finish...`);
+          orchestrator.startInterview(); // Sets state to 'intro'
+
+          // Wait for the intro message to finish playing before starting the first question
+          introSpeech.waitForPlayout().then(async () => {
+            log().info(`⏳ [Agent] Greeting finished, asking first question`);
+            orchestrator.startTheoreticalQuestions();
+            const result = orchestrator.askNextQuestion();
+            const question = result.question;
+
+            if (question) {
+              const { sendQuestionToUI } = this.session.userData;
+              if (sendQuestionToUI) {
+                const refreshedState = stateProvider.getState(interviewId);
+                const questionIndex = Math.max((refreshedState?.currentQuestionIndex || 1) - 1, 0);
+                await sendQuestionToUI(question, questionIndex, 'theoretical');
+              }
+              log().info({ question: question.question }, '📝 [Agent] Speaking first question:');
+              await this.session.say(question.question);
+            }
+          }).catch(err => {
+            log().error({ err }, 'Error waiting for intro speech to finish');
+          });
         }
       }
 
@@ -292,13 +335,13 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     // CHECK FOR INCOMPLETE PHRASES - Skip LLM call for incomplete/nonsensical text
     if (isIncompletePhrase(userText)) {
       log().info(`🚫 [Incomplete Phrase] Detected incomplete phrase: "${userText}" - Skipping LLM response`);
-      
+
       // Clear user message to prevent LLM processing
       newMessage.content = [];
-      
+
       // Mark as handled
       (this.session.userData as any).nodeHandledIncomplete = true;
-      
+
       await this.updateChatCtx(turnCtx);
       return;
     }
@@ -371,107 +414,6 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
       // Mark as handled
       (this.session.userData as any).nodeHandledJailbreak = true;
       (this.session.userData as any).nodeInjectedMessage = safeResponse;
-
-      await this.updateChatCtx(turnCtx);
-      return;
-    }
-
-    // NODE DECIDES: Detect user intent (skip, answer, hint request, etc.)
-    const isSkip = userTextLower.includes('skip') ||
-      userTextLower.includes("i don't know") ||
-      userTextLower.includes("don't know") ||
-      userTextLower.includes('next question') ||
-      userTextLower.includes('move on');
-
-    if (isSkip && state.currentState === 'theoretical') {
-      // NODE DECIDES: Skip current question - handle directly
-      log().info('🎯 [Node] Detected skip intent - handling skip directly');
-
-      const skipMessage = 'No problem, let\'s move on to the next question.';
-
-      // NODE DECIDES: Get next question
-      const { question, shouldMoveToCoding } = orchestrator.askNextQuestion();
-
-      let messageToSpeak = skipMessage;
-
-      if (shouldMoveToCoding) {
-        orchestrator.startCodingPhase();
-        const { problem } = orchestrator.presentNextProblem();
-        if (problem) {
-          // Agent should not speak the full coding problem, just announce it
-          messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section. Here's a coding question, try to solve it and explain your approach.`;
-
-          // Send coding problem to UI via data channel
-          const { sendQuestionToUI } = this.session.userData;
-          if (sendQuestionToUI) {
-            const state = stateProvider.getState(interviewId);
-            const problemIndex = state?.currentProblemIndex || 0;
-            await sendQuestionToUI(problem, problemIndex, 'coding');
-          }
-
-          // Store the problem description in conversation history for LLM evaluation
-          stateProvider.addConversationMessage(interviewId, {
-            role: 'assistant',
-            content: `Coding Problem: ${problem.title}\n\nDescription: ${problem.description}\n\nConstraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}`,
-            metadata: { type: 'problem', section: 'coding', problemId: problem.id, title: problem.title, phase: 'coding' },
-          });
-
-          // HOT SWAP: Inject DSA system prompt FIRST to override theoretical tags (only once)
-          if (!(this.session.userData as any).dsaPromptInjected) {
-            const dsaSystemPrompt = getDSASystemMessage(role);
-            turnCtx.addMessage({
-              role: 'system',
-              content: dsaSystemPrompt
-            });
-            (this.session.userData as any).dsaPromptInjected = true;
-            log().info('🔄 [onUserTurnCompleted] HOT SWAPPED to DSA system prompt');
-          }
-
-          // THEN inject problem context
-          const problemContextMessage = `
-[SYSTEM_INJECTION_DO_NOT_SPEAK]
-Here is the coding problem I need to solve:
-Title: ${problem.title}
-Description: ${problem.description}
-Constraints: ${problem.constraints ? problem.constraints.join(', ') : 'None'}
-Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
-`;
-          turnCtx.addMessage({
-            role: 'user',
-            content: problemContextMessage
-          });
-          log().info('📝 [onUserTurnCompleted] Injected coding problem into ChatContext (hidden from speech)');
-        } else if (question) {
-          messageToSpeak = `${skipMessage} Great job on the theoretical questions! Now let's move to the coding section.`;
-        }
-      } else if (question) {
-        messageToSpeak = `${skipMessage} ${question.question}`;
-        const { sendQuestionToUI } = this.session.userData;
-        if (sendQuestionToUI) {
-          const state = stateProvider.getState(interviewId);
-          const questionIndex = Math.max((state?.currentQuestionIndex || 1) - 1, 0);
-          await sendQuestionToUI(question, questionIndex, 'theoretical');
-          // no-op
-        }
-      } else {
-        messageToSpeak = `${skipMessage} That completes all the questions.`;
-      }
-
-      // Inject response into turnCtx
-      log().info('🗣️ [Node] Injecting skip message + next question into turnCtx');
-      log().info({ message: messageToSpeak.substring(0, 100) + '...' }, '📝 Message:');
-
-      turnCtx.addMessage({
-        role: 'assistant',
-        content: messageToSpeak
-      });
-
-      // Prevent LLM from generating
-      newMessage.content = [];
-
-      // Mark that Node handled this
-      (this.session.userData as any).nodeHandledSkip = true;
-      (this.session.userData as any).nodeInjectedMessage = messageToSpeak;
 
       await this.updateChatCtx(turnCtx);
       return;
@@ -577,10 +519,10 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
     // Check if Node already handled this (skip, jailbreak, or incomplete phrase)
     if (sessionData.nodeHandledIncomplete) {
       log().info(`🚫 [llmNode] Node handled incomplete phrase - returning empty response`);
-      
+
       // Clear the flag
       sessionData.nodeHandledIncomplete = false;
-      
+
       // Return empty stream (no response)
       return new ReadableStream({
         start(controller) {
@@ -890,27 +832,36 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                       if (nextTagDetected) {
                         console.log(`⚠️ [llmNode] Duplicate [${intent}] tag ignored`);
                       } else {
-                        // CHECK PHASE: If Coding + [NEXT], show modal instead of auto-proceeding
-                        const { stateProvider, interviewId } = agent.session.userData;
-                        const state = stateProvider.getState(interviewId);
+                        // For [NEXT] tag: Show confirmation modal for both coding and theoretical phases
+                        // For [CHECK_CODE] tag: Auto-proceed (standard behavior)
+                        if (intent === 'NEXT') {
+                          const { stateProvider, interviewId } = agent.session.userData;
+                          const state = stateProvider.getState(interviewId);
+                          const isCodingPhase = state?.currentState === 'coding' || state?.currentState === 'coding_problem';
+                          const isTheoreticalPhase = state?.currentState === 'theoretical';
 
-                        const isCodingPhase = state?.currentState === 'coding' || state?.currentState === 'coding_problem';
+                          if (isCodingPhase || isTheoreticalPhase) {
+                            console.log(`🛡️ [llmNode] [NEXT] tag in ${isCodingPhase ? 'CODING' : 'THEORETICAL'} phase -> Triggering CONFIRMATION MODAL instead of auto-next`);
 
-                        if (intent === 'NEXT' && isCodingPhase) {
-                          console.log(`🛡️ [llmNode] [NEXT] tag in CODING phase -> Triggering CONFIRMATION MODAL instead of auto-next`);
+                            // Trigger Modal
+                            const { sendEventToUI } = agent.session.userData;
+                            if (sendEventToUI) {
+                              sendEventToUI('show_confirmation_modal', {
+                                message: isTheoreticalPhase
+                                  ? "Ready to move to the next question?"
+                                  : "Are you sure you want to move to the next question?"
+                              });
+                            }
 
-                          // Trigger Modal
-                          const { sendEventToUI } = agent.session.userData;
-                          if (sendEventToUI) {
-                            sendEventToUI('show_confirmation_modal', {
-                              message: "Are you sure you want to move to the next question?"
-                            });
+                            // DO NOT set nextTagDetected = true
+                            // This prevents the "appending next question" logic below
+                          } else {
+                            // Unknown phase — fallback to standard behavior
+                            console.log(`🚀 [llmNode] [NEXT] tag detected in unknown phase - will append next question/action after LLM finishes`);
+                            nextTagDetected = true;
                           }
-
-                          // DO NOT set nextTagDetected = true
-                          // This prevents the "appending next question" logic below
                         } else {
-                          // Standard behavior (Theoretical [NEXT] or CHECK_CODE)
+                          // Standard behavior for CHECK_CODE
                           console.log(`🚀 [llmNode] [${intent}] tag detected - will append next question/action after LLM finishes`);
                           nextTagDetected = true;
                         }

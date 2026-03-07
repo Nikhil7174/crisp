@@ -11,6 +11,8 @@ interface InterviewCodeEditorProps {
   readOnly?: boolean
   onTimerExpire?: () => void
   showTimer?: boolean
+  problemNumber?: number
+  totalProblems?: number
 }
 
 function getTimeLimit(difficulty: string): number {
@@ -37,6 +39,8 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
   readOnly = false,
   onTimerExpire,
   showTimer = true,
+  problemNumber,
+  totalProblems,
 }) => {
   const [selectedLanguage, setSelectedLanguage] = useState(problem.language || 'cpp')
   const [activeTab, setActiveTab] = useState<'code' | 'notepad'>('code')
@@ -112,11 +116,16 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
         {/* Left: Problem Description */}
         <div className="web-question-panel">
           <div className="web-question-header">
-            <h3>{problem.title || 'Coding Problem'}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h3 style={{ margin: 0 }}>{problem.title || 'Coding Problem'}</h3>
+              {problemNumber != null && totalProblems != null && (
+                <span className="web-problem-counter">{problemNumber}/{totalProblems}</span>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {showTimer && !readOnly && (
                 <div className="web-timer-display" style={{ color: timeRemaining > 300 ? '#4caf50' : timeRemaining > 60 ? '#ff9800' : '#f44336' }}>
-                  ⏱ {formatTime(timeRemaining)}
+                  <span style={{ fontSize: '18px' }}>⏱</span> {formatTime(timeRemaining)}
                 </div>
               )}
               {isMonitoring && (
@@ -170,13 +179,13 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
               <button className={`web-editor-tab ${activeTab === 'notepad' ? 'active' : ''}`} onClick={() => setActiveTab('notepad')}>Notepad</button>
             </div>
             {activeTab === 'code' && (
-              <select 
-                className="web-language-selector" 
-                value={selectedLanguage} 
+              <select
+                className="web-language-selector"
+                value={selectedLanguage}
                 onChange={(e) => {
                   const newLang = e.target.value
                   setSelectedLanguage(newLang)
-                }} 
+                }}
                 disabled={readOnly}
               >
                 {availableLanguages.map((l) => (
@@ -195,7 +204,7 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
                   language={getMonacoLang(selectedLanguage)}
                   theme="vs-dark"
                   defaultValue={getStarterCode()}
-                  onMount={(editor) => { 
+                  onMount={(editor) => {
                     editorRef.current = editor
                     // Set initial value when editor mounts to ensure correct starter code
                     const starterCode = getStarterCode()
@@ -570,6 +579,18 @@ export const InterviewCodeEditor: React.FC<InterviewCodeEditorProps> = ({
           background: #555;
           cursor: not-allowed;
           opacity: 0.6;
+        }
+
+        .web-problem-counter {
+          font-size: 12px;
+          font-weight: 600;
+          color: #969696;
+          background: #1e1e1e;
+          border: 1px solid #444;
+          border-radius: 4px;
+          padding: 2px 8px;
+          letter-spacing: 0.5px;
+          flex-shrink: 0;
         }
 
         /* Scrollbar styling for question panel */

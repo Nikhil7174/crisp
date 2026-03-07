@@ -20,9 +20,16 @@ router.post('/start', authMiddleware as any, (req: Request, res: Response) => {
     interviewController.startInterview(req as AuthRequest, res);
 });
 
-// Start demo interview endpoint - public, no auth required
-router.post('/demo-start', (req: Request, res: Response) => {
-    interviewController.startDemoInterview(req, res);
+// Start demo interview endpoint - public, optional auth
+router.post('/demo-start', (req: Request, res: Response, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        (authMiddleware as any)(req, res, () => {
+            interviewController.startDemoInterview(req as AuthRequest, res);
+        });
+    } else {
+        interviewController.startDemoInterview(req, res);
+    }
 });
 
 // End interview - called by frontend when user ends the call.

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowRight } from 'lucide-react'
 import { AudioOutlined, AudioMutedOutlined, PhoneOutlined, DownloadOutlined, CloseOutlined } from '@ant-design/icons'
 import { Modal, Spin, Button } from 'antd'
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from '@livekit/components-react'
@@ -44,9 +45,12 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
     const [followUpQuestionText, setFollowUpQuestionText] = useState<string | null>(null)
     const [currentCodingProblem, setCurrentCodingProblem] = useState<CodingProblem | null>(null)
+    const [currentCodingProblemIndex, setCurrentCodingProblemIndex] = useState<number>(1)
     const [isListening, setIsListening] = useState(false)
     const [isSpeaking, setIsSpeaking] = useState(false)
     const [isUserSpeaking, setIsUserSpeaking] = useState(false)
+    const [nextQuestionEnabled, setNextQuestionEnabled] = useState(false)
+    const hasAgentSpokenRef = useRef(false)
     const isListeningRef = useRef(false)
     const [progress, setProgress] = useState({ current: 0, total: questions.length })
     const [isFollowUp, setIsFollowUp] = useState(false)
@@ -468,6 +472,10 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                         setCurrentCodingProblem(msg.codingProblem)
                         if (isDiff) { setCurrentCode(''); setIsFollowUp(false); setIsHint(false); setIsClarification(false) }
                         isSubmittingTimeoutRef.current = false
+                        // questionIndex from agent is already 1-based (post-increment from orchestrator)
+                        if (msg.questionIndex !== undefined) {
+                            setCurrentCodingProblemIndex(msg.questionIndex)
+                        }
                         const isAlreadyCoding = currentState === 'coding' || currentState === 'coding_problem' || currentState === 'coding_intro'
                         if (isAlreadyCoding) {
                             setCurrentState('coding_problem')
@@ -608,6 +616,27 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
 
     const handleCodeChange = useCallback((code: string) => { setCurrentCode(code) }, [])
 
+    const handleNextQuestion = useCallback(() => {
+        if (broadcastDataRef.current) {
+            broadcastDataRef.current({ type: 'confirm_next_question' })
+        }
+    }, [])
+
+    // Enable Next Question button only after agent has finished speaking at least once
+    // Reset when question changes
+    useEffect(() => {
+        setNextQuestionEnabled(false)
+        hasAgentSpokenRef.current = false
+    }, [currentQuestion?.id])
+
+    useEffect(() => {
+        if (isSpeaking) {
+            hasAgentSpokenRef.current = true
+        } else if (hasAgentSpokenRef.current) {
+            setNextQuestionEnabled(true)
+        }
+    }, [isSpeaking])
+
 
     const handleSubmit = useCallback(async (code: string, tc?: string, sc?: string) => {
         setConfirmationModal({
@@ -651,6 +680,8 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                     onSubmit={handleSubmit}
                     onTimerExpire={handleTimerExpire}
                     isMonitoring={true}
+                    problemNumber={currentCodingProblemIndex}
+                    totalProblems={_codingProblems.length}
                 />
             )}
         </div>
@@ -679,9 +710,9 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                 return (
                     <div className="web-theoretical-section">
                         <QuestionDisplay
-                            question={currentQuestion}
-                            followUpQuestionText={followUpQuestionText}
-                            introMessage="I'm ready when you are. Just say hello to begin."
+                            question={null}
+                            followUpQuestionText={null}
+                            introMessage={`This interview consists of ${questions.length} theoretical question${questions.length !== 1 ? 's' : ''} and ${_codingProblems.length} coding problem${_codingProblems.length !== 1 ? 's' : ''}.`}
                             introMeta="Waiting for you to start..."
                             isListening={isListening}
                             isSpeaking={isSpeaking}
@@ -712,6 +743,16 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                             isClarification={isClarification}
                             isFollowUp={isFollowUp}
                         />
+                        <div className="web-next-question-bar">
+                            <button
+                                className="web-next-question-btn"
+                                onClick={handleNextQuestion}
+                                disabled={!nextQuestionEnabled || isSpeaking}
+                                title={isSpeaking ? 'Wait for the interviewer to finish' : !nextQuestionEnabled ? 'Wait for the question to be asked' : 'Move to next question'}
+                            >
+                                Next Question <ArrowRight size={12} strokeWidth={2} style={{ flexShrink: 0 }} />
+                            </button>
+                        </div>
                     </div>
                 )
             case 'coding_intro':
@@ -796,14 +837,14 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                         && currentState !== 'connecting'
                         && currentState !== 'wrap_up'
                         && currentState !== 'completed' && (
-                        <div className="web-session-timer">
-                            {Math.floor(remainingSeconds / 60)
-                                .toString()
-                                .padStart(2, '0')}
-                            :
-                            {(remainingSeconds % 60).toString().padStart(2, '0')}
-                        </div>
-                    )}
+                            <div className="web-session-timer">
+                                {Math.floor(remainingSeconds / 60)
+                                    .toString()
+                                    .padStart(2, '0')}
+                                :
+                                {(remainingSeconds % 60).toString().padStart(2, '0')}
+                            </div>
+                        )}
                     {renderCurrentSection()}
                 </div>
 
@@ -883,14 +924,14 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
                 ) : null}
                 width={920}
                 style={{ top: 20 }}
-                
-                styles={{ 
+
+                styles={{
                     body: { maxHeight: '76vh', position: 'relative', overflowY: 'auto', padding: '4px 8px' },
                     header: {
                         marginBottom: 20,
                         position: 'relative',
                     }
-                 }}
+                }}
                 destroyOnClose
             >
                 {reportLoading ? (
@@ -985,7 +1026,53 @@ export const WebInterviewSession: React.FC<WebInterviewSessionProps> = ({
           height: 100%;
           margin: 0;
           padding: 0;
+          display: flex;
+          flex-direction: column;
         }
+
+        .web-next-question-bar {
+          position: fixed;
+          bottom: 68px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .web-next-question-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 22px;
+          border-radius: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: rgba(30, 30, 34, 0.75);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 0.3px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+          white-space: nowrap;
+        }
+
+        .web-next-question-btn:hover:not(:disabled) {
+          background: rgba(50, 50, 58, 0.9);
+          border-color: rgba(255, 255, 255, 0.28);
+          color: #ffffff;
+          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+        }
+
+        .web-next-question-btn:disabled {
+          opacity: 0.38;
+          cursor: not-allowed;
+        }
+
 
         .web-coding-section {
           margin: 0 auto;

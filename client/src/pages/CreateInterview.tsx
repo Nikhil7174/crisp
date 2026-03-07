@@ -113,7 +113,7 @@ const defaultCodingQuestionValues: ManualCodingQuestionFormValues = {
 export const CreateInterview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token } = useAuth();
+  const { getFreshToken } = useAuth();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [prefillLoading, setPrefillLoading] = useState(false);
@@ -161,14 +161,15 @@ export const CreateInterview: React.FC = () => {
     if (!editingLinkId) {
       return;
     }
-    if (!token) {
-      message.error('Authentication token missing. Please log in again.');
-      return;
-    }
-
     const fetchInterviewDetails = async () => {
       setPrefillLoading(true);
       try {
+        const token = await getFreshToken();
+        if (!token) {
+          message.error('Authentication token missing. Please log in again.');
+          return;
+        }
+
         const response = await axios.get(`${API_BASE_URL}/interviewer/interview-link/${editingLinkId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -205,7 +206,7 @@ export const CreateInterview: React.FC = () => {
     };
 
     fetchInterviewDetails();
-  }, [editingLinkId, token, form]);
+  }, [editingLinkId, form, getFreshToken]);
 
   const splitMultiline = (value?: string): string[] =>
     value
@@ -354,6 +355,13 @@ export const CreateInterview: React.FC = () => {
   const handleSubmit = async (values: any) => {
     try {
       setLoading(true);
+
+      const token = await getFreshToken();
+      if (!token) {
+        message.error('Authentication required. Please log in again.');
+        setLoading(false);
+        return;
+      }
 
       // Extract form data
       const selectedSource = values.questionSource || questionSource;

@@ -16,14 +16,17 @@ export const useAuth = () => {
       // Sign out from Clerk
       await signOut();
 
-      // Call logout endpoint if token exists (optional, for server-side cleanup)
-      if (token) {
+      // Call logout endpoint with a fresh token if possible (optional, for server-side cleanup)
+      const apiToken = await getToken();
+      const effectiveToken = apiToken || token;
+
+      if (effectiveToken) {
         await axios.post(
           `${API_BASE_URL}/auth/logout`,
           {},
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${effectiveToken}`,
             },
           }
         );
@@ -33,17 +36,18 @@ export const useAuth = () => {
     } finally {
       dispatch(logoutAction());
     }
-  }, [dispatch, token, signOut]);
+  }, [dispatch, token, signOut, getToken]);
 
   const getCurrentUser = useCallback(async () => {
     try {
-      if (!token) {
+      const freshToken = await getToken();
+      if (!freshToken) {
         return;
       }
 
       const response = await axios.get(`${API_BASE_URL}/auth/me`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${freshToken}`,
         },
       });
 
@@ -55,7 +59,7 @@ export const useAuth = () => {
       // If token is invalid, logout
       dispatch(logoutAction());
     }
-  }, [dispatch, token]);
+  }, [dispatch, getToken]);
 
   return {
     user,
