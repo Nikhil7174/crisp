@@ -70,6 +70,14 @@ export class Orchestrator extends EventEmitter {
     return this.interviewId;
   }
 
+  getQuestionCount(): number {
+    return this.questions.length;
+  }
+
+  getProblemCount(): number {
+    return this.codingProblems.length;
+  }
+
   /**
    * Get question by ID
    */

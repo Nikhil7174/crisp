@@ -461,6 +461,7 @@ interface QuestionsAPIResponse {
   maxTheoreticalQuestions?: number;
   role?: string; // Role for persona selection
   interviewLinkId?: number;
+  candidateName?: string;
   error?: string;
   message?: string;
 }
@@ -521,7 +522,7 @@ export const agent = defineAgent({
       log().info('📋 Interview ID:', interviewId);
 
       // Fetch questions from server API
-      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string; interviewLinkId?: number } | undefined;
+      let questionsData: { questions: any[]; codingProblems: any[]; maxTheoreticalQuestions?: number; role?: string; interviewLinkId?: number; candidateName?: string } | undefined;
       try {
         const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
         log().info(`🌐 [Agent] Server URL: ${serverUrl}`);
@@ -567,6 +568,7 @@ export const agent = defineAgent({
             maxTheoreticalQuestions: data.maxTheoreticalQuestions,
             role: data.role || 'Backend Engineer', // Get role from API
             interviewLinkId: data.interviewLinkId,
+            candidateName: data.candidateName,
           };
           log().info(`✅ [Agent] Successfully fetched ${questionsData.questions.length} questions and ${questionsData.codingProblems.length} coding problems from API`);
           log().info(`✅ [Agent] Role: ${questionsData.role}`);
@@ -716,7 +718,8 @@ export const agent = defineAgent({
         instructions,
         orchestrator,
         stateProvider,
-        role // Pass role to agent
+        role, // Pass role to agent
+        questionsData?.candidateName
       );
 
       // General helper to send any event to UI
@@ -888,7 +891,7 @@ export const agent = defineAgent({
           model: 'sonic-3',
           voice: process.env.CARTESIA_ARUSHI_VOICE_ID || 'f786b574-daa5-4673-aa0c-cbe3e8534c02', // Arushi voice ID
           language: 'en',
-          speed: 0.8,
+          speed: 0.7,
           // Note: volume and emotion are available but may need to be set via Cartesia API directly
         }),
         userData: {

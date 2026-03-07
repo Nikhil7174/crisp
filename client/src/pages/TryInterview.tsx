@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '@clerk/clerk-react'
 import { WebInterviewSession } from '../components/interview/WebInterviewSession'
 import { API_BASE_URL } from '../constants/api'
 
@@ -21,6 +22,7 @@ interface DemoSession {
 const TryInterview: React.FC = () => {
     const { type } = useParams<{ type: string }>()
     const navigate = useNavigate()
+    const { getToken } = useAuth()
 
     const [session, setSession] = useState<DemoSession | null>(null)
     const [loading, setLoading] = useState(true)
@@ -46,9 +48,17 @@ const TryInterview: React.FC = () => {
                 setLoading(true)
                 setError(null)
 
+                const token = await getToken()
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                }
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
+
                 const response = await fetch(`${API_BASE_URL}/interview/demo-start`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ type }),
                 })
 

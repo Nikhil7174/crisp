@@ -382,37 +382,40 @@ export const HeroSection: React.FC = () => {
                     Book a Demo
                   </Button>
 
-                  <Dropdown
-                    menu={{
-                      items: tryInterviewItems,
-                      onClick: handleTryInterview,
-                    }}
-                    placement="bottomLeft"
-                    align={{ offset: [0, 4] }}
-                    trigger={['click', 'hover']}
-                  >
-                    <Button
-                      size="large"
-                      style={{
-                        height: 40,
-                        padding: '0 24px',
-                        fontSize: 16,
-                        fontWeight: 500,
-                        borderRadius: 8,
-                        background: '#FFFFFF',
-                        borderColor: '#E5E7EB',
-                        color: '#111827',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        pointerEvents: 'auto',
+                  <div className="try-interview-glow-wrapper">
+                    <Dropdown
+                      menu={{
+                        items: tryInterviewItems,
+                        onClick: handleTryInterview,
                       }}
+                      placement="bottomLeft"
+                      align={{ offset: [0, 4] }}
+                      trigger={['click', 'hover']}
                     >
-                      <span>Try Interview</span>
-                      <span style={{ fontSize: 10, opacity: 0.7 }}>⌄</span>
-                    </Button>
-                  </Dropdown>
+                      <Button
+                        size="large"
+                        style={{
+                          height: 36,
+                          padding: '0 24px',
+                          fontSize: 16,
+                          fontWeight: 500,
+                          borderRadius: 8,
+                          background: '#FFFFFF',
+                          borderColor: 'transparent',
+                          color: '#111827',
+                          boxShadow: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          pointerEvents: 'auto',
+                          width: '100%',
+                        }}
+                      >
+                        <span>Try Interview</span>
+                        <span style={{ fontSize: 10, opacity: 0.7 }}>⌄</span>
+                      </Button>
+                    </Dropdown>
+                  </div>
                 </Space>
                 <span style={{
                   fontSize: 12,
@@ -521,6 +524,41 @@ export const HeroSection: React.FC = () => {
                     }
                     div::-webkit-scrollbar-thumb:hover {
                       background: #9CA3AF;
+                    }
+
+                    @property --glow-angle {
+                      syntax: '<angle>';
+                      initial-value: 0deg;
+                      inherits: false;
+                    }
+
+                    @keyframes glow-rotate {
+                      0%   { --glow-angle: 0deg; }
+                      100% { --glow-angle: 360deg; }
+                    }
+
+                    .try-interview-glow-wrapper {
+                      position: relative;
+                      border-radius: 10px;
+                      padding: 2px;
+                      background: conic-gradient(
+                        from var(--glow-angle),
+                        transparent 0%,
+                        transparent 25%,
+                        #60a5fa 35%,
+                        #2563eb 45%,
+                        #0958d9 50%,
+                        #2563eb 55%,
+                        #60a5fa 65%,
+                        transparent 75%,
+                        transparent 100%
+                      );
+                      animation: glow-rotate 3s linear infinite;
+                      box-shadow: 0 0 8px 1px rgba(9, 88, 217, 0.35);
+                    }
+
+                    .try-interview-glow-wrapper > * {
+                      border-radius: 8px !important;
                     }
                   `}
                 </style>

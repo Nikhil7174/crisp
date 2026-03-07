@@ -18,6 +18,7 @@ const interviewQuestionsStore = new Map<string, {
   maxTheoreticalQuestions?: number;
   role?: string; // Role for persona selection
   interviewLinkId?: number;
+  candidateName?: string;
 }>();
 
 export class InterviewController {
@@ -187,27 +188,27 @@ export class InterviewController {
         }
 
         return {
-        id: q.id,
-        question: q.question,
-        title: q.question,    // Required by Orchestrator
-        description: q.problemStatement || q.question, // Required by Orchestrator
-        type: 'coding',
-        difficulty: q.difficulty,
-        timeLimit: q.timeLimit || timeLimit,
-        expectedAnswer: q.expectedAnswer,
-        explanation: q.explanation,
-        keyPoints: q.keyPoints,
-        documentation: q.documentation,
-        language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
-          ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
-          : 'javascript',
-        initialCode: q.starterCode,
-        starterCodes: q.starterCodes, // Include multi-language starter codes
-        expectedOutput: q.testCases?.[0]?.expectedOutput,
-        testCases: q.testCases,
-        instructions: q.problemStatement,
-        constraints: Array.isArray(q.constraints) ? q.constraints : undefined,
-        examples: q.examples,
+          id: q.id,
+          question: q.question,
+          title: q.question,    // Required by Orchestrator
+          description: q.problemStatement || q.question, // Required by Orchestrator
+          type: 'coding',
+          difficulty: q.difficulty,
+          timeLimit: q.timeLimit || timeLimit,
+          expectedAnswer: q.expectedAnswer,
+          explanation: q.explanation,
+          keyPoints: q.keyPoints,
+          documentation: q.documentation,
+          language: (q.language && ['javascript', 'typescript', 'python', 'java', 'cpp'].includes(q.language))
+            ? q.language as 'javascript' | 'typescript' | 'python' | 'java' | 'cpp'
+            : 'javascript',
+          initialCode: q.starterCode,
+          starterCodes: q.starterCodes, // Include multi-language starter codes
+          expectedOutput: q.testCases?.[0]?.expectedOutput,
+          testCases: q.testCases,
+          instructions: q.problemStatement,
+          constraints: Array.isArray(q.constraints) ? q.constraints : undefined,
+          examples: q.examples,
         };
       });
 
@@ -249,6 +250,7 @@ export class InterviewController {
           maxTheoreticalQuestions: link.max_interview_questions || 10,
           role: link.role || 'Backend Engineer', // Include role for persona
           interviewLinkId: link.id,
+          candidateName,
         });
         // Also store by roomName for easier lookup
         interviewQuestionsStore.set(roomName, {
@@ -258,6 +260,7 @@ export class InterviewController {
           maxTheoreticalQuestions: link.max_interview_questions || 10,
           role: link.role || 'Backend Engineer', // Include role for persona
           interviewLinkId: link.id,
+          candidateName,
         });
         console.log(`📚 [QuestionsStore] Stored ${mappedTheoretical.length} questions and ${mappedCoding.length} coding problems for session ${sessionId} (room: ${roomName})`);
         console.log(`📚 [QuestionsStore] Store size: ${interviewQuestionsStore.size} entries`);
@@ -415,6 +418,7 @@ export class InterviewController {
         maxTheoreticalQuestions: questionsData.maxTheoreticalQuestions,
         role: questionsData.role || 'Backend Engineer', // Include role in response
         interviewLinkId: questionsData.interviewLinkId,
+        candidateName: questionsData.candidateName,
       });
     } catch (error) {
       console.error('❌ [QuestionsAPI] Get interview questions error:', error);
@@ -852,7 +856,42 @@ export class InterviewController {
 
       const allQuestions = [...mappedTheoretical, ...mappedCoding];
       const roomName = `interview-${sessionId}`;
-      const candidateName = 'Demo User';
+
+      // Get candidate data from request or user object
+      const candidateData = req.body.candidateData || {};
+      const userObj = (req as any).user;
+      const userId = userObj?.userId;
+      const userType = userObj?.userType;
+
+      let candidateName = candidateData.name;
+      let candidateEmail = candidateData.email;
+
+      // If user is logged in but didn't provide name/email in candidateData (like in demo), fetch from DB
+      if (userId && (!candidateName || !candidateEmail)) {
+        try {
+          if (userType === 'interviewer') {
+            const interviewer = await this.dbService.getInterviewerById(userId);
+            if (interviewer) {
+              candidateName = candidateName || interviewer.full_name;
+              candidateEmail = candidateEmail || interviewer.email;
+            }
+          } else {
+            const user = await this.dbService.getUserById(userId);
+            if (user) {
+              candidateName = candidateName || user.full_name;
+              candidateEmail = candidateEmail || user.email;
+            }
+          }
+        } catch (error) {
+          console.error('[DemoInterview] Error fetching user data:', error);
+        }
+      }
+
+      // Fallbacks
+      candidateName = candidateName || candidateEmail || 'Demo User';
+      candidateEmail = candidateEmail || 'demo@interview.local';
+
+      console.log(`[DemoInterview] Resolved candidate details - Name: ${candidateName}, Email: ${candidateEmail}`);
 
       // Generate LiveKit token
       const { AccessToken } = await import('livekit-server-sdk');
@@ -875,6 +914,7 @@ export class InterviewController {
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         role: link.role || 'Backend Engineer',
         interviewLinkId,
+        candidateName,
       });
       interviewQuestionsStore.set(roomName, {
         questions: mappedTheoretical,
@@ -883,6 +923,7 @@ export class InterviewController {
         maxTheoreticalQuestions: link.max_interview_questions || 10,
         role: link.role || 'Backend Engineer',
         interviewLinkId,
+        candidateName,
       });
 
       console.log(`✅ [DemoInterview] Session ${sessionId} ready, room ${roomName}`);
@@ -893,9 +934,10 @@ export class InterviewController {
         await prisma.interview.create({
           data: {
             session_id: sessionId,
+            user_id: userId || null, // Link to user if logged in
             interview_link_id: interviewLinkId,
-            candidate_name: 'Demo User',
-            candidate_email: 'demo@interview.local',
+            candidate_name: candidateName,
+            candidate_email: candidateEmail,
             start_time: new Date(),
           },
         });
