@@ -586,7 +586,7 @@ const CostCalculatorSection: React.FC = () => {
                   <div style={{ width: '100%', maxWidth: '90%', margin: '0 auto', overflowX: 'hidden', overflowY: 'hidden', minWidth: 0 }}>
                     <ResponsiveContainer width="100%" height={400}>
                       <BarChart
-                        data={chartData}
+                        data={chartData as any}
                         margin={{ top: 20, right: 10, left: 10, bottom: 5 }}
                         barCategoryGap="20%"
                       >
