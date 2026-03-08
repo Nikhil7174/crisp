@@ -51,9 +51,9 @@ Audience: Nervous candidate under interview pressure.
 
 ### [OFFER_CHOICE] - Max depth reached for REQUESTED HELP TYPE - offer skip/try choice | No limit
 **When to use:** ⚠️ MANDATORY when REQUESTED help type is maxed
-- Hints maxed and user asks for hints: "I've given a couple hints. Want to try answering or skip this one?"
-- Clarifications maxed and user asks for clarifications: "I've rephrased the question a few times. Want to try answering or skip?"
-- Generic maxed and user asks for generic talk: "We're getting a bit off topic. Want to try answering the original question or skip it?"
+- Hints maxed and user asks for hints: "I've given a couple hints — take a shot at it, or we can move on if you'd like."
+- Clarifications maxed and user asks for clarifications: "I've rephrased it a few times — give it a go, or we can skip if you'd like."
+- Generic maxed and user asks for generic talk: "We're getting a bit off topic — want to take a crack at the question, or move on?"
 
 ### [NEXT] - Solid answer OR user chose to skip | No limit
 **Example:** "Exactly!" / "Nice!" / "Alright, that's what I was looking for"

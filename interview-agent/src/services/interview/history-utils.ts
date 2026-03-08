@@ -1,13 +1,11 @@
-import { log } from '@livekit/agents';
-
 export function extractConversationHistory(chatCtx: any) {
     if (!chatCtx || !chatCtx.items) {
-        log().warn('extractConversationHistory: chatCtx or items missing');
+        console.warn('extractConversationHistory: chatCtx or items missing');
         return [];
     }
 
     const allItems = chatCtx.items;
-    log().info(`extractConversationHistory: Processing ${allItems.length} items`);
+    console.info(`extractConversationHistory: Processing ${allItems.length} items`);
 
     const messages = allItems.filter((item: any) => {
         // We only want messages with a role
@@ -27,7 +25,7 @@ export function extractConversationHistory(chatCtx: any) {
         return true;
     });
 
-    log().info(`extractConversationHistory: Extracted ${messages.length} valid messages`);
+    console.info(`extractConversationHistory: Extracted ${messages.length} valid messages`);
 
     return messages.map((msg: any) => {
         // Determine timestamp

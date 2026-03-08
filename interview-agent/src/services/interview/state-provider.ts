@@ -442,6 +442,70 @@ export class StateProvider extends EventEmitter {
   }
 
   /**
+   * Snapshot all per-question depth counters for a given tracking ID.
+   * Used by llmNode to take a pre-call snapshot so it can be restored
+   * if this LLM call is aborted by a newer turn.
+   */
+  snapshotDepths(interviewId: string, trackingId: string): {
+    followUpDepth: number;
+    hintDepth: number;
+    clarificationDepth: number;
+    genericDepth: number;
+    followUpsGiven: number;
+    hintsProvided: number;
+    clarificationsGiven: number;
+  } {
+    const state = this.states.get(interviewId);
+    if (!state) {
+      return { followUpDepth: 0, hintDepth: 0, clarificationDepth: 0, genericDepth: 0, followUpsGiven: 0, hintsProvided: 0, clarificationsGiven: 0 };
+    }
+    return {
+      followUpDepth: state.followUpTracker.get(trackingId)?.followUpDepth ?? 0,
+      hintDepth: state.hintTracker.get(trackingId)?.hintDepth ?? 0,
+      clarificationDepth: state.clarificationTracker.get(trackingId)?.clarificationDepth ?? 0,
+      genericDepth: state.genericTracker.get(trackingId)?.genericDepth ?? 0,
+      followUpsGiven: state.followUpsGiven,
+      hintsProvided: state.hintsProvided,
+      clarificationsGiven: state.clarificationsGiven,
+    };
+  }
+
+  /**
+   * Restore per-question depth counters from a snapshot.
+   * Called when an in-flight LLM stream is aborted to undo any tag-driven
+   * state mutations (follow-up depth increments, hint counts, etc.) that
+   * the aborted stream had already applied.
+   */
+  restoreDepths(interviewId: string, trackingId: string, snapshot: ReturnType<StateProvider['snapshotDepths']>): void {
+    const state = this.states.get(interviewId);
+    if (!state) return;
+
+    // Restore per-question trackers
+    const fuTracker = state.followUpTracker.get(trackingId);
+    if (fuTracker) fuTracker.followUpDepth = snapshot.followUpDepth;
+    else if (snapshot.followUpDepth > 0) state.followUpTracker.set(trackingId, { followUpDepth: snapshot.followUpDepth, maxDepth: 2 });
+
+    const hTracker = state.hintTracker.get(trackingId);
+    if (hTracker) hTracker.hintDepth = snapshot.hintDepth;
+    else if (snapshot.hintDepth > 0) state.hintTracker.set(trackingId, { hintDepth: snapshot.hintDepth, maxDepth: 2 });
+
+    const cTracker = state.clarificationTracker.get(trackingId);
+    if (cTracker) cTracker.clarificationDepth = snapshot.clarificationDepth;
+    else if (snapshot.clarificationDepth > 0) state.clarificationTracker.set(trackingId, { clarificationDepth: snapshot.clarificationDepth, maxDepth: 2 });
+
+    const gTracker = state.genericTracker.get(trackingId);
+    if (gTracker) gTracker.genericDepth = snapshot.genericDepth;
+    else if (snapshot.genericDepth > 0) state.genericTracker.set(trackingId, { genericDepth: snapshot.genericDepth, maxDepth: 2 });
+
+    // Restore global counters
+    state.followUpsGiven = snapshot.followUpsGiven;
+    state.hintsProvided = snapshot.hintsProvided;
+    state.clarificationsGiven = snapshot.clarificationsGiven;
+
+    log().info(`[StateProvider] Depths restored for ${trackingId}: followUp=${snapshot.followUpDepth}, hint=${snapshot.hintDepth}, clarify=${snapshot.clarificationDepth}, generic=${snapshot.genericDepth}`);
+  }
+
+  /**
    * Get the current tracking ID based on interview phase.
    * Returns currentProblemId during coding phase, currentQuestionId otherwise.
    * This prevents stale state issues when transitioning between phases.

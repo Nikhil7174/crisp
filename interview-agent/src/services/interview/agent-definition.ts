@@ -479,10 +479,9 @@ export const agent = defineAgent({
 
     try {
       // Load VAD model (Voice Activity Detection) with requested 1.0s threshold
-      // Use Silero VAD for robustness against background noise
-      // 100ms ensures high responsiveness when the agent is listening, while voiceOptions
-      // control interruption behavior when the agent is speaking.
-      const vad = await silero.VAD.load({ minSpeechDuration: 1000 });
+      // Use Silero VAD for robustness against background noise.
+      // 1000ms minSilenceDuration sets the "end of turn" timeout.
+      const vad = await silero.VAD.load({ minSpeechDuration: 200, minSilenceDuration: 1500 });
       proc.userData.vad = vad; // Assign to userData
       log().info('✅ VAD model loaded');
 
