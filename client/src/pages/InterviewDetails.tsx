@@ -378,7 +378,8 @@ export const InterviewDetails: React.FC = () => {
                           icon={<DownloadOutlined />}
                           style={{ fontSize: 12, padding: '16px 16px' }}
                           onClick={() => {
-                            const companyName = user?.company || 'Shakra AI interview';
+                            // Default brand for exported PDFs
+                            const companyName = user?.company || 'Shakra AI';
                             const companyLogo = (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || undefined;
                             generateFeedbackPDF(
                               llmEvaluation,

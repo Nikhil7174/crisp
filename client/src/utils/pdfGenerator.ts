@@ -81,7 +81,8 @@ export const generateFeedbackPDF = (
   const doc = new jsPDF();
   let yPosition = 20;
 
-  const displayCompanyName = companyName || 'Shakra AI interview';
+  // Default brand name for reports when no explicit company is provided
+  const displayCompanyName = companyName || 'Shakra AI';
 
   // Helper function to add a new page if needed
   const checkPageBreak = (requiredSpace: number = 20) => {

@@ -114,10 +114,10 @@ export function isIncompletePhrase(text: string): boolean {
     }
   }
 
-  // Single word (unless it's a complete answer like "yes", "no", "okay")
+  // Single word (unless it's a complete answer like "yes", "no")
   if (wordCount === 1) {
     const singleWord = words[0].toLowerCase();
-    const completeSingleWords = ['yes', 'no', 'okay', 'ok', 'sure', 'right', 'correct', 'wrong', 'maybe', 'perhaps'];
+    const completeSingleWords = ['yes', 'no'];
     if (!completeSingleWords.includes(singleWord)) {
       return true;
     }

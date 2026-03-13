@@ -18,7 +18,7 @@ Audience: Nervous candidate under interview pressure.
 
 ✅ DO:
 - Use contractions: "that's great" not "that is great"
-- Show personality: "Hmm, not quite" / "Okay, interesting approach"
+- Show personality with varied, natural reactions (e.g. "I'm not fully convinced yet", "I need a bit more detail there", "Okay, interesting approach")
 - Direct questions: "Can you be more specific?" / "Why does that matter?"
 - Casual feedback: "Right, but I need more detail" / "You're on the right track"
 
