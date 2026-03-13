@@ -92,13 +92,13 @@ export function isIncompletePhrase(text: string): boolean {
   }
 
   const trimmed = text.trim();
-  
+
   // Empty or whitespace-only
   if (trimmed.length === 0) {
     return true;
   }
 
-  // Very short phrases (1-3 words) that are likely incomplete
+  // Very short phrases (1-2 words) that are likely incomplete
   const words = trimmed.split(/\s+/).filter(w => w.length > 0);
   const wordCount = words.length;
   const lowerText = trimmed.toLowerCase();
@@ -114,18 +114,18 @@ export function isIncompletePhrase(text: string): boolean {
     }
   }
 
-  // Single word (unless it's a complete answer like "yes", "no", "okay")
+  // Single word (unless it's a complete answer like "yes", "no")
   if (wordCount === 1) {
     const singleWord = words[0].toLowerCase();
-    const completeSingleWords = ['yes', 'no', 'okay', 'ok', 'sure', 'right', 'correct', 'wrong', 'maybe', 'perhaps'];
+    const completeSingleWords = ['yes', 'no'];
     if (!completeSingleWords.includes(singleWord)) {
       return true;
     }
   }
 
-  // Very short phrases (2-3 words) that are common incomplete patterns
-  if (wordCount <= 3) {
-    
+  // Very short phrases (1-2 words) that are common incomplete patterns
+  if (wordCount <= 2) {
+
     // Common incomplete phrase patterns
     const incompletePatterns = [
       /^i\s+(will|would|can|could|should|might|may|think|guess|mean|believe|know|understand|see|feel|want|need|try|start|begin|go|come|say|tell|ask|give|take|make|do|use|get|put|set|let|help|show|explain|describe|define)$/,
@@ -148,7 +148,7 @@ export function isIncompletePhrase(text: string): boolean {
     const lastWord = words[words.length - 1].toLowerCase();
     const incompleteEndings = ['ing', 'ed', 'er', 'ly', 'tion', 'sion', 'ment', 'ness', 'ity', 'ive', 'ous', 'ful', 'less'];
     // If last word is very short and might be cut off
-    if (lastWord.length <= 3 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(lastWord)) {
+    if (lastWord.length <= 2 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(lastWord)) {
       return true;
     }
   }
@@ -156,14 +156,14 @@ export function isIncompletePhrase(text: string): boolean {
   // Check for trailing spaces or incomplete punctuation (suggests mid-sentence)
   if (trimmed.endsWith(' ') || trimmed.endsWith(',') || trimmed.endsWith(';') || trimmed.endsWith(':')) {
     // If it's a very short phrase with trailing punctuation, likely incomplete
-    if (wordCount <= 4) {
+    if (wordCount <= 2) {
       return true;
     }
   }
 
   // Check if text doesn't end with proper sentence-ending punctuation
   // and is very short (likely incomplete thought)
-  if (wordCount <= 4 && !trimmed.match(/[.!?]$/)) {
+  if (wordCount <= 2 && !trimmed.match(/[.!?]$/)) {
     // Allow common short complete phrases
     const shortCompletePhrases = [
       /^(yes|no|okay|ok|sure|right|correct|wrong|maybe|perhaps|exactly|absolutely|definitely|probably|possibly|certainly|definitely|indeed|precisely|exactly|absolutely|definitely|probably|possibly|certainly|definitely|indeed|precisely)$/i,

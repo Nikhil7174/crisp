@@ -183,7 +183,8 @@ export const DetailedFeedbackSheet: React.FC<DetailedFeedbackSheetProps> = ({
   const [showFollowUps, setShowFollowUps] = React.useState(false);
 
   // Get company name and logo from props (for demo) or user profile, with fallback
-  const companyName = propCompanyName || user?.company || 'Shakra AI interview';
+  // Default brand: Shakra AI
+  const companyName = propCompanyName || user?.company || 'Shakra AI';
   const companyLogo = propCompanyLogo || (user as any)?.company_logo_url || (user as any)?.companyLogoUrl || shakraLogo;
 
   const getScoreColor = (score: number): string => {

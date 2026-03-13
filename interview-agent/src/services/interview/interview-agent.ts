@@ -488,6 +488,30 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
       log().info(`⏱️ [TIMING] Time from LLM first token to TTS start: ${timings.llmFirstTokenToTts}ms`);
     }
 
+    // ── INTERRUPTED SPEECH ROLLBACK SNAPSHOT ──────────────────────────────
+    // If this speech gets interrupted (user continues speaking), we revert
+    // any depth changes the LLM applied (e.g. [FOLLOW_UP] that shouldn't count).
+    // We use the PRE-CALL snapshot handed off by llmNode, because this method
+    // (onAgentSpeechStarted) fires AFTER the LLM has already mutated the state.
+    const ud = this.session.userData as any;
+    if (ud.pendingSpeechPreCallSnapshot && ud.pendingSpeechPreCallTracking) {
+      ud.currentSpeechDepthSnapshot = ud.pendingSpeechPreCallSnapshot;
+      ud.currentSpeechTrackingId = ud.pendingSpeechPreCallTracking;
+      log().info(`📸 [onAgentSpeechStarted] Adopted pre-call depth snapshot for tracking ID: ${ud.currentSpeechTrackingId}`);
+    } else {
+      // Fallback (e.g. static agent speech not from an LLM call)
+      const { stateProvider, interviewId } = this.session.userData;
+      const trackingId = stateProvider.getCurrentTrackingId(interviewId);
+      if (trackingId) {
+        ud.currentSpeechDepthSnapshot = stateProvider.snapshotDepths(interviewId, trackingId);
+        ud.currentSpeechTrackingId = trackingId;
+      }
+    }
+    // Clear the pending slot so it's not reused accidentally
+    ud.pendingSpeechPreCallSnapshot = undefined;
+    ud.pendingSpeechPreCallTracking = undefined;
+    // ──────────────────────────────────────────────────────────────────────
+
     log().info('\n' + '='.repeat(80));
     log().info('=== onAgentSpeechStarted METHOD CALLED ===');
     log().info('TIMESTAMP:', new Date().toISOString());
@@ -555,8 +579,34 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     }
 
 
+
     // LOGGING: Track context size
     log().info(`llmNode: Updating ChatContext reference. Current items: ${(chatCtx?.items || []).length}`);
+
+    // ─── ABORT STALE STREAM ──────────────────────────────────────────────────
+    // If a previous LLM call is still streaming (e.g. VAD split one utterance
+    // into two turns), abort it now and revert any state it already mutated.
+    const ud = this.session.userData as any;
+    const prevAbort: AbortController | undefined = ud.currentLLMAbort;
+    if (prevAbort && !prevAbort.signal.aborted) {
+      log().info('⚠️ [llmNode] Aborting previous in-flight LLM stream (stale turn)');
+      prevAbort.abort();
+      // Depth restoration is handled inside the previous stream's catch block (see below)
+    }
+
+    // Snapshot depths BEFORE this call so we can roll back if WE get aborted
+    const { stateProvider, interviewId } = this.session.userData;
+    const trackingIdForSnapshot = stateProvider.getCurrentTrackingId(interviewId);
+    const depthSnapshot = trackingIdForSnapshot
+      ? stateProvider.snapshotDepths(interviewId, trackingIdForSnapshot)
+      : null;
+
+    // Create abort controller for THIS call
+    const abortController = new AbortController();
+    ud.currentLLMAbort = abortController;
+    ud.currentLLMDepthSnapshot = depthSnapshot;
+    ud.currentLLMTrackingId = trackingIdForSnapshot;
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ⏱️ TIMING: LLM Call Start
     const llmCallStartTime = Date.now();
@@ -574,6 +624,19 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
     if (stream) {
       const agent = this;
       return new ReadableStream({
+        // ── PIPELINE ABORT BRIDGE ───────────────────────────────────────────
+        // When LiveKit cancels the downstream consumer of this ReadableStream
+        // (e.g. the pipeline was aborted because the user started speaking),
+        // it calls stream.cancel(). We propagate that into our AbortController
+        // so the read loop exits cleanly and NEVER applies a [FOLLOW_UP] tag
+        // to state that is about to be discarded.
+        cancel(reason?: any) {
+          if (!abortController.signal.aborted) {
+            log().info('🛑 [llmNode] Downstream stream cancelled by pipeline — aborting read loop');
+            abortController.abort(reason);
+          }
+        },
+        // ──────────────────────────────────────────────────────────────────────
         async start(controller) {
           const reader = stream.getReader();
           let buffer = '';
@@ -599,8 +662,23 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
 
           try {
             while (true) {
+              // ── ABORT CHECK ─────────────────────────────────────────────
+              if (abortController.signal.aborted) {
+                log().info('🛑 [llmNode] Stream aborted by newer turn — rolling back depth state');
+                reader.cancel().catch(() => { });
+                // Use the snapshot captured when THIS call started (closure variable),
+                // NOT ud.currentLLMDepthSnapshot which may have been overwritten by the next turn.
+                if (depthSnapshot && trackingIdForSnapshot) {
+                  stateProvider.restoreDepths(interviewId, trackingIdForSnapshot, depthSnapshot);
+                }
+                if (!streamClosed) { streamClosed = true; controller.close(); }
+                return;
+              }
+              // ────────────────────────────────────────────────────────────
+
               const { done, value } = await reader.read();
               if (done) {
+
                 // ⏱️ TIMING: LLM Stream Complete
                 const llmStreamEndTime = Date.now();
                 const timings = (agent.session.userData as any).timings || {};
@@ -623,6 +701,15 @@ Examples: ${pendingProblem.examples ? JSON.stringify(pendingProblem.examples) : 
                 log().info(`📏 [LLM RAW RESPONSE] Total length: ${rawUnfilteredResponse.length} characters`);
                 log().info(`📏 [LLM RAW RESPONSE] Buffer length (after tag processing): ${buffer.length} characters`);
                 log().info('='.repeat(80) + '\n');
+
+                // ── HANDOFF PRE-CALL SNAPSHOT TO onAgentSpeechStarted ────────
+                // depthSnapshot was taken BEFORE the LLM call (pre-increment).
+                // onAgentSpeechStarted will use this so that if the TTS speech
+                // is interrupted early, onAgentSpeechEnded can roll back to the
+                // correct pre-call state (not the post-increment state).
+                (agent.session.userData as any).pendingSpeechPreCallSnapshot = depthSnapshot;
+                (agent.session.userData as any).pendingSpeechPreCallTracking = trackingIdForSnapshot;
+                // ─────────────────────────────────────────────────────────────
 
                 // If IGNORE tag was detected, don't send any response
                 if (ignoreTagDetected) {
@@ -811,6 +898,22 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
                     tagFound = true;
                     console.log(`🎯 [Tag Detected] Intent: ${intent}`);
 
+                    // ── ABORT GATE ────────────────────────────────────────────────
+                    // Guard: NEVER mutate interview state if the pipeline was
+                    // cancelled (user started speaking while we were streaming).
+                    // Without this gate, handleIntentTag fires even on stale
+                    // streams and consumes a follow-up/hint slot unnecessarily.
+                    if (abortController.signal.aborted) {
+                      log().info(`🛑 [llmNode] Tag [${intent}] detected on aborted stream — skipping state mutation, rolling back depths`);
+                      reader.cancel().catch(() => { });
+                      if (depthSnapshot && trackingIdForSnapshot) {
+                        stateProvider.restoreDepths(interviewId, trackingIdForSnapshot, depthSnapshot);
+                      }
+                      if (!streamClosed) { streamClosed = true; controller.close(); }
+                      return;
+                    }
+                    // ─────────────────────────────────────────────────────────────────────
+
                     // 1. UPDATE STATE IMMEDIATELY (Zero Latency)
                     agent.handleIntentTag(intent);
 
@@ -884,6 +987,16 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
               }
             }
           } catch (error) {
+            // If WE were aborted, close cleanly rather than erroring the downstream controller
+            if (abortController.signal.aborted) {
+              log().info('🛑 [llmNode] Stream catch — aborted by newer turn, cleaning up');
+              // Use closure-captured snapshot, not ud which is overwritten by the next turn
+              if (depthSnapshot && trackingIdForSnapshot) {
+                stateProvider.restoreDepths(interviewId, trackingIdForSnapshot, depthSnapshot);
+              }
+              if (!streamClosed) { streamClosed = true; controller.close(); }
+              return;
+            }
             console.error('Error in LLM stream:', error);
             if (!streamClosed) {
               streamClosed = true;
@@ -1075,6 +1188,33 @@ Examples: ${problem.examples ? JSON.stringify(problem.examples) : 'None'}
       timings.ttsDuration = ttsEndTime - timings.ttsStart;
       console.log(`⏱️ [TIMING] TTS duration: ${timings.ttsDuration}ms`);
     }
+
+    // ── INTERRUPTED SPEECH: REVERT DEPTH STATE ────────────────────────────
+    // When the agent's speech is cut off very early after starting, the LLM's
+    // tag (e.g. [FOLLOW_UP]) has already incremented the depth counter but the
+    // user never actually heard the question. Roll back the counters so the
+    // next turn gets a clean slate.
+    //
+    // Revert when:
+    //   • ttsDuration < 1500ms  — speech lasted less than 1.5s (e.g. "You're")
+    //   • OR text is empty     — pipeline cancelled before any audio played
+    //
+    // Do NOT revert when the agent delivered ≥ 1.5s of speech, which means the
+    // user actually heard and processed the follow-up question prompt.
+    const ud = this.session.userData as any;
+    const ttsPlayedMs: number | undefined = timings.ttsDuration;
+    const wasImmediateInterrupt = !text || (ttsPlayedMs !== undefined && ttsPlayedMs < 1500);
+    if (wasImmediateInterrupt && ud.currentSpeechDepthSnapshot && ud.currentSpeechTrackingId) {
+      const { stateProvider, interviewId } = this.session.userData;
+      log().info(
+        `🔄 [onAgentSpeechEnded] Speech interrupted early (duration=${ttsPlayedMs ?? 'n/a'}ms, text="${text}") — reverting depth state for ${ud.currentSpeechTrackingId}`
+      );
+      stateProvider.restoreDepths(interviewId, ud.currentSpeechTrackingId, ud.currentSpeechDepthSnapshot);
+    }
+    // Clear snapshot
+    ud.currentSpeechDepthSnapshot = undefined;
+    ud.currentSpeechTrackingId = undefined;
+    // ──────────────────────────────────────────────────────────────────────
 
     // Calculate total end-to-end latency
     if (timings.sttComplete) {

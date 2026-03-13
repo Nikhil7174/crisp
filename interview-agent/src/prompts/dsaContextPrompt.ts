@@ -42,8 +42,9 @@ Reason only about their spoken approach.
     ? `
 ## 📝 Candidate's Notepad - READ THIS FIRST!
 
-🚨 IMPORTANT: If the candidate mentions "approach", "notes", "what I wrote", or "notepad",
-you MUST reference this content in your response!
+🚨 IMPORTANT: If the candidate refers to anything they've written, planned, 
+or thought through, reference the notepad content naturally 
+in your response.
 
 **Candidate's notes:**
 \`\`\`
