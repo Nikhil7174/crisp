@@ -150,6 +150,22 @@ export const Header: React.FC = () => {
       <Button
         type="text"
         block
+        href="https://www.tella.tv/video/shakra-demo-interview-0r7o"
+        target="_blank"
+        style={{
+          color: colors.neutral[900],
+          height: 40,
+          fontSize: 16,
+          fontWeight: 500,
+          textAlign: 'left',
+          paddingLeft: 0,
+        }}
+      >
+        Watch Demo
+      </Button>
+      <Button
+        type="text"
+        block
         onClick={handleHowItWorksClick}
         style={{
           color: colors.neutral[900],
@@ -269,7 +285,7 @@ export const Header: React.FC = () => {
               borderRadius: 8,
             }}
           >
-            Book a Demo
+            Book a Call
           </Button>
         </>
       )}
@@ -338,6 +354,19 @@ export const Header: React.FC = () => {
 
         {screens.md ? (
           <Space>
+            <Button
+              type="text"
+              href="https://www.tella.tv/video/shakra-demo-interview-0r7o"
+              target="_blank"
+              style={{
+                color: colors.neutral[900],
+                height: 32,
+                fontSize: 16,
+                fontWeight: 500,
+              }}
+            >
+              Watch Demo
+            </Button>
             <Button
               type="text"
               onClick={handleHowItWorksClick}
@@ -431,7 +460,7 @@ export const Header: React.FC = () => {
                     background: colors.neutral[900],
                     borderColor: colors.neutral[900],
                     height: 32,
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 500,
                     borderRadius: 8,
                   }}
@@ -444,7 +473,7 @@ export const Header: React.FC = () => {
                     e.currentTarget.style.borderColor = colors.neutral[900];
                   }}
                 >
-                  Book a Demo
+                  Book a Call
                 </Button>
               </Space>
             )}

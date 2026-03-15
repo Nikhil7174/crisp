@@ -241,7 +241,7 @@ export const HeroSection: React.FC = () => {
     return {
       key: role.value,
       label: isDisabledDemo ? (
-        <Tooltip title="Book a demo to try this interview" placement="right">
+        <Tooltip title="Book a call to try this interview" placement="right">
           <span
             style={{
               color: colors.neutral[400],
@@ -280,7 +280,7 @@ export const HeroSection: React.FC = () => {
     tryInterviewItems.push({
       key: 'more',
       label: (
-        <Tooltip title="Book a demo to try more interviews" placement="right">
+        <Tooltip title="Book a call to try more interviews" placement="right">
           <span style={{ color: colors.neutral[400], fontStyle: 'italic', fontFamily: '"Varela Round", sans-serif', fontSize: typography.fontSize.sm, display: 'flex', alignItems: 'center', height: '90%', cursor: 'default' }}>and {remainingCount} more...</span>
         </Tooltip>
       ),
@@ -370,6 +370,7 @@ export const HeroSection: React.FC = () => {
                     onClick={() => posthog?.capture('book_demo_clicked', { source: 'hero' })}
                     style={{
                       height: 40,
+                      minWidth: 165,
                       padding: '0 24px',
                       fontSize: 16,
                       fontWeight: 500,
@@ -379,7 +380,7 @@ export const HeroSection: React.FC = () => {
                       boxShadow: '0 4px 12px rgba(17, 24, 39, 0.15)',
                     }}
                   >
-                    Book a Demo
+                    Book a Call
                   </Button>
 
                   <div className="try-interview-glow-wrapper">
