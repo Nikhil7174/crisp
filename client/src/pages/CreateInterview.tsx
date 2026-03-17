@@ -497,7 +497,7 @@ export const CreateInterview: React.FC = () => {
 
       if (response.data.success) {
         message.success(editingLinkId ? 'Interview updated successfully!' : 'Interview created successfully!');
-        navigate('/interviewer/dashboard');
+        navigate('/interviewer/dashboard', { state: { forceRefresh: true } });
       }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to save interview');

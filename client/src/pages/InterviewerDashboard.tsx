@@ -37,7 +37,7 @@ import { useAppDispatch, useAppSelector } from '../store';
 import { fetchDashboardData, removeLink } from '../store/slices/dashboardSlice';
 
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../constants/api';
 import type { InterviewLink } from '../types';
 import { colors } from '../styles';
@@ -49,6 +49,7 @@ const { Title, Text } = Typography;
 export const InterviewerDashboard: React.FC = () => {
   const { user, logout, getFreshToken } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
 
   // Redux state
@@ -70,16 +71,16 @@ export const InterviewerDashboard: React.FC = () => {
       try {
         const freshToken = await getFreshToken();
         if (freshToken) {
-          // Always force a fresh fetch when mounting the dashboard so that
-          // newly created or updated interviews are reflected immediately.
-          dispatch(fetchDashboardData({ token: freshToken, force: true }));
+          // Force refresh only when explicitly requested via navigation state
+          const forceRefresh = (location.state as any)?.forceRefresh === true;
+          dispatch(fetchDashboardData({ token: freshToken, force: forceRefresh }));
         }
       } catch (error) {
         console.error('Error fetching fresh token:', error);
       }
     };
     loadData();
-  }, [dispatch, getFreshToken]);
+  }, [dispatch, getFreshToken, location.state]);
 
   // Refetch on window focus
   useEffect(() => {
