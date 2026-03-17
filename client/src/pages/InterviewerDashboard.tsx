@@ -70,7 +70,9 @@ export const InterviewerDashboard: React.FC = () => {
       try {
         const freshToken = await getFreshToken();
         if (freshToken) {
-          dispatch(fetchDashboardData({ token: freshToken }));
+          // Always force a fresh fetch when mounting the dashboard so that
+          // newly created or updated interviews are reflected immediately.
+          dispatch(fetchDashboardData({ token: freshToken, force: true }));
         }
       } catch (error) {
         console.error('Error fetching fresh token:', error);
